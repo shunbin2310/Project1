@@ -1,11 +1,35 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+
+const apiMessage = ref('Connecting to API...')
+const errorMessage = ref('')
+
+onMounted(async () => {
+  try {
+    const response = await fetch('http://localhost:5165/api/health')
+
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`)
+    }
+
+    const data = (await response.json()) as {
+      status: string
+      message: string
+    }
+
+    apiMessage.value = data.message
+  } catch (error) {
+    apiMessage.value = ''
+    errorMessage.value = error instanceof Error ? error.message : 'Unable to connect to API'
+  }
+})
+</script>
 
 <template>
-  <h1>You did it!</h1>
-  <p>
-    Visit <a href="https://vuejs.org/" target="_blank" rel="noopener">vuejs.org</a> to read the
-    documentation
-  </p>
-</template>
+  <main>
+    <h1>Purchase & Inventory Management System</h1>
 
-<style scoped></style>
+    <p v-if="apiMessage">{{ apiMessage }}</p>
+    <p v-if="errorMessage">API error: {{ errorMessage }}</p>
+  </main>
+</template>
