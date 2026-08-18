@@ -1,6 +1,49 @@
 @Project1.Api_HostAddress = http://localhost:5165
+@departmentId = 1
 
-GET {{Project1.Api_HostAddress}}/weatherforecast/
+GET {{Project1.Api_HostAddress}}/api/health
 Accept: application/json
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/departments
+Accept: application/json
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/departments?includeInactive=true
+Accept: application/json
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/departments/{{departmentId}}
+Accept: application/json
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/departments
+Content-Type: application/json
+
+{
+  "code": "IT",
+  "name": "Information Technology",
+  "description": "Manages technology and internal systems"
+}
+
+###
+
+PUT {{Project1.Api_HostAddress}}/api/departments/{{departmentId}}
+Content-Type: application/json
+
+{
+  "code": "IT",
+  "name": "Information Technology",
+  "description": "Manages technology, infrastructure, and internal systems",
+  "isActive": true
+}
+
+###
+
+DELETE {{Project1.Api_HostAddress}}/api/departments/{{departmentId}}
 
 ###
