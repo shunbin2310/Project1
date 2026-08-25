@@ -68,7 +68,6 @@ POST {{Project1.Api_HostAddress}}/api/suppliers
 Content-Type: application/json
 
 {
-  "code": "SUP-001",
   "name": "Example Supplies Sdn. Bhd.",
   "contactPerson": "Alex Tan",
   "email": "sales@example.com",

@@ -5,8 +5,7 @@ namespace Project1.Api.Services.Suppliers;
 public enum SupplierSaveStatus
 {
     Success,
-    NotFound,
-    DuplicateCode
+    NotFound
 }
 
 public sealed record SupplierSaveResult(

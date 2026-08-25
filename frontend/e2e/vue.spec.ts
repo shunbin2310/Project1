@@ -11,3 +11,15 @@ test('opens the department management page and create form', async ({ page }) =>
   await expect(page.getByRole('dialog')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Create department' })).toBeVisible()
 })
+
+test('opens the supplier management page and create form', async ({ page }) => {
+  await page.goto('/suppliers')
+
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Suppliers')
+  await expect(page.getByRole('link', { name: 'Suppliers' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'New supplier' }).click()
+
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Create supplier' })).toBeVisible()
+})
