@@ -1,35 +1,73 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed } from 'vue'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
 
-const apiMessage = ref('Connecting to API...')
-const errorMessage = ref('')
-
-onMounted(async () => {
-  try {
-    const response = await fetch('http://localhost:5165/api/health')
-
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`)
-    }
-
-    const data = (await response.json()) as {
-      status: string
-      message: string
-    }
-
-    apiMessage.value = data.message
-  } catch (error) {
-    apiMessage.value = ''
-    errorMessage.value = error instanceof Error ? error.message : 'Unable to connect to API'
-  }
-})
+const route = useRoute()
+const pageTitle = computed(() =>
+  typeof route.meta.title === 'string' ? route.meta.title : 'Workspace',
+)
 </script>
 
 <template>
-  <main>
-    <h1>Purchase & Inventory Management System</h1>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true">PI</div>
+        <div>
+          <strong>Purchase & Inventory</strong>
+          <span>Operations workspace</span>
+        </div>
+      </div>
 
-    <p v-if="apiMessage">{{ apiMessage }}</p>
-    <p v-if="errorMessage">API error: {{ errorMessage }}</p>
-  </main>
+      <nav class="primary-nav" aria-label="Primary navigation">
+        <p>Workspace</p>
+        <RouterLink to="/departments">
+          <span class="nav-icon" aria-hidden="true">DP</span>
+          <span>Departments</span>
+        </RouterLink>
+
+        <p>Coming next</p>
+        <span class="nav-placeholder">
+          <span class="nav-icon" aria-hidden="true">PR</span>
+          Purchase requests
+        </span>
+        <span class="nav-placeholder">
+          <span class="nav-icon" aria-hidden="true">AP</span>
+          Approvals
+        </span>
+        <span class="nav-placeholder">
+          <span class="nav-icon" aria-hidden="true">IN</span>
+          Inventory
+        </span>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span class="environment-dot" aria-hidden="true"></span>
+        <span>
+          <strong>Development</strong>
+          <small>Local environment</small>
+        </span>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div>
+          <span>Organization</span>
+          <strong>{{ pageTitle }}</strong>
+        </div>
+        <div class="profile-chip" aria-label="Current user">
+          <span>AD</span>
+          <div>
+            <strong>Admin preview</strong>
+            <small>System administrator</small>
+          </div>
+        </div>
+      </header>
+
+      <main class="page-content">
+        <RouterView />
+      </main>
+    </div>
+  </div>
 </template>

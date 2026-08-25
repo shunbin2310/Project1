@@ -55,7 +55,7 @@ public sealed class DepartmentService(AppDbContext dbContext) : IDepartmentServi
     {
         var normalizedCode = NormalizeCode(request.Code);
 
-        if (await CodeExistsAsync(normalizedCode, null, cancellationToken))
+        if (await CodeExistsAsync(normalizedCode, cancellationToken))
         {
             return new DepartmentSaveResult(DepartmentSaveStatus.DuplicateCode);
         }
@@ -88,14 +88,6 @@ public sealed class DepartmentService(AppDbContext dbContext) : IDepartmentServi
             return new DepartmentSaveResult(DepartmentSaveStatus.NotFound);
         }
 
-        var normalizedCode = NormalizeCode(request.Code);
-
-        if (await CodeExistsAsync(normalizedCode, id, cancellationToken))
-        {
-            return new DepartmentSaveResult(DepartmentSaveStatus.DuplicateCode);
-        }
-
-        department.Code = normalizedCode;
         department.Name = request.Name.Trim();
         department.Description = NormalizeDescription(request.Description);
         department.IsActive = request.IsActive;
@@ -134,12 +126,10 @@ public sealed class DepartmentService(AppDbContext dbContext) : IDepartmentServi
 
     private Task<bool> CodeExistsAsync(
         string code,
-        int? excludedId,
         CancellationToken cancellationToken)
     {
         return dbContext.Departments.AnyAsync(
-            department => department.Code == code
-                && (!excludedId.HasValue || department.Id != excludedId.Value),
+            department => department.Code == code,
             cancellationToken);
     }
 

@@ -25,7 +25,6 @@ POST {{Project1.Api_HostAddress}}/api/departments
 Content-Type: application/json
 
 {
-  "code": "IT",
   "name": "Information Technology",
   "description": "Manages technology and internal systems"
 }
