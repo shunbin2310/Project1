@@ -576,7 +576,8 @@ tbody tr:hover {
   background: #fbfcfc;
 }
 
-.department-identity {
+.department-identity,
+.supplier-identity {
   display: flex;
   min-width: 210px;
   gap: 11px;
@@ -597,16 +598,20 @@ tbody tr:hover {
 }
 
 .department-identity strong,
-.department-identity small {
+.department-identity small,
+.supplier-identity strong,
+.supplier-identity small {
   display: block;
 }
 
-.department-identity strong {
+.department-identity strong,
+.supplier-identity strong {
   color: #203331;
   font-size: 12px;
 }
 
-.department-identity small {
+.department-identity small,
+.supplier-identity small {
   margin-top: 4px;
   color: #83908e;
   font-size: 9px;
@@ -617,6 +622,21 @@ tbody tr:hover {
 .description-cell {
   max-width: 330px;
   line-height: 1.5;
+}
+
+.contact-stack span,
+.contact-stack small {
+  display: block;
+}
+
+.contact-stack span {
+  color: #314744;
+}
+
+.contact-stack small {
+  margin-top: 4px;
+  color: #83908e;
+  font-size: 9px;
 }
 
 .status-badge {
@@ -758,6 +778,10 @@ tbody tr:hover {
   box-shadow: 0 30px 80px rgb(4 23 20 / 30%);
 }
 
+.modal-card-wide {
+  width: min(720px, 100%);
+}
+
 .modal-header {
   display: flex;
   align-items: flex-start;
@@ -782,10 +806,19 @@ tbody tr:hover {
   border-radius: 9px;
 }
 
-.department-form {
+.department-form,
+.supplier-form {
   display: grid;
   gap: 18px;
   padding: 23px 25px 25px;
+}
+
+.supplier-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form-grid-full {
+  grid-column: 1 / -1;
 }
 
 .form-server-error {
@@ -1037,5 +1070,9 @@ tbody tr:hover {
 
   .modal-card {
     max-height: calc(100vh - 20px);
+  }
+
+  .supplier-form {
+    grid-template-columns: 1fr;
   }
 }

@@ -59,16 +59,9 @@ public sealed class SupplierService(AppDbContext dbContext) : ISupplierService
         CreateSupplierRequest request,
         CancellationToken cancellationToken)
     {
-        var normalizedCode = NormalizeCode(request.Code);
-
-        if (await CodeExistsAsync(normalizedCode, cancellationToken))
-        {
-            return new SupplierSaveResult(SupplierSaveStatus.DuplicateCode);
-        }
-
         var supplier = new Supplier
         {
-            Code = normalizedCode,
+            Code = CreateTemporaryCode(),
             Name = request.Name.Trim(),
             ContactPerson = NormalizeOptionalText(request.ContactPerson),
             Email = NormalizeOptionalText(request.Email),
@@ -76,8 +69,14 @@ public sealed class SupplierService(AppDbContext dbContext) : ISupplierService
             Address = NormalizeOptionalText(request.Address)
         };
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
         dbContext.Suppliers.Add(supplier);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        supplier.Code = FormatSupplierCode(supplier.Id);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return new SupplierSaveResult(
             SupplierSaveStatus.Success,
@@ -136,17 +135,11 @@ public sealed class SupplierService(AppDbContext dbContext) : ISupplierService
             ToResponse(supplier));
     }
 
-    private Task<bool> CodeExistsAsync(
-        string code,
-        CancellationToken cancellationToken)
-    {
-        return dbContext.Suppliers.AnyAsync(
-            supplier => supplier.Code == code,
-            cancellationToken);
-    }
+    private static string CreateTemporaryCode() =>
+        $"TMP-{Guid.NewGuid():N}"[..20];
 
-    private static string NormalizeCode(string code) =>
-        code.Trim().ToUpperInvariant();
+    private static string FormatSupplierCode(int id) =>
+        $"SUP-{id:D4}";
 
     private static string? NormalizeOptionalText(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

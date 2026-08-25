@@ -16,11 +16,16 @@ public sealed class SuppliersControllerTests
     }
 
     [Fact]
+    public void CreateRequest_DoesNotExposeSupplierCode()
+    {
+        Assert.Null(typeof(CreateSupplierRequest).GetProperty("Code"));
+    }
+
+    [Fact]
     public void CreateRequest_IsInvalid_WhenEmailFormatIsInvalid()
     {
         var request = new CreateSupplierRequest
         {
-            Code = "SUP-001",
             Name = "Example Supplies",
             Email = "not-an-email"
         };
@@ -39,25 +44,19 @@ public sealed class SuppliersControllerTests
     }
 
     [Fact]
-    public async Task Create_ReturnsConflict_WhenCodeAlreadyExists()
+    public async Task Create_ReturnsCreatedAtAction_WhenSupplierIsCreated()
     {
-        var service = new FakeSupplierService
-        {
-            CreateResult = new SupplierSaveResult(SupplierSaveStatus.DuplicateCode)
-        };
-        var controller = new SuppliersController(service);
+        var controller = new SuppliersController(new FakeSupplierService());
         var request = new CreateSupplierRequest
         {
-            Code = "SUP-001",
             Name = "Example Supplies"
         };
 
         var response = await controller.Create(request, CancellationToken.None);
 
-        var conflict = Assert.IsType<ConflictObjectResult>(response.Result);
-        var problem = Assert.IsType<ProblemDetails>(conflict.Value);
-        Assert.Equal(StatusCodes.Status409Conflict, conflict.StatusCode);
-        Assert.Equal("Supplier code already exists.", problem.Title);
+        var created = Assert.IsType<CreatedAtActionResult>(response.Result);
+        var supplier = Assert.IsType<SupplierResponse>(created.Value);
+        Assert.Equal("SUP-0001", supplier.Code);
     }
 
     [Fact]
@@ -89,7 +88,7 @@ public sealed class SuppliersControllerTests
     private static SupplierResponse CreateResponse(bool isActive = true) =>
         new(
             1,
-            "SUP-001",
+            "SUP-0001",
             "Example Supplies",
             null,
             null,

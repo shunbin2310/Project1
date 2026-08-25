@@ -36,17 +36,11 @@ public sealed class SuppliersController(ISupplierService supplierService) : Cont
     [HttpPost]
     [ProducesResponseType<SupplierResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<SupplierResponse>> Create(
         CreateSupplierRequest request,
         CancellationToken cancellationToken)
     {
         var result = await supplierService.CreateAsync(request, cancellationToken);
-
-        if (result.Status == SupplierSaveStatus.DuplicateCode)
-        {
-            return SupplierCodeConflict(request.Code);
-        }
 
         var supplier = result.Supplier!;
 
@@ -89,13 +83,4 @@ public sealed class SuppliersController(ISupplierService supplierService) : Cont
             : NoContent();
     }
 
-    private ConflictObjectResult SupplierCodeConflict(string code)
-    {
-        return Conflict(new ProblemDetails
-        {
-            Status = StatusCodes.Status409Conflict,
-            Title = "Supplier code already exists.",
-            Detail = $"A supplier with code '{code.Trim().ToUpperInvariant()}' already exists."
-        });
-    }
 }

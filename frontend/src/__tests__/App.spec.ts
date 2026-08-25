@@ -27,5 +27,6 @@ describe('App', () => {
     expect(wrapper.text()).toContain('Purchase & Inventory')
     expect(wrapper.get('h1').text()).toBe('Departments')
     expect(wrapper.get('a.router-link-active').text()).toContain('Departments')
+    expect(wrapper.get('a[href="/suppliers"]').text()).toContain('Suppliers')
   })
 })
