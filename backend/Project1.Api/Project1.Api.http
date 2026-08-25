@@ -46,3 +46,52 @@ Content-Type: application/json
 DELETE {{Project1.Api_HostAddress}}/api/departments/{{departmentId}}
 
 ###
+
+@supplierId = 1
+
+GET {{Project1.Api_HostAddress}}/api/suppliers
+Accept: application/json
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/suppliers?includeInactive=true
+Accept: application/json
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/suppliers/{{supplierId}}
+Accept: application/json
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/suppliers
+Content-Type: application/json
+
+{
+  "code": "SUP-001",
+  "name": "Example Supplies Sdn. Bhd.",
+  "contactPerson": "Alex Tan",
+  "email": "sales@example.com",
+  "phone": "+60 3-1234 5678",
+  "address": "Kuala Lumpur, Malaysia"
+}
+
+###
+
+PUT {{Project1.Api_HostAddress}}/api/suppliers/{{supplierId}}
+Content-Type: application/json
+
+{
+  "name": "Example Supplies Sdn. Bhd.",
+  "contactPerson": "Alex Tan",
+  "email": "orders@example.com",
+  "phone": "+60 3-1234 5678",
+  "address": "Kuala Lumpur, Malaysia",
+  "isActive": true
+}
+
+###
+
+DELETE {{Project1.Api_HostAddress}}/api/suppliers/{{supplierId}}
+
+###
