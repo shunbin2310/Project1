@@ -1,31 +1,31 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { createMemoryHistory, createRouter } from 'vue-router'
 
-import { flushPromises, mount } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 import App from '../App.vue'
 
 describe('App', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
+  it('renders the workspace navigation and current page', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: '/departments',
+          component: { template: '<h1>Departments</h1>' },
+          meta: { title: 'Departments' },
+        },
+      ],
+    })
 
-  it('renders the application title and API status', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          status: 'ok',
-          message: 'Project1 API is running',
-        }),
-      }),
-    )
+    await router.push('/departments')
+    await router.isReady()
 
-    const wrapper = mount(App)
+    const wrapper = mount(App, {
+      global: { plugins: [router] },
+    })
 
-    expect(wrapper.get('h1').text()).toBe('Purchase & Inventory Management System')
-
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('Project1 API is running')
+    expect(wrapper.text()).toContain('Purchase & Inventory')
+    expect(wrapper.get('h1').text()).toBe('Departments')
+    expect(wrapper.get('a.router-link-active').text()).toContain('Departments')
   })
 })

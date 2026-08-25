@@ -60,7 +60,6 @@ public sealed class DepartmentsController(IDepartmentService departmentService) 
     [ProducesResponseType<DepartmentResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<DepartmentResponse>> Update(
         int id,
         UpdateDepartmentRequest request,
@@ -71,11 +70,6 @@ public sealed class DepartmentsController(IDepartmentService departmentService) 
         if (result.Status == DepartmentSaveStatus.NotFound)
         {
             return NotFound();
-        }
-
-        if (result.Status == DepartmentSaveStatus.DuplicateCode)
-        {
-            return DepartmentCodeConflict(request.Code);
         }
 
         return Ok(result.Department);

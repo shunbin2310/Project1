@@ -9,6 +9,12 @@ namespace Project1.Api.Tests.Controllers;
 public sealed class DepartmentsControllerTests
 {
     [Fact]
+    public void UpdateRequest_DoesNotExposeDepartmentCode()
+    {
+        Assert.Null(typeof(UpdateDepartmentRequest).GetProperty("Code"));
+    }
+
+    [Fact]
     public async Task Create_ReturnsConflict_WhenCodeAlreadyExists()
     {
         var service = new FakeDepartmentService
