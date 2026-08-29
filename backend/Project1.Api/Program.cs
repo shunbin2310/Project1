@@ -1,14 +1,19 @@
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Project1.Api.Data;
 using Project1.Api.Services.Departments;
 using Project1.Api.Services.ProductCategories;
 using Project1.Api.Services.Products;
+using Project1.Api.Services.PurchaseRequests;
 using Project1.Api.Services.Suppliers;
 using Project1.Api.Services.UnitsOfMeasure;
+using Project1.Api.Services.Workflows;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -18,6 +23,8 @@ builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
 builder.Services.AddScoped<IUnitOfMeasureService, UnitOfMeasureService>();
 builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IPurchaseRequestService, PurchaseRequestService>();
+builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
 
 builder.Services.AddCors(options =>

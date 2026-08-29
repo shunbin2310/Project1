@@ -229,3 +229,109 @@ Content-Type: application/json
 DELETE {{Project1.Api_HostAddress}}/api/products/{{productId}}
 
 ###
+
+@purchaseRequestId = 1
+
+GET {{Project1.Api_HostAddress}}/api/purchase-requests
+Accept: application/json
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/purchase-requests?stepCode=DRAFT
+Accept: application/json
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}
+Accept: application/json
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/purchase-requests
+Content-Type: application/json
+
+{
+  "requesterName": "Alex Tan",
+  "departmentId": {{departmentId}},
+  "requiredDate": "2030-12-31",
+  "justification": "Equipment required for a new employee workstation.",
+  "items": [
+    {
+      "productId": {{productId}},
+      "quantity": 2,
+      "estimatedUnitPrice": null
+    }
+  ]
+}
+
+###
+
+PUT {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}
+Content-Type: application/json
+
+{
+  "requesterName": "Alex Tan",
+  "departmentId": {{departmentId}},
+  "requiredDate": "2030-12-31",
+  "justification": "Equipment required for two new employee workstations.",
+  "items": [
+    {
+      "productId": {{productId}},
+      "quantity": 2,
+      "estimatedUnitPrice": 1399.90
+    }
+  ]
+}
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}/actions/SUBMIT
+Content-Type: application/json
+
+{
+  "actionBy": "Alex Tan",
+  "actorRoles": [],
+  "comment": "Ready for approval."
+}
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}/actions/APPROVE
+Content-Type: application/json
+
+{
+  "actionBy": "Department Manager",
+  "actorRoles": ["DEPARTMENT_APPROVER"],
+  "comment": "Department approved."
+}
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}/actions/APPROVE
+Content-Type: application/json
+
+{
+  "actionBy": "Finance Manager",
+  "actorRoles": ["FINANCE_APPROVER"],
+  "comment": "Budget confirmed."
+}
+
+###
+
+# Run REJECT instead of APPROVE at the current review step to test rejection.
+# Use DEPARTMENT_APPROVER at DEPARTMENT_REVIEW or FINANCE_APPROVER at FINANCE_REVIEW.
+POST {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}/actions/REJECT
+Content-Type: application/json
+
+{
+  "actionBy": "Finance Manager",
+  "actorRoles": ["FINANCE_APPROVER"],
+  "comment": "Please provide a stronger business justification."
+}
+
+###
+
+# Delete only works while the purchase request is still Draft.
+DELETE {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}
+
+###
