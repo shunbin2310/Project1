@@ -30,6 +30,20 @@ const pageTitle = computed(() =>
           <span>Suppliers</span>
         </RouterLink>
 
+        <p>Catalog</p>
+        <RouterLink to="/product-categories">
+          <span class="nav-icon" aria-hidden="true">PC</span>
+          <span>Product Categories</span>
+        </RouterLink>
+        <RouterLink to="/units-of-measure">
+          <span class="nav-icon" aria-hidden="true">UM</span>
+          <span>Units of Measure</span>
+        </RouterLink>
+        <RouterLink to="/products">
+          <span class="nav-icon" aria-hidden="true">PR</span>
+          <span>Products</span>
+        </RouterLink>
+
         <p>Coming next</p>
         <span class="nav-placeholder">
           <span class="nav-icon" aria-hidden="true">PR</span>

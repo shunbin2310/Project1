@@ -18,8 +18,7 @@ public sealed class ProductService(AppDbContext dbContext) : IProductService
             query = query.Where(product => product.IsActive);
         }
 
-        return await ProjectResponses(query)
-            .OrderBy(product => product.Code)
+        return await ProjectResponses(query.OrderBy(product => product.Code))
             .ToListAsync(cancellationToken);
     }
 

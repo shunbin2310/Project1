@@ -28,5 +28,8 @@ describe('App', () => {
     expect(wrapper.get('h1').text()).toBe('Departments')
     expect(wrapper.get('a.router-link-active').text()).toContain('Departments')
     expect(wrapper.get('a[href="/suppliers"]').text()).toContain('Suppliers')
+    expect(wrapper.get('a[href="/product-categories"]').text()).toContain('Product Categories')
+    expect(wrapper.get('a[href="/units-of-measure"]').text()).toContain('Units of Measure')
+    expect(wrapper.get('a[href="/products"]').text()).toContain('Products')
   })
 })
