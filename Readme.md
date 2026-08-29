@@ -5,6 +5,7 @@ dotnet sln Project1.slnx add backend/Project1.Api/Project1.Api.csproj
 
 start up backend
 dotnet run --project backend/Project1.Api
+dotnet watch --project backend/Project1.Api
 
 install entity framework
 dotnet new tool-manifest

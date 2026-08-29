@@ -25,6 +25,7 @@ POST {{Project1.Api_HostAddress}}/api/departments
 Content-Type: application/json
 
 {
+  "code": "IT",
   "name": "Information Technology",
   "description": "Manages technology and internal systems"
 }
@@ -35,7 +36,6 @@ PUT {{Project1.Api_HostAddress}}/api/departments/{{departmentId}}
 Content-Type: application/json
 
 {
-  "code": "IT",
   "name": "Information Technology",
   "description": "Manages technology, infrastructure, and internal systems",
   "isActive": true
@@ -92,5 +92,140 @@ Content-Type: application/json
 ###
 
 DELETE {{Project1.Api_HostAddress}}/api/suppliers/{{supplierId}}
+
+###
+
+@productCategoryId = 1
+
+GET {{Project1.Api_HostAddress}}/api/product-categories
+Accept: application/json
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/product-categories?includeInactive=true
+Accept: application/json
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/product-categories/{{productCategoryId}}
+Accept: application/json
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/product-categories
+Content-Type: application/json
+
+{
+  "name": "Electronics",
+  "description": "Electronic devices and accessories"
+}
+
+###
+
+PUT {{Project1.Api_HostAddress}}/api/product-categories/{{productCategoryId}}
+Content-Type: application/json
+
+{
+  "name": "Electronics",
+  "description": "Electronic devices, equipment, and accessories",
+  "isActive": true
+}
+
+###
+
+DELETE {{Project1.Api_HostAddress}}/api/product-categories/{{productCategoryId}}
+
+###
+
+@unitOfMeasureId = 1
+
+GET {{Project1.Api_HostAddress}}/api/units-of-measure
+Accept: application/json
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/units-of-measure?includeInactive=true
+Accept: application/json
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/units-of-measure/{{unitOfMeasureId}}
+Accept: application/json
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/units-of-measure
+Content-Type: application/json
+
+{
+  "code": "UNIT",
+  "name": "Unit",
+  "description": "Individual countable item"
+}
+
+###
+
+PUT {{Project1.Api_HostAddress}}/api/units-of-measure/{{unitOfMeasureId}}
+Content-Type: application/json
+
+{
+  "name": "Unit",
+  "description": "Individual countable item",
+  "isActive": true
+}
+
+###
+
+DELETE {{Project1.Api_HostAddress}}/api/units-of-measure/{{unitOfMeasureId}}
+
+###
+
+@productId = 1
+
+GET {{Project1.Api_HostAddress}}/api/products
+Accept: application/json
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/products?includeInactive=true
+Accept: application/json
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/products/{{productId}}
+Accept: application/json
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/products
+Content-Type: application/json
+
+{
+  "name": "Dell Monitor",
+  "description": "27-inch business monitor",
+  "productCategoryId": {{productCategoryId}},
+  "unitOfMeasureId": {{unitOfMeasureId}},
+  "defaultUnitPrice": 1299.90,
+  "reorderLevel": 5.000
+}
+
+###
+
+PUT {{Project1.Api_HostAddress}}/api/products/{{productId}}
+Content-Type: application/json
+
+{
+  "name": "Dell Monitor",
+  "description": "27-inch business monitor with USB-C",
+  "productCategoryId": {{productCategoryId}},
+  "unitOfMeasureId": {{unitOfMeasureId}},
+  "defaultUnitPrice": 1399.90,
+  "reorderLevel": 5.000,
+  "isActive": true
+}
+
+###
+
+DELETE {{Project1.Api_HostAddress}}/api/products/{{productId}}
 
 ###
