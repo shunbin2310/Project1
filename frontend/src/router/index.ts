@@ -19,6 +19,24 @@ const router = createRouter({
       component: () => import('@/views/suppliers/SupplierListView.vue'),
       meta: { title: 'Suppliers' },
     },
+    {
+      path: '/product-categories',
+      name: 'product-categories',
+      component: () => import('@/views/product-categories/ProductCategoryListView.vue'),
+      meta: { title: 'Product Categories' },
+    },
+    {
+      path: '/units-of-measure',
+      name: 'units-of-measure',
+      component: () => import('@/views/units-of-measure/UnitOfMeasureListView.vue'),
+      meta: { title: 'Units of Measure' },
+    },
+    {
+      path: '/products',
+      name: 'products',
+      component: () => import('@/views/products/ProductListView.vue'),
+      meta: { title: 'Products' },
+    },
   ],
 })
 

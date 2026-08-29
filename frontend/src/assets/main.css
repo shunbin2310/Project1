@@ -577,7 +577,10 @@ tbody tr:hover {
 }
 
 .department-identity,
-.supplier-identity {
+.supplier-identity,
+.category-identity,
+.unit-identity,
+.product-identity {
   display: flex;
   min-width: 210px;
   gap: 11px;
@@ -600,18 +603,30 @@ tbody tr:hover {
 .department-identity strong,
 .department-identity small,
 .supplier-identity strong,
-.supplier-identity small {
+.supplier-identity small,
+.category-identity strong,
+.category-identity small,
+.unit-identity strong,
+.unit-identity small,
+.product-identity strong,
+.product-identity small {
   display: block;
 }
 
 .department-identity strong,
-.supplier-identity strong {
+.supplier-identity strong,
+.category-identity strong,
+.unit-identity strong,
+.product-identity strong {
   color: #203331;
   font-size: 12px;
 }
 
 .department-identity small,
-.supplier-identity small {
+.supplier-identity small,
+.category-identity small,
+.unit-identity small,
+.product-identity small {
   margin-top: 4px;
   color: #83908e;
   font-size: 9px;
@@ -807,13 +822,17 @@ tbody tr:hover {
 }
 
 .department-form,
-.supplier-form {
+.supplier-form,
+.category-form,
+.unit-form,
+.product-form {
   display: grid;
   gap: 18px;
   padding: 23px 25px 25px;
 }
 
-.supplier-form {
+.supplier-form,
+.product-form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -864,7 +883,8 @@ tbody tr:hover {
 }
 
 .form-field input,
-.form-field textarea {
+.form-field textarea,
+.form-field select {
   width: 100%;
   margin-top: 7px;
   padding: 10px 12px;
@@ -899,14 +919,16 @@ tbody tr:hover {
 }
 
 .form-field input:focus,
-.form-field textarea:focus {
+.form-field textarea:focus,
+.form-field select:focus {
   background: #fff;
   border-color: #4b9889;
   box-shadow: 0 0 0 3px rgb(75 152 137 / 13%);
 }
 
 .form-field input[aria-invalid='true'],
-.form-field textarea[aria-invalid='true'] {
+.form-field textarea[aria-invalid='true'],
+.form-field select[aria-invalid='true'] {
   border-color: #c96363;
 }
 
@@ -1072,7 +1094,8 @@ tbody tr:hover {
     max-height: calc(100vh - 20px);
   }
 
-  .supplier-form {
+  .supplier-form,
+  .product-form {
     grid-template-columns: 1fr;
   }
 }
