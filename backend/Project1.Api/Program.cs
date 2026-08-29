@@ -1,7 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Project1.Api.Data;
 using Project1.Api.Services.Departments;
+using Project1.Api.Services.ProductCategories;
+using Project1.Api.Services.Products;
 using Project1.Api.Services.Suppliers;
+using Project1.Api.Services.UnitsOfMeasure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +15,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddScoped<IDepartmentService, DepartmentService>();
+builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
+builder.Services.AddScoped<IUnitOfMeasureService, UnitOfMeasureService>();
+builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
 
 builder.Services.AddCors(options =>
