@@ -59,3 +59,15 @@ test('opens the product management page and create form', async ({ page }) => {
   await expect(page.getByRole('dialog')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Create product' })).toBeVisible()
 })
+
+test('opens the purchase request page and create form', async ({ page }) => {
+  await page.goto('/purchase-requests')
+
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Purchase Requests')
+  await expect(page.getByRole('link', { name: 'Purchase Requests' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'New purchase request' }).click()
+
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Create purchase request' })).toBeVisible()
+})
