@@ -1,15 +1,18 @@
+using Project1.Api.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Project1.Api.Data;
 using Project1.Api.DTOs.PurchaseRequests;
 using Project1.Api.DTOs.Workflows;
 using Project1.Api.Entities;
 using Project1.Api.Services.Workflows;
+using Project1.Api.Services.Authentication;
 
 namespace Project1.Api.Services.PurchaseRequests;
 
 public sealed class PurchaseRequestService(
     AppDbContext dbContext,
-    IWorkflowEngine workflowEngine) : IPurchaseRequestService
+    IWorkflowEngine workflowEngine,
+    ICurrentUserContext currentUser) : IPurchaseRequestService
 {
     private const string WorkflowEntityType = "PurchaseRequest";
     private const string DraftStepCode = "DRAFT";
@@ -62,6 +65,11 @@ public sealed class PurchaseRequestService(
         CreatePurchaseRequestRequest request,
         CancellationToken cancellationToken)
     {
+        if (!currentUser.IsAuthenticated || currentUser.UserId < 1)
+        {
+            return Unauthorized("An authenticated user is required.");
+        }
+
         var validation = ValidateDraftItems(request.Items);
         if (validation is not null)
         {
@@ -69,7 +77,7 @@ public sealed class PurchaseRequestService(
         }
 
         var departmentResult = await ValidateDepartmentExistsAsync(
-            request.DepartmentId,
+            currentUser.DepartmentId,
             cancellationToken);
         if (departmentResult is not null)
         {
@@ -82,12 +90,13 @@ public sealed class PurchaseRequestService(
             return productResult.Error;
         }
 
-        var requesterName = NormalizeOptionalText(request.RequesterName);
+        var requesterName = currentUser.DisplayName.Trim();
         var purchaseRequest = new PurchaseRequest
         {
             RequestNumber = CreateTemporaryNumber(),
             RequesterName = requesterName,
-            DepartmentId = request.DepartmentId,
+            RequesterUserId = currentUser.UserId,
+            DepartmentId = currentUser.DepartmentId,
             RequiredDate = request.RequiredDate,
             Justification = NormalizeOptionalText(request.Justification),
             Items = CreateItems(request.Items, productResult.Products!)
@@ -104,7 +113,7 @@ public sealed class PurchaseRequestService(
         var workflowResult = await workflowEngine.StartAsync(
             WorkflowEntityType,
             purchaseRequest.Id,
-            requesterName,
+            ToWorkflowActor(),
             cancellationToken);
 
         if (workflowResult.Status != WorkflowExecutionStatus.Success)
@@ -145,18 +154,15 @@ public sealed class PurchaseRequestService(
             return NotFound();
         }
 
+        if (!CanManageDraft(purchaseRequest))
+        {
+            return Unauthorized("Only the requester or an administrator can edit this draft.");
+        }
+
         var validation = ValidateDraftItems(request.Items);
         if (validation is not null)
         {
             return validation;
-        }
-
-        var departmentResult = await ValidateDepartmentExistsAsync(
-            request.DepartmentId,
-            cancellationToken);
-        if (departmentResult is not null)
-        {
-            return departmentResult;
         }
 
         var productResult = await LoadProductsAsync(request.Items, cancellationToken);
@@ -169,18 +175,11 @@ public sealed class PurchaseRequestService(
 
         dbContext.PurchaseRequestItems.RemoveRange(purchaseRequest.Items);
         purchaseRequest.Items = CreateItems(request.Items, productResult.Products!);
-        purchaseRequest.RequesterName = NormalizeOptionalText(request.RequesterName);
-        purchaseRequest.DepartmentId = request.DepartmentId;
         purchaseRequest.RequiredDate = request.RequiredDate;
         purchaseRequest.Justification = NormalizeOptionalText(request.Justification);
         purchaseRequest.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await workflowEngine.UpdateRequesterAsync(
-            WorkflowEntityType,
-            id,
-            purchaseRequest.RequesterName,
-            cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         return await SuccessResultAsync(id, cancellationToken);
@@ -211,6 +210,11 @@ public sealed class PurchaseRequestService(
         if (purchaseRequest is null)
         {
             return NotFound();
+        }
+
+        if (!CanManageDraft(purchaseRequest))
+        {
+            return Unauthorized("Only the requester or an administrator can delete this draft.");
         }
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -253,7 +257,7 @@ public sealed class PurchaseRequestService(
             WorkflowEntityType,
             id,
             normalizedActionCode,
-            new WorkflowActor(request.ActionBy, request.ActorRoles),
+            ToWorkflowActor(),
             request.Comment,
             cancellationToken);
 
@@ -457,6 +461,15 @@ public sealed class PurchaseRequestService(
     private static string? NormalizeOptionalText(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    private WorkflowActor ToWorkflowActor() => new(
+        currentUser.UserId,
+        currentUser.DisplayName,
+        currentUser.Roles);
+
+    private bool CanManageDraft(PurchaseRequest request) =>
+        currentUser.IsInRole(ApplicationRoles.Admin) ||
+        (currentUser.UserId > 0 && request.RequesterUserId == currentUser.UserId);
+
     private static PurchaseRequestOperationResult NotFound() =>
         new(PurchaseRequestOperationStatus.NotFound);
 
@@ -465,4 +478,7 @@ public sealed class PurchaseRequestService(
 
     private static PurchaseRequestOperationResult ValidationFailed(string message) =>
         new(PurchaseRequestOperationStatus.ValidationFailed, ErrorMessage: message);
+
+    private static PurchaseRequestOperationResult Unauthorized(string message) =>
+        new(PurchaseRequestOperationStatus.Unauthorized, ErrorMessage: message);
 }

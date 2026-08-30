@@ -1,10 +1,13 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Project1.Api.Authentication;
 using Project1.Api.DTOs.Products;
 using Project1.Api.Services.Products;
 
 namespace Project1.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public sealed class ProductsController(IProductService productService) : ControllerBase
 {
@@ -28,6 +31,7 @@ public sealed class ProductsController(IProductService productService) : Control
         return product is null ? NotFound() : Ok(product);
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpPost]
     [ProducesResponseType<ProductResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -46,6 +50,7 @@ public sealed class ProductsController(IProductService productService) : Control
         return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpPut("{id:int}")]
     [ProducesResponseType<ProductResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -70,6 +75,7 @@ public sealed class ProductsController(IProductService productService) : Control
         return Ok(result.Product);
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

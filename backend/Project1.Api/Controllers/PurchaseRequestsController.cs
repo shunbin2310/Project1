@@ -1,10 +1,13 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Project1.Api.Authentication;
 using Project1.Api.DTOs.PurchaseRequests;
 using Project1.Api.Services.PurchaseRequests;
 
 namespace Project1.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/purchase-requests")]
 public sealed class PurchaseRequestsController(IPurchaseRequestService purchaseRequestService)
     : ControllerBase
@@ -29,6 +32,7 @@ public sealed class PurchaseRequestsController(IPurchaseRequestService purchaseR
         return request is null ? NotFound() : Ok(request);
     }
 
+    [Authorize(Roles = ApplicationRoles.Requester + "," + ApplicationRoles.Admin)]
     [HttpPost]
     [ProducesResponseType<PurchaseRequestResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -50,6 +54,7 @@ public sealed class PurchaseRequestsController(IPurchaseRequestService purchaseR
             purchaseRequest);
     }
 
+    [Authorize(Roles = ApplicationRoles.Requester + "," + ApplicationRoles.Admin)]
     [HttpPut("{id:int}")]
     [ProducesResponseType<PurchaseRequestResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -64,6 +69,7 @@ public sealed class PurchaseRequestsController(IPurchaseRequestService purchaseR
             await purchaseRequestService.UpdateAsync(id, request, cancellationToken));
     }
 
+    [Authorize(Roles = ApplicationRoles.Requester + "," + ApplicationRoles.Admin)]
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

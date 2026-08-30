@@ -17,7 +17,7 @@ public sealed class WorkflowEngineTests
         var started = await engine.StartAsync(
             "PurchaseRequest",
             101,
-            "Alex Tan",
+            new WorkflowActor(10, "Alex Tan", []),
             CancellationToken.None);
 
         Assert.Equal(WorkflowExecutionStatus.Success, started.Status);
@@ -28,7 +28,7 @@ public sealed class WorkflowEngineTests
         Assert.Equal("DEPARTMENT_REVIEW", submit.ToStepCode);
         var requester = Assert.Single(submit.Actioners);
         Assert.Equal(WorkflowActionerType.Requester, requester.ActionerType);
-        Assert.Equal("Alex Tan", requester.ActionerKey);
+        Assert.Equal("10", requester.ActionerKey);
     }
 
     [Fact]
@@ -36,7 +36,11 @@ public sealed class WorkflowEngineTests
     {
         await using var fixture = await WorkflowFixture.CreateAsync();
         var engine = new WorkflowEngine(fixture.DbContext);
-        await engine.StartAsync("PurchaseRequest", 101, "Alex Tan", CancellationToken.None);
+        await engine.StartAsync(
+            "PurchaseRequest",
+            101,
+            new WorkflowActor(10, "Alex Tan", []),
+            CancellationToken.None);
 
         var departmentStep = await fixture.DbContext.WorkflowStepTemplates
             .SingleAsync(step => step.Code == "DEPARTMENT_REVIEW");
@@ -50,7 +54,7 @@ public sealed class WorkflowEngineTests
         var newer = await engine.StartAsync(
             "PurchaseRequest",
             102,
-            "Jamie Lee",
+            new WorkflowActor(11, "Jamie Lee", []),
             CancellationToken.None);
 
         Assert.Equal("Department Review", existing!.AvailableActions.Single().ToStepName);
@@ -62,34 +66,38 @@ public sealed class WorkflowEngineTests
     {
         await using var fixture = await WorkflowFixture.CreateAsync();
         var engine = new WorkflowEngine(fixture.DbContext);
-        await engine.StartAsync("PurchaseRequest", 101, "Alex Tan", CancellationToken.None);
+        await engine.StartAsync(
+            "PurchaseRequest",
+            101,
+            new WorkflowActor(10, "Alex Tan", []),
+            CancellationToken.None);
 
         var submitted = await engine.ExecuteActionAsync(
             "PurchaseRequest",
             101,
             "SUBMIT",
-            new WorkflowActor("Alex Tan", []),
+            new WorkflowActor(10, "Alex Tan", []),
             null,
             CancellationToken.None);
         var unauthorized = await engine.ExecuteActionAsync(
             "PurchaseRequest",
             101,
             "APPROVE",
-            new WorkflowActor("Finance Manager", ["FINANCE_APPROVER"]),
+            new WorkflowActor(11, "Finance Manager", ["FINANCE_APPROVER"]),
             null,
             CancellationToken.None);
         var departmentApproved = await engine.ExecuteActionAsync(
             "PurchaseRequest",
             101,
             "APPROVE",
-            new WorkflowActor("Department Manager", ["DEPARTMENT_APPROVER"]),
+            new WorkflowActor(12, "Department Manager", ["DEPARTMENT_APPROVER"]),
             "Department approved.",
             CancellationToken.None);
         var financeApproved = await engine.ExecuteActionAsync(
             "PurchaseRequest",
             101,
             "APPROVE",
-            new WorkflowActor("Finance Manager", ["FINANCE_APPROVER"]),
+            new WorkflowActor(11, "Finance Manager", ["FINANCE_APPROVER"]),
             "Budget confirmed.",
             CancellationToken.None);
 
@@ -108,12 +116,16 @@ public sealed class WorkflowEngineTests
     {
         await using var fixture = await WorkflowFixture.CreateAsync();
         var engine = new WorkflowEngine(fixture.DbContext);
-        await engine.StartAsync("PurchaseRequest", 101, "Alex Tan", CancellationToken.None);
+        await engine.StartAsync(
+            "PurchaseRequest",
+            101,
+            new WorkflowActor(10, "Alex Tan", []),
+            CancellationToken.None);
         await engine.ExecuteActionAsync(
             "PurchaseRequest",
             101,
             "SUBMIT",
-            new WorkflowActor("Alex Tan", []),
+            new WorkflowActor(10, "Alex Tan", []),
             null,
             CancellationToken.None);
 
@@ -121,7 +133,7 @@ public sealed class WorkflowEngineTests
             "PurchaseRequest",
             101,
             "REJECT",
-            new WorkflowActor("Department Manager", ["DEPARTMENT_APPROVER"]),
+            new WorkflowActor(12, "Department Manager", ["DEPARTMENT_APPROVER"]),
             null,
             CancellationToken.None);
 

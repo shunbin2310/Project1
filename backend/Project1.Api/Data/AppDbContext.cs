@@ -1,10 +1,14 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Project1.Api.Entities;
+using Project1.Api.Entities.Identity;
 using Project1.Api.Entities.Workflows;
 
 namespace Project1.Api.Data;
 
-public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
+    : IdentityDbContext<ApplicationUser, IdentityRole<int>, int>(options)
 {
     public DbSet<Department> Departments => Set<Department>();
 
@@ -41,6 +45,18 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<ApplicationUser>(entity =>
+        {
+            entity.Property(user => user.FullName)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.HasOne(user => user.Department)
+                .WithMany()
+                .HasForeignKey(user => user.DepartmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
 
         modelBuilder.Entity<Department>(entity =>
         {
@@ -191,6 +207,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
             entity.Property(request => request.RequesterName)
                 .HasMaxLength(100);
+
+            entity.HasOne(request => request.RequesterUser)
+                .WithMany()
+                .HasForeignKey(request => request.RequesterUserId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             entity.Property(request => request.Justification)
                 .HasMaxLength(1000);

@@ -1,10 +1,13 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Project1.Api.Authentication;
 using Project1.Api.DTOs.Departments;
 using Project1.Api.Services.Departments;
 
 namespace Project1.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public sealed class DepartmentsController(IDepartmentService departmentService) : ControllerBase
 {
@@ -33,6 +36,7 @@ public sealed class DepartmentsController(IDepartmentService departmentService) 
         return department is null ? NotFound() : Ok(department);
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpPost]
     [ProducesResponseType<DepartmentResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -56,6 +60,7 @@ public sealed class DepartmentsController(IDepartmentService departmentService) 
             department);
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpPut("{id:int}")]
     [ProducesResponseType<DepartmentResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -75,6 +80,7 @@ public sealed class DepartmentsController(IDepartmentService departmentService) 
         return Ok(result.Department);
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

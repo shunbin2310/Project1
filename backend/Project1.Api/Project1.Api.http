@@ -6,23 +6,77 @@ Accept: application/json
 
 ###
 
+# @name requesterLogin
+POST {{Project1.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "requester@demo.local",
+  "password": "Project1Demo123!"
+}
+
+###
+
+# @name departmentLogin
+POST {{Project1.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "department@demo.local",
+  "password": "Project1Demo123!"
+}
+
+###
+
+# @name financeLogin
+POST {{Project1.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "finance@demo.local",
+  "password": "Project1Demo123!"
+}
+
+###
+
+# @name adminLogin
+POST {{Project1.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@demo.local",
+  "password": "Project1Demo123!"
+}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/auth/me
+Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
+
+###
+
 GET {{Project1.Api_HostAddress}}/api/departments
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 GET {{Project1.Api_HostAddress}}/api/departments?includeInactive=true
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 GET {{Project1.Api_HostAddress}}/api/departments/{{departmentId}}
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 POST {{Project1.Api_HostAddress}}/api/departments
 Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 {
   "code": "IT",
@@ -34,6 +88,7 @@ Content-Type: application/json
 
 PUT {{Project1.Api_HostAddress}}/api/departments/{{departmentId}}
 Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 {
   "name": "Information Technology",
@@ -44,6 +99,7 @@ Content-Type: application/json
 ###
 
 DELETE {{Project1.Api_HostAddress}}/api/departments/{{departmentId}}
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 ###
 
@@ -51,21 +107,25 @@ DELETE {{Project1.Api_HostAddress}}/api/departments/{{departmentId}}
 
 GET {{Project1.Api_HostAddress}}/api/suppliers
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 GET {{Project1.Api_HostAddress}}/api/suppliers?includeInactive=true
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 GET {{Project1.Api_HostAddress}}/api/suppliers/{{supplierId}}
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 POST {{Project1.Api_HostAddress}}/api/suppliers
 Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 {
   "name": "Example Supplies Sdn. Bhd.",
@@ -79,6 +139,7 @@ Content-Type: application/json
 
 PUT {{Project1.Api_HostAddress}}/api/suppliers/{{supplierId}}
 Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 {
   "name": "Example Supplies Sdn. Bhd.",
@@ -92,6 +153,7 @@ Content-Type: application/json
 ###
 
 DELETE {{Project1.Api_HostAddress}}/api/suppliers/{{supplierId}}
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 ###
 
@@ -99,21 +161,25 @@ DELETE {{Project1.Api_HostAddress}}/api/suppliers/{{supplierId}}
 
 GET {{Project1.Api_HostAddress}}/api/product-categories
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 GET {{Project1.Api_HostAddress}}/api/product-categories?includeInactive=true
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 GET {{Project1.Api_HostAddress}}/api/product-categories/{{productCategoryId}}
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 POST {{Project1.Api_HostAddress}}/api/product-categories
 Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 {
   "name": "Electronics",
@@ -124,6 +190,7 @@ Content-Type: application/json
 
 PUT {{Project1.Api_HostAddress}}/api/product-categories/{{productCategoryId}}
 Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 {
   "name": "Electronics",
@@ -134,6 +201,7 @@ Content-Type: application/json
 ###
 
 DELETE {{Project1.Api_HostAddress}}/api/product-categories/{{productCategoryId}}
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 ###
 
@@ -141,21 +209,25 @@ DELETE {{Project1.Api_HostAddress}}/api/product-categories/{{productCategoryId}}
 
 GET {{Project1.Api_HostAddress}}/api/units-of-measure
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 GET {{Project1.Api_HostAddress}}/api/units-of-measure?includeInactive=true
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 GET {{Project1.Api_HostAddress}}/api/units-of-measure/{{unitOfMeasureId}}
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 POST {{Project1.Api_HostAddress}}/api/units-of-measure
 Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 {
   "code": "UNIT",
@@ -167,6 +239,7 @@ Content-Type: application/json
 
 PUT {{Project1.Api_HostAddress}}/api/units-of-measure/{{unitOfMeasureId}}
 Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 {
   "name": "Unit",
@@ -177,6 +250,7 @@ Content-Type: application/json
 ###
 
 DELETE {{Project1.Api_HostAddress}}/api/units-of-measure/{{unitOfMeasureId}}
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 ###
 
@@ -184,21 +258,25 @@ DELETE {{Project1.Api_HostAddress}}/api/units-of-measure/{{unitOfMeasureId}}
 
 GET {{Project1.Api_HostAddress}}/api/products
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 GET {{Project1.Api_HostAddress}}/api/products?includeInactive=true
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 GET {{Project1.Api_HostAddress}}/api/products/{{productId}}
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 POST {{Project1.Api_HostAddress}}/api/products
 Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 {
   "name": "Dell Monitor",
@@ -213,6 +291,7 @@ Content-Type: application/json
 
 PUT {{Project1.Api_HostAddress}}/api/products/{{productId}}
 Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 {
   "name": "Dell Monitor",
@@ -227,6 +306,7 @@ Content-Type: application/json
 ###
 
 DELETE {{Project1.Api_HostAddress}}/api/products/{{productId}}
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 ###
 
@@ -234,25 +314,27 @@ DELETE {{Project1.Api_HostAddress}}/api/products/{{productId}}
 
 GET {{Project1.Api_HostAddress}}/api/purchase-requests
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 GET {{Project1.Api_HostAddress}}/api/purchase-requests?stepCode=DRAFT
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 GET {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}
 Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
 
 POST {{Project1.Api_HostAddress}}/api/purchase-requests
 Content-Type: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 {
-  "requesterName": "Alex Tan",
-  "departmentId": {{departmentId}},
   "requiredDate": "2030-12-31",
   "justification": "Equipment required for a new employee workstation.",
   "items": [
@@ -268,10 +350,9 @@ Content-Type: application/json
 
 PUT {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}
 Content-Type: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 {
-  "requesterName": "Alex Tan",
-  "departmentId": {{departmentId}},
   "requiredDate": "2030-12-31",
   "justification": "Equipment required for two new employee workstations.",
   "items": [
@@ -287,10 +368,9 @@ Content-Type: application/json
 
 POST {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}/actions/SUBMIT
 Content-Type: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 {
-  "actionBy": "Alex Tan",
-  "actorRoles": [],
   "comment": "Ready for approval."
 }
 
@@ -298,10 +378,9 @@ Content-Type: application/json
 
 POST {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}/actions/APPROVE
 Content-Type: application/json
+Authorization: Bearer {{departmentLogin.response.body.$.accessToken}}
 
 {
-  "actionBy": "Department Manager",
-  "actorRoles": ["DEPARTMENT_APPROVER"],
   "comment": "Department approved."
 }
 
@@ -309,10 +388,9 @@ Content-Type: application/json
 
 POST {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}/actions/APPROVE
 Content-Type: application/json
+Authorization: Bearer {{financeLogin.response.body.$.accessToken}}
 
 {
-  "actionBy": "Finance Manager",
-  "actorRoles": ["FINANCE_APPROVER"],
   "comment": "Budget confirmed."
 }
 
@@ -322,10 +400,9 @@ Content-Type: application/json
 # Use DEPARTMENT_APPROVER at DEPARTMENT_REVIEW or FINANCE_APPROVER at FINANCE_REVIEW.
 POST {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}/actions/REJECT
 Content-Type: application/json
+Authorization: Bearer {{financeLogin.response.body.$.accessToken}}
 
 {
-  "actionBy": "Finance Manager",
-  "actorRoles": ["FINANCE_APPROVER"],
   "comment": "Please provide a stronger business justification."
 }
 
@@ -333,5 +410,6 @@ Content-Type: application/json
 
 # Delete only works while the purchase request is still Draft.
 DELETE {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###

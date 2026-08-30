@@ -1,5 +1,7 @@
 namespace Project1.Api.Entities;
 
+using Project1.Api.Entities.Identity;
+
 public sealed class PurchaseRequest
 {
     public int Id { get; set; }
@@ -7,6 +9,10 @@ public sealed class PurchaseRequest
     public string RequestNumber { get; set; } = string.Empty;
 
     public string? RequesterName { get; set; }
+
+    public int? RequesterUserId { get; set; }
+
+    public ApplicationUser? RequesterUser { get; set; }
 
     public int? DepartmentId { get; set; }
 
