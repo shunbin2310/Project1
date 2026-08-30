@@ -31,5 +31,6 @@ describe('App', () => {
     expect(wrapper.get('a[href="/product-categories"]').text()).toContain('Product Categories')
     expect(wrapper.get('a[href="/units-of-measure"]').text()).toContain('Units of Measure')
     expect(wrapper.get('a[href="/products"]').text()).toContain('Products')
+    expect(wrapper.get('a[href="/purchase-requests"]').text()).toContain('Purchase Requests')
   })
 })

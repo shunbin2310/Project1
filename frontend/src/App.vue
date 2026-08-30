@@ -44,11 +44,13 @@ const pageTitle = computed(() =>
           <span>Products</span>
         </RouterLink>
 
+        <p>Purchasing</p>
+        <RouterLink to="/purchase-requests">
+          <span class="nav-icon" aria-hidden="true">RQ</span>
+          <span>Purchase Requests</span>
+        </RouterLink>
+
         <p>Coming next</p>
-        <span class="nav-placeholder">
-          <span class="nav-icon" aria-hidden="true">PR</span>
-          Purchase requests
-        </span>
         <span class="nav-placeholder">
           <span class="nav-icon" aria-hidden="true">AP</span>
           Approvals
