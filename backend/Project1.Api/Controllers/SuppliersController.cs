@@ -1,10 +1,13 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Project1.Api.Authentication;
 using Project1.Api.DTOs.Suppliers;
 using Project1.Api.Services.Suppliers;
 
 namespace Project1.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public sealed class SuppliersController(ISupplierService supplierService) : ControllerBase
 {
@@ -33,6 +36,7 @@ public sealed class SuppliersController(ISupplierService supplierService) : Cont
         return supplier is null ? NotFound() : Ok(supplier);
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpPost]
     [ProducesResponseType<SupplierResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -50,6 +54,7 @@ public sealed class SuppliersController(ISupplierService supplierService) : Cont
             supplier);
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpPut("{id:int}")]
     [ProducesResponseType<SupplierResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -69,6 +74,7 @@ public sealed class SuppliersController(ISupplierService supplierService) : Cont
         return Ok(result.Supplier);
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

@@ -36,3 +36,41 @@ database update <旧 Migration>
 
 database update 0
 → 回退所有 Migration
+
+
+Authentication（Identity + JWT）
+
+加入新的 Authentication Migration 后先更新数据库：
+
+dotnet tool run dotnet-ef database update `
+  --project backend/Project1.Api `
+  --startup-project backend/Project1.Api
+
+Development 环境会建立四个 Demo 账号，密码都是：
+
+Project1Demo123!
+
+- requester@demo.local
+- department@demo.local
+- finance@demo.local
+- admin@demo.local
+
+生产环境必须通过环境变量配置 JWT signing key，不能提交到 Git：
+
+export Jwt__SigningKey="replace-with-a-long-random-secret"
+
+如果公开 Demo 需要建立预设账号，再通过环境变量启用：
+
+export DemoUsers__Enabled="true"
+export DemoUsers__DefaultPassword="replace-with-demo-password"
+
+
+2. Authentication + Users + Roles
+3. Workflow Template Admin
+4. Supplier-Product Relationship
+5. Quotation / Supplier Comparison
+6. Purchase Order
+7. Goods Receiving
+8. Inventory
+9. Dashboard / Notifications
+10. Docker / CI / Deployment

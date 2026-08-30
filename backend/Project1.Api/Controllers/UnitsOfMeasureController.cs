@@ -1,10 +1,13 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Project1.Api.Authentication;
 using Project1.Api.DTOs.UnitsOfMeasure;
 using Project1.Api.Services.UnitsOfMeasure;
 
 namespace Project1.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/units-of-measure")]
 public sealed class UnitsOfMeasureController(IUnitOfMeasureService unitService) : ControllerBase
 {
@@ -28,6 +31,7 @@ public sealed class UnitsOfMeasureController(IUnitOfMeasureService unitService) 
         return unit is null ? NotFound() : Ok(unit);
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpPost]
     [ProducesResponseType<UnitOfMeasureResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -47,6 +51,7 @@ public sealed class UnitsOfMeasureController(IUnitOfMeasureService unitService) 
         return CreatedAtAction(nameof(GetById), new { id = unit.Id }, unit);
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpPut("{id:int}")]
     [ProducesResponseType<UnitOfMeasureResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -62,6 +67,7 @@ public sealed class UnitsOfMeasureController(IUnitOfMeasureService unitService) 
             : Ok(result.UnitOfMeasure);
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

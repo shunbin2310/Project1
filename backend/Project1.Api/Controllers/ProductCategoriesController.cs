@@ -1,10 +1,13 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Project1.Api.Authentication;
 using Project1.Api.DTOs.ProductCategories;
 using Project1.Api.Services.ProductCategories;
 
 namespace Project1.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/product-categories")]
 public sealed class ProductCategoriesController(IProductCategoryService categoryService) : ControllerBase
 {
@@ -28,6 +31,7 @@ public sealed class ProductCategoriesController(IProductCategoryService category
         return category is null ? NotFound() : Ok(category);
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpPost]
     [ProducesResponseType<ProductCategoryResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -47,6 +51,7 @@ public sealed class ProductCategoriesController(IProductCategoryService category
         return CreatedAtAction(nameof(GetById), new { id = category.Id }, category);
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpPut("{id:int}")]
     [ProducesResponseType<ProductCategoryResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -67,6 +72,7 @@ public sealed class ProductCategoriesController(IProductCategoryService category
         };
     }
 
+    [Authorize(Roles = ApplicationRoles.Admin)]
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

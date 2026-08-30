@@ -1,8 +1,11 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Project1.Api.Authentication;
 using Project1.Api.Data;
 using Project1.Api.DTOs.PurchaseRequests;
 using Project1.Api.Entities;
+using Project1.Api.Entities.Identity;
+using Project1.Api.Services.Authentication;
 using Project1.Api.Entities.Workflows;
 using Project1.Api.Services.PurchaseRequests;
 using Project1.Api.Services.Workflows;
@@ -26,6 +29,8 @@ public sealed class PurchaseRequestServiceTests
         Assert.Equal(1, result.PurchaseRequest.Workflow.TemplateVersion);
         Assert.Equal("SUBMIT", Assert.Single(result.PurchaseRequest.Workflow.AvailableActions).Code);
         Assert.Equal("START", Assert.Single(result.PurchaseRequest.Workflow.History).ActionCode);
+        Assert.Equal("Alex Tan", result.PurchaseRequest.RequesterName);
+        Assert.Equal(fixture.DepartmentId, result.PurchaseRequest.DepartmentId);
     }
 
     [Fact]
@@ -40,34 +45,29 @@ public sealed class PurchaseRequestServiceTests
         var submitted = await fixture.Service.ExecuteActionAsync(
             id,
             "SUBMIT",
-            new PurchaseRequestActionRequest { ActionBy = "Alex Tan" },
+            new PurchaseRequestActionRequest(),
             CancellationToken.None);
+        fixture.CurrentUser.Set(11, "Finance Manager", null, [ApplicationRoles.FinanceApprover]);
         var unauthorized = await fixture.Service.ExecuteActionAsync(
             id,
             "APPROVE",
-            new PurchaseRequestActionRequest
-            {
-                ActionBy = "Finance Manager",
-                ActorRoles = ["FINANCE_APPROVER"]
-            },
+            new PurchaseRequestActionRequest(),
             CancellationToken.None);
+        fixture.CurrentUser.Set(
+            12,
+            "Department Manager",
+            null,
+            [ApplicationRoles.DepartmentApprover]);
         var departmentApproved = await fixture.Service.ExecuteActionAsync(
             id,
             "APPROVE",
-            new PurchaseRequestActionRequest
-            {
-                ActionBy = "Department Manager",
-                ActorRoles = ["DEPARTMENT_APPROVER"]
-            },
+            new PurchaseRequestActionRequest(),
             CancellationToken.None);
+        fixture.CurrentUser.Set(11, "Finance Manager", null, [ApplicationRoles.FinanceApprover]);
         var financeApproved = await fixture.Service.ExecuteActionAsync(
             id,
             "APPROVE",
-            new PurchaseRequestActionRequest
-            {
-                ActionBy = "Finance Manager",
-                ActorRoles = ["FINANCE_APPROVER"]
-            },
+            new PurchaseRequestActionRequest(),
             CancellationToken.None);
 
         Assert.Equal("DEPARTMENT_REVIEW", submitted.PurchaseRequest!.Workflow.CurrentStepCode);
@@ -88,15 +88,13 @@ public sealed class PurchaseRequestServiceTests
         await fixture.Service.ExecuteActionAsync(
             id,
             "SUBMIT",
-            new PurchaseRequestActionRequest { ActionBy = "Alex Tan" },
+            new PurchaseRequestActionRequest(),
             CancellationToken.None);
 
         var result = await fixture.Service.UpdateAsync(
             id,
             new UpdatePurchaseRequestRequest
             {
-                RequesterName = "Alex Tan",
-                DepartmentId = fixture.DepartmentId,
                 RequiredDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)),
                 Items =
                 [
@@ -127,12 +125,19 @@ public sealed class PurchaseRequestServiceTests
             DbContext = dbContext;
             DepartmentId = departmentId;
             ProductId = productId;
-            Service = new PurchaseRequestService(dbContext, new WorkflowEngine(dbContext));
+            CurrentUser = new FakeCurrentUserContext();
+            CurrentUser.Set(10, "Alex Tan", departmentId, [ApplicationRoles.Requester]);
+            Service = new PurchaseRequestService(
+                dbContext,
+                new WorkflowEngine(dbContext),
+                CurrentUser);
         }
 
         public AppDbContext DbContext { get; }
 
         public PurchaseRequestService Service { get; }
+
+        public FakeCurrentUserContext CurrentUser { get; }
 
         public int DepartmentId { get; }
 
@@ -159,7 +164,18 @@ public sealed class PurchaseRequestServiceTests
                 UnitOfMeasure = unit,
                 DefaultUnitPrice = 25m
             };
-            dbContext.AddRange(department, product);
+            var requester = new ApplicationUser
+            {
+                Id = 10,
+                UserName = "alex@demo.local",
+                NormalizedUserName = "ALEX@DEMO.LOCAL",
+                Email = "alex@demo.local",
+                NormalizedEmail = "ALEX@DEMO.LOCAL",
+                FullName = "Alex Tan",
+                Department = department,
+                EmailConfirmed = true
+            };
+            dbContext.AddRange(requester, product);
             await dbContext.SaveChangesAsync();
 
             return new PurchaseRequestFixture(
@@ -169,10 +185,36 @@ public sealed class PurchaseRequestServiceTests
                 product.Id);
         }
 
+        public sealed class FakeCurrentUserContext : ICurrentUserContext
+        {
+            public bool IsAuthenticated { get; private set; } = true;
+
+            public int UserId { get; private set; }
+
+            public string DisplayName { get; private set; } = string.Empty;
+
+            public int? DepartmentId { get; private set; }
+
+            public IReadOnlyCollection<string> Roles { get; private set; } = [];
+
+            public bool IsInRole(string role) =>
+                Roles.Contains(role, StringComparer.OrdinalIgnoreCase);
+
+            public void Set(
+                int userId,
+                string displayName,
+                int? departmentId,
+                IReadOnlyCollection<string> roles)
+            {
+                UserId = userId;
+                DisplayName = displayName;
+                DepartmentId = departmentId;
+                Roles = roles;
+            }
+        }
+
         public CreatePurchaseRequestRequest ValidRequest() => new()
         {
-            RequesterName = "Alex Tan",
-            DepartmentId = DepartmentId,
             RequiredDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
             Justification = "New equipment is required.",
             Items =

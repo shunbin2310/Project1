@@ -44,7 +44,7 @@ public sealed class PurchaseRequestsControllerTests
         var response = await controller.ExecuteAction(
             1,
             "REJECT",
-            new PurchaseRequestActionRequest { ActionBy = "Finance Manager" },
+            new PurchaseRequestActionRequest(),
             CancellationToken.None);
 
         var badRequest = Assert.IsType<ObjectResult>(response.Result);
@@ -68,7 +68,7 @@ public sealed class PurchaseRequestsControllerTests
         var response = await controller.ExecuteAction(
             1,
             "APPROVE",
-            new PurchaseRequestActionRequest { ActionBy = "Alex Tan" },
+            new PurchaseRequestActionRequest(),
             CancellationToken.None);
 
         var forbidden = Assert.IsType<ObjectResult>(response.Result);

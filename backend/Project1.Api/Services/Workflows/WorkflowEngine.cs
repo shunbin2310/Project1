@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Project1.Api.Data;
 using Project1.Api.DTOs.Workflows;
@@ -10,7 +11,7 @@ public sealed class WorkflowEngine(AppDbContext dbContext) : IWorkflowEngine
     public async Task<WorkflowExecutionResult> StartAsync(
         string entityType,
         int entityId,
-        string? requesterName,
+        WorkflowActor requester,
         CancellationToken cancellationToken)
     {
         var normalizedEntityType = entityType.Trim();
@@ -94,7 +95,7 @@ public sealed class WorkflowEngine(AppDbContext dbContext) : IWorkflowEngine
                         {
                             ActionerType = actioner.ActionerType,
                             ActionerKey = actioner.ActionerType == WorkflowActionerType.Requester
-                                ? NormalizeOptional(requesterName) ?? string.Empty
+                                ? requester.UserId.ToString(CultureInfo.InvariantCulture)
                                 : actioner.ActionerKey ?? string.Empty
                         }).ToList()
                 });
@@ -106,7 +107,7 @@ public sealed class WorkflowEngine(AppDbContext dbContext) : IWorkflowEngine
         {
             ToStepCode = initialStep.Code,
             ActionCode = "START",
-            ActionBy = NormalizeOptional(requesterName) ?? "System",
+            ActionBy = NormalizeOptional(requester.Name) ?? "System",
             Comment = $"Workflow instance created from {template.Code} version {template.Version}."
         });
 
@@ -171,7 +172,7 @@ public sealed class WorkflowEngine(AppDbContext dbContext) : IWorkflowEngine
         }
 
         var actorName = actor.Name.Trim();
-        if (actorName.Length < 2 || !IsAuthorized(action.Actioners, actorName, actor.Roles))
+        if (actor.UserId < 1 || actorName.Length < 2 || !IsAuthorized(action.Actioners, actor))
         {
             return new WorkflowExecutionResult(
                 WorkflowExecutionStatus.Unauthorized,
@@ -231,28 +232,6 @@ public sealed class WorkflowEngine(AppDbContext dbContext) : IWorkflowEngine
         return instances.ToDictionary(instance => instance.EntityId, ToResponse);
     }
 
-    public async Task UpdateRequesterAsync(
-        string entityType,
-        int entityId,
-        string? requesterName,
-        CancellationToken cancellationToken)
-    {
-        var actioners = await dbContext.WorkflowActionerInstances
-            .Where(actioner =>
-                actioner.ActionerType == WorkflowActionerType.Requester &&
-                actioner.ActionInstance.FromStepInstance.ProcessInstance.EntityType == entityType &&
-                actioner.ActionInstance.FromStepInstance.ProcessInstance.EntityId == entityId)
-            .ToListAsync(cancellationToken);
-        var resolvedName = NormalizeOptional(requesterName) ?? string.Empty;
-
-        foreach (var actioner in actioners)
-        {
-            actioner.ActionerKey = resolvedName;
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-    }
-
     public async Task<bool> DeleteInstanceAsync(
         string entityType,
         int entityId,
@@ -306,15 +285,16 @@ public sealed class WorkflowEngine(AppDbContext dbContext) : IWorkflowEngine
 
     private static bool IsAuthorized(
         IEnumerable<WorkflowActionerInstance> actioners,
-        string actorName,
-        IReadOnlyCollection<string> actorRoles)
+        WorkflowActor actor)
     {
-        var roles = actorRoles.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var roles = actor.Roles.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var actorId = actor.UserId.ToString(CultureInfo.InvariantCulture);
 
         return actioners.Any(actioner => actioner.ActionerType switch
         {
             WorkflowActionerType.Requester or WorkflowActionerType.User =>
-                string.Equals(actioner.ActionerKey, actorName, StringComparison.OrdinalIgnoreCase),
+                string.Equals(actioner.ActionerKey, actorId, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(actioner.ActionerKey, actor.Name, StringComparison.OrdinalIgnoreCase),
             WorkflowActionerType.Role => roles.Contains(actioner.ActionerKey),
             _ => false
         });

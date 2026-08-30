@@ -7,7 +7,7 @@ public interface IWorkflowEngine
     Task<WorkflowExecutionResult> StartAsync(
         string entityType,
         int entityId,
-        string? requesterName,
+        WorkflowActor requester,
         CancellationToken cancellationToken);
 
     Task<WorkflowExecutionResult> ExecuteActionAsync(
@@ -26,12 +26,6 @@ public interface IWorkflowEngine
     Task<IReadOnlyDictionary<int, WorkflowInstanceResponse>> GetInstancesAsync(
         string entityType,
         IReadOnlyCollection<int> entityIds,
-        CancellationToken cancellationToken);
-
-    Task UpdateRequesterAsync(
-        string entityType,
-        int entityId,
-        string? requesterName,
         CancellationToken cancellationToken);
 
     Task<bool> DeleteInstanceAsync(
