@@ -22,7 +22,15 @@ public static class IdentitySeeder
             "Department Approver",
             [ApplicationRoles.DepartmentApprover]),
         new("finance@demo.local", "Finance Approver", [ApplicationRoles.FinanceApprover]),
-        new("admin@demo.local", "Demo Admin", [ApplicationRoles.Admin])
+        new(
+            "admin@demo.local",
+            "Demo Admin",
+            [
+                ApplicationRoles.Admin,
+                ApplicationRoles.Requester,
+                ApplicationRoles.DepartmentApprover,
+                ApplicationRoles.FinanceApprover
+            ])
     ];
 
     public static async Task SeedIdentityAsync(this IServiceProvider services)

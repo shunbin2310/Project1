@@ -6,11 +6,13 @@ import type {
   WorkflowActorIdentity,
   WorkflowAvailableAction,
 } from '@/types/purchaseRequest'
+import { isWorkflowActionAuthorized } from '@/utils/workflowAuthorization'
 
 const props = defineProps<{
   purchaseRequest: PurchaseRequest
   actor: WorkflowActorIdentity
   deleting: boolean
+  canManageDraft: boolean
 }>()
 
 const emit = defineEmits<{
@@ -21,15 +23,10 @@ const emit = defineEmits<{
 }>()
 
 const isDraft = computed(() => props.purchaseRequest.workflow.currentStepCode === 'DRAFT')
+const canEditDraft = computed(() => isDraft.value && props.canManageDraft)
 
 function isAuthorized(action: WorkflowAvailableAction) {
-  const roles = new Set(props.actor.roles.map((role) => role.toLowerCase()))
-  const actorName = props.actor.name.toLowerCase()
-
-  return action.actioners.some((actioner) => {
-    if (actioner.actionerType === 'Role') return roles.has(actioner.actionerKey.toLowerCase())
-    return actioner.actionerKey.toLowerCase() === actorName
-  })
+  return isWorkflowActionAuthorized(action, props.actor)
 }
 
 function formatCurrency(value: number) {
@@ -114,7 +111,7 @@ function formatQuantity(value: number) {
         </section>
 
         <section
-          v-if="purchaseRequest.workflow.availableActions.length"
+          v-if="!isDraft && purchaseRequest.workflow.availableActions.length"
           class="workflow-actions-panel"
         >
           <div class="details-section-heading">
@@ -141,7 +138,7 @@ function formatQuantity(value: number) {
             v-if="!purchaseRequest.workflow.availableActions.some(isAuthorized)"
             class="authorization-note"
           >
-            Select an authorized identity to perform an action at this step.
+            Your current account is not authorized to perform an action at this step.
           </p>
         </section>
 
@@ -214,7 +211,7 @@ function formatQuantity(value: number) {
         <footer class="details-footer">
           <div>
             <button
-              v-if="isDraft"
+              v-if="canEditDraft"
               class="text-button text-button-danger"
               type="button"
               :disabled="deleting"
@@ -228,7 +225,7 @@ function formatQuantity(value: number) {
               Close
             </button>
             <button
-              v-if="isDraft"
+              v-if="canEditDraft"
               class="button button-primary"
               type="button"
               @click="emit('edit')"

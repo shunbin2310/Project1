@@ -76,8 +76,6 @@ export interface PurchaseRequestItemInput {
 }
 
 export interface PurchaseRequestFormValues {
-  requesterName: string | null
-  departmentId: number | null
   requiredDate: string | null
   justification: string | null
   items: PurchaseRequestItemInput[]
@@ -88,14 +86,11 @@ export type CreatePurchaseRequestRequest = PurchaseRequestFormValues
 export type UpdatePurchaseRequestRequest = PurchaseRequestFormValues
 
 export interface PurchaseRequestActionRequest {
-  actionBy: string
-  actorRoles: string[]
   comment: string | null
 }
 
 export interface WorkflowActorIdentity {
-  key: 'requester' | 'department-approver' | 'finance-approver'
-  label: string
+  id: number
   name: string
   roles: string[]
 }

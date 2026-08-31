@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
 
 import { flushPromises, mount } from '@vue/test-utils'
+import PurchaseRequestDetails from '@/components/purchase-requests/PurchaseRequestDetails.vue'
 import PurchaseRequestForm from '@/components/purchase-requests/PurchaseRequestForm.vue'
-import type { Department } from '@/types/department'
+import WorkflowActionDialog from '@/components/purchase-requests/WorkflowActionDialog.vue'
+import { useAuthStore } from '@/stores/auth'
 import type { Product } from '@/types/product'
+import type { ApplicationRole } from '@/types/auth'
 import type {
   PurchaseRequest,
   PurchaseRequestActionRequest,
@@ -22,15 +27,10 @@ const mocks = vi.hoisted(() => ({
         payload: PurchaseRequestActionRequest,
       ) => Promise<PurchaseRequest>
     >(),
-  getDepartments: vi.fn<(includeInactive?: boolean) => Promise<Department[]>>(),
   getProducts: vi.fn<(includeInactive?: boolean) => Promise<Product[]>>(),
   getPurchaseRequests: vi.fn<(stepCode?: string) => Promise<PurchaseRequest[]>>(),
   updatePurchaseRequest:
     vi.fn<(id: number, payload: PurchaseRequestFormValues) => Promise<PurchaseRequest>>(),
-}))
-
-vi.mock('@/services/departmentService', () => ({
-  departmentService: { getAll: mocks.getDepartments },
 }))
 
 vi.mock('@/services/productService', () => ({
@@ -109,7 +109,7 @@ const draftPurchaseRequest: PurchaseRequest = {
         requiresComment: false,
         toStepCode: 'DEPARTMENT_REVIEW',
         toStepName: 'Department Review',
-        actioners: [{ actionerType: 'Requester', actionerKey: 'Tester 2' }],
+        actioners: [{ actionerType: 'Requester', actionerKey: '1' }],
       },
     ],
   },
@@ -118,23 +118,62 @@ const draftPurchaseRequest: PurchaseRequest = {
 describe('PurchaseRequestListView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getDepartments.mockResolvedValue([])
     mocks.getProducts.mockResolvedValue([])
     mocks.getPurchaseRequests.mockResolvedValue([purchaseRequest])
     mocks.createPurchaseRequest.mockResolvedValue(draftPurchaseRequest)
     mocks.executeAction.mockResolvedValue(purchaseRequest)
   })
 
-  it('keeps the selected approver identity when details are opened', async () => {
-    const wrapper = mount(PurchaseRequestListView)
+  async function mountView(
+    role: ApplicationRole,
+    fullName: string,
+    initialPath = '/purchase-requests',
+  ) {
+    const pinia = createPinia()
+    const authStore = useAuthStore(pinia)
+    authStore.$patch({
+      session: {
+        accessToken: 'test-token',
+        expiresAtUtc: '2099-01-01T00:00:00Z',
+        user: {
+          id: role === 'REQUESTER' ? 1 : 2,
+          email: 'user@demo.local',
+          fullName,
+          departmentId: 1,
+          departmentCode: 'IT',
+          departmentName: 'Information Technology',
+          roles: [role],
+        },
+      },
+    })
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: '/purchase-requests',
+          name: 'purchase-requests',
+          component: { template: '<div />' },
+        },
+      ],
+    })
+    await router.push(initialPath)
+    await router.isReady()
+
+    return mount(PurchaseRequestListView, { global: { plugins: [pinia, router] } })
+  }
+
+  it('uses the authenticated approver identity for workflow actions', async () => {
+    const wrapper = await mountView('DEPARTMENT_APPROVER', 'Department Approver')
     await flushPromises()
 
-    await wrapper.get('#workflow-identity').setValue('department-approver')
+    expect(wrapper.text()).not.toContain('Signed in as')
+
     const detailsButton = wrapper.findAll('button').find((button) => button.text() === 'Details')
     await detailsButton?.trigger('click')
 
     expect(wrapper.get('.workflow-actions-panel').text()).toContain(
-      'Current identity: Department Manager',
+      'Current identity: Department Approver',
     )
     const approveButton = wrapper
       .findAll('button')
@@ -142,12 +181,59 @@ describe('PurchaseRequestListView', () => {
     expect(approveButton?.attributes('disabled')).toBeUndefined()
   })
 
+  it('shows only Edit for a draft assigned to the signed-in requester', async () => {
+    mocks.getPurchaseRequests.mockResolvedValue([draftPurchaseRequest])
+    const wrapper = await mountView('REQUESTER', 'Demo Requester')
+    await flushPromises()
+
+    expect(wrapper.findAll('button').some((button) => button.text() === 'Details')).toBe(false)
+    const editButton = wrapper.findAll('button').find((button) => button.text() === 'Edit')
+    await editButton?.trigger('click')
+
+    expect(wrapper.findComponent(PurchaseRequestForm).exists()).toBe(true)
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Edit PR-0003')
+  })
+
+  it('shows read-only Details without draft actions for a draft owned by another user', async () => {
+    mocks.getPurchaseRequests.mockResolvedValue([draftPurchaseRequest])
+    const wrapper = await mountView('ADMIN', 'Demo Admin')
+    await flushPromises()
+
+    expect(wrapper.findAll('button').some((button) => button.text() === 'Edit')).toBe(false)
+    const detailsButton = wrapper.findAll('button').find((button) => button.text() === 'Details')
+    await detailsButton?.trigger('click')
+
+    expect(wrapper.findComponent(PurchaseRequestDetails).exists()).toBe(true)
+    expect(wrapper.find('.workflow-actions-panel').exists()).toBe(false)
+  })
+
+  it('closes workflow dialogs and shows a toast after an action succeeds', async () => {
+    const wrapper = await mountView('DEPARTMENT_APPROVER', 'Department Approver')
+    await flushPromises()
+
+    const detailsButton = wrapper.findAll('button').find((button) => button.text() === 'Details')
+    await detailsButton?.trigger('click')
+    const approveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Approve department review')
+    await approveButton?.trigger('click')
+    wrapper.findComponent(WorkflowActionDialog).vm.$emit('execute', 'Approved for testing.')
+    await flushPromises()
+
+    expect(mocks.executeAction).toHaveBeenCalledWith(3, 'APPROVE', {
+      comment: 'Approved for testing.',
+    })
+    expect(wrapper.findComponent(WorkflowActionDialog).exists()).toBe(false)
+    expect(wrapper.findComponent(PurchaseRequestDetails).exists()).toBe(false)
+    expect(wrapper.get('.success-toast').text()).toContain(
+      'PR-0003: Approve department review completed.',
+    )
+  })
+
   it('creates a draft and immediately submits it when requested by the form', async () => {
-    const wrapper = mount(PurchaseRequestListView)
+    const wrapper = await mountView('REQUESTER', 'Demo Requester')
     await flushPromises()
     const values = {
-      requesterName: 'Tester 2',
-      departmentId: 1,
       requiredDate: '2030-12-31',
       justification: 'New equipment',
       items: [{ productId: 1, quantity: 1, estimatedUnitPrice: 100 }],
@@ -162,9 +248,18 @@ describe('PurchaseRequestListView', () => {
 
     expect(mocks.createPurchaseRequest).toHaveBeenCalledWith(values)
     expect(mocks.executeAction).toHaveBeenCalledWith(3, 'SUBMIT', {
-      actionBy: 'Tester 2',
-      actorRoles: [],
       comment: 'Created and submitted from the form.',
     })
+    expect(wrapper.findComponent(PurchaseRequestForm).exists()).toBe(false)
+    expect(wrapper.get('.success-toast').text()).toContain(
+      'PR-0003 was submitted for department review.',
+    )
+  })
+
+  it('opens the create form from the My Tasks shortcut query', async () => {
+    const wrapper = await mountView('REQUESTER', 'Demo Requester', '/purchase-requests?create=true')
+    await flushPromises()
+
+    expect(wrapper.findComponent(PurchaseRequestForm).exists()).toBe(true)
   })
 })

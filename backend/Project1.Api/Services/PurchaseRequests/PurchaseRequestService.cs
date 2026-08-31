@@ -1,4 +1,3 @@
-using Project1.Api.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Project1.Api.Data;
 using Project1.Api.DTOs.PurchaseRequests;
@@ -156,7 +155,7 @@ public sealed class PurchaseRequestService(
 
         if (!CanManageDraft(purchaseRequest))
         {
-            return Unauthorized("Only the requester or an administrator can edit this draft.");
+            return Unauthorized("Only the original requester can edit this draft.");
         }
 
         var validation = ValidateDraftItems(request.Items);
@@ -214,7 +213,7 @@ public sealed class PurchaseRequestService(
 
         if (!CanManageDraft(purchaseRequest))
         {
-            return Unauthorized("Only the requester or an administrator can delete this draft.");
+            return Unauthorized("Only the original requester can delete this draft.");
         }
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -467,8 +466,7 @@ public sealed class PurchaseRequestService(
         currentUser.Roles);
 
     private bool CanManageDraft(PurchaseRequest request) =>
-        currentUser.IsInRole(ApplicationRoles.Admin) ||
-        (currentUser.UserId > 0 && request.RequesterUserId == currentUser.UserId);
+        currentUser.UserId > 0 && request.RequesterUserId == currentUser.UserId;
 
     private static PurchaseRequestOperationResult NotFound() =>
         new(PurchaseRequestOperationStatus.NotFound);

@@ -111,6 +111,44 @@ public sealed class PurchaseRequestServiceTests
         Assert.Equal("Only purchase requests at the DRAFT step can be edited.", result.ErrorMessage);
     }
 
+    [Fact]
+    public async Task UpdateAsync_AdminCannotEditAnotherRequestersDraft()
+    {
+        await using var fixture = await PurchaseRequestFixture.CreateAsync();
+        var created = await fixture.Service.CreateAsync(
+            fixture.ValidRequest(),
+            CancellationToken.None);
+        fixture.CurrentUser.Set(
+            4,
+            "Demo Admin",
+            fixture.DepartmentId,
+            [
+                ApplicationRoles.Admin,
+                ApplicationRoles.Requester,
+                ApplicationRoles.DepartmentApprover,
+                ApplicationRoles.FinanceApprover
+            ]);
+
+        var result = await fixture.Service.UpdateAsync(
+            created.PurchaseRequest!.Id,
+            new UpdatePurchaseRequestRequest
+            {
+                RequiredDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)),
+                Items =
+                [
+                    new PurchaseRequestItemRequest
+                    {
+                        ProductId = fixture.ProductId,
+                        Quantity = 2
+                    }
+                ]
+            },
+            CancellationToken.None);
+
+        Assert.Equal(PurchaseRequestOperationStatus.Unauthorized, result.Status);
+        Assert.Equal("Only the original requester can edit this draft.", result.ErrorMessage);
+    }
+
     private sealed class PurchaseRequestFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;

@@ -1,17 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { createPinia } from 'pinia'
 
 import { mount } from '@vue/test-utils'
+import { useAuthStore } from '@/stores/auth'
 import PurchaseRequestForm from '../PurchaseRequestForm.vue'
-
-const department = {
-  id: 1,
-  code: 'IT',
-  name: 'Information Technology',
-  description: null,
-  isActive: true,
-  createdAtUtc: '2026-08-29T00:00:00Z',
-  updatedAtUtc: null,
-}
 
 const product = {
   id: 1,
@@ -32,14 +24,32 @@ const product = {
 }
 
 function mountForm() {
+  const pinia = createPinia()
+  const authStore = useAuthStore(pinia)
+  authStore.$patch({
+    session: {
+      accessToken: 'test-token',
+      expiresAtUtc: '2099-01-01T00:00:00Z',
+      user: {
+        id: 1,
+        email: 'requester@demo.local',
+        fullName: 'Demo Requester',
+        departmentId: 1,
+        departmentCode: 'IT',
+        departmentName: 'Information Technology',
+        roles: ['REQUESTER'],
+      },
+    },
+  })
+
   return mount(PurchaseRequestForm, {
     props: {
       purchaseRequest: null,
-      departments: [department],
       products: [product],
       saving: false,
       errorMessage: '',
     },
+    global: { plugins: [pinia] },
   })
 }
 
@@ -57,8 +67,6 @@ describe('PurchaseRequestForm', () => {
   it('validates and emits a complete create-and-submit request', async () => {
     const wrapper = mountForm()
 
-    await wrapper.get('#purchase-requester').setValue('Alex Tan')
-    await wrapper.get('#purchase-department').setValue('1')
     await wrapper.get('#purchase-required-date').setValue('2030-12-31')
     const addItemButton = wrapper.findAll('button').find((button) => button.text() === '+ Add item')
     await addItemButton?.trigger('click')
@@ -70,8 +78,6 @@ describe('PurchaseRequestForm', () => {
     await submitButton?.trigger('click')
 
     expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
-      requesterName: 'Alex Tan',
-      departmentId: 1,
       requiredDate: '2030-12-31',
       items: [{ productId: 1, quantity: 1, estimatedUnitPrice: 1399.9 }],
     })
@@ -87,8 +93,7 @@ describe('PurchaseRequestForm', () => {
     await submitButton?.trigger('click')
 
     expect(wrapper.emitted('save')).toBeUndefined()
-    expect(wrapper.text()).toContain('Requester name is required before submission.')
-    expect(wrapper.text()).toContain('Department is required before submission.')
+    expect(wrapper.text()).toContain('Required date is required before submission.')
     expect(wrapper.text()).toContain('Add at least one item before submission.')
   })
 
@@ -102,16 +107,9 @@ describe('PurchaseRequestForm', () => {
     expect((wrapper.get('#purchase-price-0').element as HTMLInputElement).value).toBe('1399.9')
   })
 
-  it('shows an API workflow validation error inside the form', () => {
-    const wrapper = mount(PurchaseRequestForm, {
-      props: {
-        purchaseRequest: null,
-        departments: [department],
-        products: [product],
-        saving: false,
-        errorMessage: 'No active published workflow template exists.',
-      },
-    })
+  it('shows an API workflow validation error inside the form', async () => {
+    const wrapper = mountForm()
+    await wrapper.setProps({ errorMessage: 'No active published workflow template exists.' })
 
     expect(wrapper.get('[role="alert"]').text()).toContain('Purchase request could not be saved')
     expect(wrapper.get('[role="alert"]').text()).toContain(
