@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import PurchaseRequestDetails from '@/components/purchase-requests/PurchaseRequestDetails.vue'
 import PurchaseRequestForm from '@/components/purchase-requests/PurchaseRequestForm.vue'
 import WorkflowActionDialog from '@/components/purchase-requests/WorkflowActionDialog.vue'
-import { departmentService } from '@/services/departmentService'
 import { productService } from '@/services/productService'
 import { purchaseRequestService } from '@/services/purchaseRequestService'
-import type { Department } from '@/types/department'
+import { useAuthStore } from '@/stores/auth'
+import { applicationRoles } from '@/types/auth'
 import type { Product } from '@/types/product'
 import type {
   PurchaseRequest,
@@ -15,6 +16,7 @@ import type {
   WorkflowActorIdentity,
   WorkflowAvailableAction,
 } from '@/types/purchaseRequest'
+import { isWorkflowActionDirectlyAssignedToActor } from '@/utils/workflowAuthorization'
 
 const stepFilters = [
   { value: '', label: 'All steps' },
@@ -26,7 +28,6 @@ const stepFilters = [
 ]
 
 const requests = ref<PurchaseRequest[]>([])
-const departments = ref<Department[]>([])
 const products = ref<Product[]>([])
 const loading = ref(true)
 const saving = ref(false)
@@ -34,7 +35,6 @@ const deleting = ref(false)
 const actioning = ref(false)
 const search = ref('')
 const selectedStep = ref('')
-const selectedIdentity = ref<WorkflowActorIdentity['key']>('requester')
 const loadError = ref('')
 const operationError = ref('')
 const formError = ref('')
@@ -44,6 +44,10 @@ const formOpen = ref(false)
 const selectedRequest = ref<PurchaseRequest | null>(null)
 const editingRequest = ref<PurchaseRequest | null>(null)
 const selectedAction = ref<WorkflowAvailableAction | null>(null)
+const authStore = useAuthStore()
+const route = useRoute()
+const router = useRouter()
+let successTimer: number | undefined
 
 const draftCount = computed(
   () => requests.value.filter((request) => request.workflow.currentStepCode === 'DRAFT').length,
@@ -58,32 +62,14 @@ const completedCount = computed(
   () => requests.value.filter((request) => request.workflow.status === 'Completed').length,
 )
 
-const actor = computed<WorkflowActorIdentity>(() => {
-  if (selectedIdentity.value === 'department-approver') {
-    return {
-      key: 'department-approver',
-      label: 'Department Approver',
-      name: 'Department Manager',
-      roles: ['DEPARTMENT_APPROVER'],
-    }
-  }
-
-  if (selectedIdentity.value === 'finance-approver') {
-    return {
-      key: 'finance-approver',
-      label: 'Finance Approver',
-      name: 'Finance Manager',
-      roles: ['FINANCE_APPROVER'],
-    }
-  }
-
-  return {
-    key: 'requester',
-    label: 'Requester',
-    name: selectedRequest.value?.requesterName || 'Requester',
-    roles: [],
-  }
-})
+const actor = computed<WorkflowActorIdentity>(() => ({
+  id: authStore.user?.id ?? 0,
+  name: authStore.user?.fullName ?? 'Current user',
+  roles: authStore.roles,
+}))
+const canManageRequests = computed(() =>
+  authStore.hasAnyRole([applicationRoles.requester, applicationRoles.admin]),
+)
 
 const visibleRequests = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -102,20 +88,28 @@ const visibleRequests = computed(() => {
   })
 })
 
-onMounted(loadData)
+onMounted(async () => {
+  await loadData()
+
+  if (route.query.create === 'true' && canManageRequests.value) {
+    openCreateForm()
+    const query = { ...route.query }
+    delete query.create
+    await router.replace({ name: 'purchase-requests', query })
+  }
+})
+onUnmounted(() => window.clearTimeout(successTimer))
 
 async function loadData() {
   loading.value = true
   loadError.value = ''
 
   try {
-    const [requestRecords, departmentRecords, productRecords] = await Promise.all([
+    const [requestRecords, productRecords] = await Promise.all([
       purchaseRequestService.getAll(),
-      departmentService.getAll(true),
       productService.getAll(true),
     ])
     requests.value = requestRecords
-    departments.value = departmentRecords
     products.value = productRecords
     refreshSelectedRequest()
   } catch (error) {
@@ -138,11 +132,21 @@ function openCreateForm() {
 }
 
 function openEditForm(request: PurchaseRequest) {
-  if (request.workflow.currentStepCode !== 'DRAFT') return
+  if (!canEditRequest(request)) return
   editingRequest.value = request
   selectedRequest.value = null
   formError.value = ''
   formOpen.value = true
+}
+
+function canEditRequest(request: PurchaseRequest) {
+  return (
+    request.workflow.currentStepCode === 'DRAFT' &&
+    request.workflow.availableActions.some(
+      (action) =>
+        action.code === 'SUBMIT' && isWorkflowActionDirectlyAssignedToActor(action, actor.value),
+    )
+  )
 }
 
 function closeForm() {
@@ -178,8 +182,6 @@ async function saveRequest(values: PurchaseRequestFormValues, submitAfterSave: b
 
     if (submitAfterSave) {
       savedRequest = await purchaseRequestService.executeAction(savedRequest.id, 'SUBMIT', {
-        actionBy: savedRequest.requesterName ?? '',
-        actorRoles: [],
         comment: wasEditing
           ? 'Updated and submitted from the form.'
           : 'Created and submitted from the form.',
@@ -255,13 +257,11 @@ async function executeAction(comment: string | null) {
       selectedRequest.value.id,
       action.code,
       {
-        actionBy: actor.value.name,
-        actorRoles: actor.value.roles,
         comment,
       },
     )
-    selectedRequest.value = updated
     selectedAction.value = null
+    selectedRequest.value = null
     showSuccess(`${updated.requestNumber}: ${action.name} completed.`)
     await loadData()
   } catch (error) {
@@ -272,10 +272,16 @@ async function executeAction(comment: string | null) {
 }
 
 function showSuccess(message: string) {
+  window.clearTimeout(successTimer)
   successMessage.value = message
-  window.setTimeout(() => {
+  successTimer = window.setTimeout(() => {
     if (successMessage.value === message) successMessage.value = ''
   }, 3500)
+}
+
+function dismissSuccess() {
+  window.clearTimeout(successTimer)
+  successMessage.value = ''
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -308,7 +314,12 @@ function stepClass(stepCode: string) {
           Prepare purchasing drafts, route approvals, and review each request's workflow history.
         </p>
       </div>
-      <button class="button button-primary" type="button" @click="openCreateForm">
+      <button
+        v-if="canManageRequests"
+        class="button button-primary"
+        type="button"
+        @click="openCreateForm"
+      >
         <span aria-hidden="true">+</span>
         New purchase request
       </button>
@@ -330,21 +341,20 @@ function stepClass(stepCode: string) {
         <strong>{{ completedCount }}</strong>
         <span>Approved or rejected</span>
       </article>
-      <article class="summary-card identity-card">
-        <label for="workflow-identity" class="summary-label">Current test identity</label>
-        <select id="workflow-identity" v-model="selectedIdentity">
-          <option value="requester">Requester</option>
-          <option value="department-approver">Department Approver</option>
-          <option value="finance-approver">Finance Approver</option>
-        </select>
-        <span>Temporary until authentication is added</span>
-      </article>
     </div>
 
-    <div v-if="successMessage" class="alert alert-success" role="status">
-      <span aria-hidden="true">OK</span>
-      {{ successMessage }}
-    </div>
+    <Transition name="toast">
+      <div v-if="successMessage" class="success-toast" role="status" aria-live="polite">
+        <span class="success-toast-icon" aria-hidden="true">OK</span>
+        <div>
+          <strong>Action completed</strong>
+          <p>{{ successMessage }}</p>
+        </div>
+        <button type="button" aria-label="Dismiss success message" @click="dismissSuccess">
+          &times;
+        </button>
+      </div>
+    </Transition>
 
     <div v-if="operationError" class="alert alert-error" role="alert">
       <span>{{ operationError }}</span>
@@ -404,7 +414,7 @@ function stepClass(stepCode: string) {
           }}
         </p>
         <button
-          v-if="!search && !selectedStep"
+          v-if="canManageRequests && !search && !selectedStep"
           class="button button-primary"
           type="button"
           @click="openCreateForm"
@@ -456,11 +466,16 @@ function stepClass(stepCode: string) {
               </td>
               <td>
                 <div class="row-actions">
-                  <button class="text-button" type="button" @click="openDetails(request)">
+                  <button
+                    v-if="!canEditRequest(request)"
+                    class="text-button"
+                    type="button"
+                    @click="openDetails(request)"
+                  >
                     Details
                   </button>
                   <button
-                    v-if="request.workflow.currentStepCode === 'DRAFT'"
+                    v-if="canEditRequest(request)"
                     class="text-button"
                     type="button"
                     @click="openEditForm(request)"
@@ -478,7 +493,6 @@ function stepClass(stepCode: string) {
     <PurchaseRequestForm
       v-if="formOpen"
       :purchase-request="editingRequest"
-      :departments="departments"
       :products="products"
       :saving="saving"
       :error-message="formError"
@@ -490,6 +504,7 @@ function stepClass(stepCode: string) {
       v-if="selectedRequest"
       :purchase-request="selectedRequest"
       :actor="actor"
+      :can-manage-draft="canEditRequest(selectedRequest)"
       :deleting="deleting"
       @close="closeDetails"
       @edit="openEditForm(selectedRequest)"

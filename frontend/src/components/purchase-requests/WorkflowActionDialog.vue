@@ -63,7 +63,7 @@ function submit() {
         <div class="actor-summary">
           <span>Acting as</span>
           <strong>{{ actor.name }}</strong>
-          <small>{{ actor.roles.length ? actor.roles.join(', ') : actor.label }}</small>
+          <small>{{ actor.roles.length ? actor.roles.join(', ') : 'Authenticated user' }}</small>
         </div>
 
         <div v-if="errorMessage" class="form-server-error" role="alert">

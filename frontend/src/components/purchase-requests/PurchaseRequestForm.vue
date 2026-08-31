@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue'
 
-import type { Department } from '@/types/department'
+import { useAuthStore } from '@/stores/auth'
 import type { Product } from '@/types/product'
 import type {
   PurchaseRequest,
@@ -11,11 +11,12 @@ import type {
 
 const props = defineProps<{
   purchaseRequest: PurchaseRequest | null
-  departments: Department[]
   products: Product[]
   saving: boolean
   errorMessage: string
 }>()
+
+const authStore = useAuthStore()
 
 const emit = defineEmits<{
   cancel: []
@@ -23,16 +24,12 @@ const emit = defineEmits<{
 }>()
 
 const form = reactive<PurchaseRequestFormValues>({
-  requesterName: null,
-  departmentId: null,
   requiredDate: null,
   justification: null,
   items: [],
 })
 
 const errors = reactive({
-  requesterName: '',
-  departmentId: '',
   requiredDate: '',
   justification: '',
   items: '',
@@ -42,10 +39,11 @@ const isEditing = computed(() => props.purchaseRequest !== null)
 const title = computed(() =>
   isEditing.value ? `Edit ${props.purchaseRequest?.requestNumber}` : 'Create purchase request',
 )
-const selectableDepartments = computed(() =>
-  props.departments.filter(
-    (department) => department.isActive || department.id === props.purchaseRequest?.departmentId,
-  ),
+const requesterName = computed(
+  () => props.purchaseRequest?.requesterName ?? authStore.user?.fullName ?? 'Current user',
+)
+const departmentName = computed(
+  () => props.purchaseRequest?.departmentName ?? authStore.user?.departmentName ?? 'Not assigned',
 )
 const selectableProducts = computed(() => {
   const existingProductIds = new Set(
@@ -60,8 +58,6 @@ const estimatedTotal = computed(() =>
 watch(
   () => props.purchaseRequest,
   (request) => {
-    form.requesterName = request?.requesterName ?? null
-    form.departmentId = request?.departmentId ?? null
     form.requiredDate = request?.requiredDate ?? null
     form.justification = request?.justification ?? null
     form.items =
@@ -91,8 +87,6 @@ function applyDefaultPrice(index: number) {
 }
 
 function clearErrors() {
-  errors.requesterName = ''
-  errors.departmentId = ''
   errors.requiredDate = ''
   errors.justification = ''
   errors.items = ''
@@ -100,19 +94,6 @@ function clearErrors() {
 
 function validate(submitAfterSave: boolean) {
   clearErrors()
-  const requesterName = form.requesterName?.trim() ?? ''
-
-  if (submitAfterSave && !requesterName) {
-    errors.requesterName = 'Requester name is required before submission.'
-  } else if (requesterName && requesterName.length < 2) {
-    errors.requesterName = 'Requester name must contain at least 2 characters.'
-  } else if (requesterName.length > 100) {
-    errors.requesterName = 'Requester name cannot exceed 100 characters.'
-  }
-
-  if (submitAfterSave && !form.departmentId) {
-    errors.departmentId = 'Department is required before submission.'
-  }
 
   if (submitAfterSave && !form.requiredDate) {
     errors.requiredDate = 'Required date is required before submission.'
@@ -159,8 +140,6 @@ function submitForm(submitAfterSave: boolean) {
   emit(
     'save',
     {
-      requesterName: form.requesterName?.trim() || null,
-      departmentId: form.departmentId || null,
       requiredDate: form.requiredDate || null,
       justification: form.justification?.trim() || null,
       items: form.items.map<PurchaseRequestItemInput>((item) => ({
@@ -207,38 +186,10 @@ function formatCurrency(value: number) {
           </div>
         </div>
 
-        <div class="form-field">
-          <label for="purchase-requester">Requester name</label>
-          <input
-            id="purchase-requester"
-            v-model="form.requesterName"
-            maxlength="100"
-            placeholder="e.g. Alex Tan"
-            :aria-invalid="Boolean(errors.requesterName)"
-          />
-          <p v-if="errors.requesterName" class="field-error">{{ errors.requesterName }}</p>
-          <p v-else class="field-hint">Required before the draft can be submitted.</p>
-        </div>
-
-        <div class="form-field">
-          <label for="purchase-department">Department</label>
-          <select
-            id="purchase-department"
-            v-model.number="form.departmentId"
-            :aria-invalid="Boolean(errors.departmentId)"
-          >
-            <option :value="null">Not selected</option>
-            <option
-              v-for="department in selectableDepartments"
-              :key="department.id"
-              :value="department.id"
-              :disabled="!department.isActive"
-            >
-              {{ department.code }} - {{ department.name }}
-            </option>
-          </select>
-          <p v-if="errors.departmentId" class="field-error">{{ errors.departmentId }}</p>
-          <p v-else class="field-hint">Required before submission.</p>
+        <div class="actor-summary form-grid-full">
+          <span>Request owner</span>
+          <strong>{{ requesterName }}</strong>
+          <small>{{ departmentName }} · Assigned from the authenticated account</small>
         </div>
 
         <div class="form-field">

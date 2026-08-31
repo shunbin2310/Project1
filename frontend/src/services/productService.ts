@@ -1,55 +1,15 @@
 import type { CreateProductRequest, Product, UpdateProductRequest } from '@/types/product'
+import { apiRequest, ApiError } from '@/services/apiClient'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5165'
-
-interface ProblemDetails {
-  title?: string
-  detail?: string
-  errors?: Record<string, string[]>
-}
-
-export class ProductApiError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-  ) {
-    super(message)
+export class ProductApiError extends ApiError {
+  constructor(status: number, message: string) {
+    super(status, message)
     this.name = 'ProductApiError'
   }
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    ...options,
-    headers: {
-      Accept: 'application/json',
-      ...options?.headers,
-    },
-  })
-
-  if (!response.ok) {
-    let message = `Request failed with status ${response.status}`
-
-    try {
-      const problem = (await response.json()) as ProblemDetails
-      const validationMessage = problem.errors
-        ? Object.values(problem.errors).flat().join(' ')
-        : undefined
-
-      message = validationMessage || problem.detail || problem.title || message
-    } catch {
-      // The response did not include a JSON error body.
-    }
-
-    throw new ProductApiError(response.status, message)
-  }
-
-  if (response.status === 204) {
-    return undefined as T
-  }
-
-  return (await response.json()) as T
-}
+const request = <T>(path: string, options?: RequestInit) =>
+  apiRequest<T>(path, options, ProductApiError)
 
 export const productService = {
   getAll(includeInactive = false): Promise<Product[]> {
