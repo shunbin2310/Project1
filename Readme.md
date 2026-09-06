@@ -65,12 +65,13 @@ export DemoUsers__Enabled="true"
 export DemoUsers__DefaultPassword="replace-with-demo-password"
 
 
-2. Authentication + Users + Roles
-3. Workflow Template Admin
-4. Supplier-Product Relationship
-5. Quotation / Supplier Comparison
-6. Purchase Order
-7. Goods Receiving
-8. Inventory
-9. Dashboard / Notifications
-10. Docker / CI / Deployment
+## Pending tasks
+
+1. Workflow Template Admin
+2. Supplier-Product Relationship
+3. Quotation / Supplier Comparison
+4. Purchase Order
+5. Goods Receiving
+6. Inventory
+7. Dashboard / Notifications
+8. Docker / CI / Deployment

@@ -112,7 +112,7 @@ public sealed class PurchaseRequestServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_AdminCannotEditAnotherRequestersDraft()
+    public async Task UpdateAsync_AdminCanEditAnotherRequestersDraft()
     {
         await using var fixture = await PurchaseRequestFixture.CreateAsync();
         var created = await fixture.Service.CreateAsync(
@@ -122,12 +122,7 @@ public sealed class PurchaseRequestServiceTests
             4,
             "Demo Admin",
             fixture.DepartmentId,
-            [
-                ApplicationRoles.Admin,
-                ApplicationRoles.Requester,
-                ApplicationRoles.DepartmentApprover,
-                ApplicationRoles.FinanceApprover
-            ]);
+            [ApplicationRoles.Admin]);
 
         var result = await fixture.Service.UpdateAsync(
             created.PurchaseRequest!.Id,
@@ -145,8 +140,8 @@ public sealed class PurchaseRequestServiceTests
             },
             CancellationToken.None);
 
-        Assert.Equal(PurchaseRequestOperationStatus.Unauthorized, result.Status);
-        Assert.Equal("Only the original requester can edit this draft.", result.ErrorMessage);
+        Assert.Equal(PurchaseRequestOperationStatus.Success, result.Status);
+        Assert.Equal(2, result.PurchaseRequest!.Items.Single().Quantity);
     }
 
     private sealed class PurchaseRequestFixture : IAsyncDisposable

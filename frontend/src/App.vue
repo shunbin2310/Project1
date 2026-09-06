@@ -60,6 +60,10 @@ async function logout() {
             <span class="nav-icon" aria-hidden="true">DP</span>
             <span>Departments</span>
           </RouterLink>
+          <RouterLink to="/users">
+            <span class="nav-icon" aria-hidden="true">US</span>
+            <span>Users</span>
+          </RouterLink>
           <RouterLink to="/suppliers">
             <span class="nav-icon" aria-hidden="true">SP</span>
             <span>Suppliers</span>

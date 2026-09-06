@@ -103,6 +103,77 @@ Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 ###
 
+GET {{Project1.Api_HostAddress}}/api/users?includeInactive=true
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/users?search=demo
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/users/roles
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+# @name createManagedUser
+POST {{Project1.Api_HostAddress}}/api/users
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "email": "managed.user@demo.local",
+  "fullName": "Managed User",
+  "departmentId": {{departmentId}},
+  "roles": ["REQUESTER", "DEPARTMENT_APPROVER"]
+}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/users/{{createManagedUser.response.body.$.id}}
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+# Email is intentionally absent because it cannot be changed after creation.
+PUT {{Project1.Api_HostAddress}}/api/users/{{createManagedUser.response.body.$.id}}
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "fullName": "Managed User Updated",
+  "departmentId": {{departmentId}},
+  "roles": ["REQUESTER", "FINANCE_APPROVER"]
+}
+
+###
+
+PATCH {{Project1.Api_HostAddress}}/api/users/{{createManagedUser.response.body.$.id}}/status
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "isActive": false
+}
+
+###
+
+PATCH {{Project1.Api_HostAddress}}/api/users/{{createManagedUser.response.body.$.id}}/status
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "isActive": true
+}
+
+###
+
 @supplierId = 1
 
 GET {{Project1.Api_HostAddress}}/api/suppliers

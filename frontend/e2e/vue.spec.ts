@@ -10,7 +10,7 @@ const adminSession = {
     departmentId: 1,
     departmentCode: 'IT',
     departmentName: 'Information Technology',
-    roles: ['ADMIN', 'REQUESTER', 'DEPARTMENT_APPROVER', 'FINANCE_APPROVER'],
+    roles: ['ADMIN'],
   },
 }
 
@@ -48,6 +48,31 @@ test.describe('authenticated administration workspace', () => {
 
     await expect(page.getByRole('dialog')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Create department' })).toBeVisible()
+  })
+
+  test('opens the user administration page and create form', async ({ page }) => {
+    await page.route('http://localhost:5165/api/users?includeInactive=true', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    })
+    await page.route('http://localhost:5165/api/users/roles', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(['REQUESTER', 'DEPARTMENT_APPROVER', 'FINANCE_APPROVER', 'ADMIN']),
+      })
+    })
+    await page.route('http://localhost:5165/api/departments', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    })
+
+    await page.goto('/users')
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Users')
+    await expect(page.getByRole('link', { name: 'Users' })).toBeVisible()
+    await page.getByRole('button', { name: 'New user' }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Create user' })).toBeVisible()
+    await expect(page.getByLabel('Temporary password')).toHaveCount(0)
   })
 
   test('opens the supplier management page and create form', async ({ page }) => {

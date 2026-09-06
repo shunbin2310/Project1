@@ -22,15 +22,7 @@ public static class IdentitySeeder
             "Department Approver",
             [ApplicationRoles.DepartmentApprover]),
         new("finance@demo.local", "Finance Approver", [ApplicationRoles.FinanceApprover]),
-        new(
-            "admin@demo.local",
-            "Demo Admin",
-            [
-                ApplicationRoles.Admin,
-                ApplicationRoles.Requester,
-                ApplicationRoles.DepartmentApprover,
-                ApplicationRoles.FinanceApprover
-            ])
+        new("admin@demo.local", "Demo Admin", [ApplicationRoles.Admin])
     ];
 
     public static async Task SeedIdentityAsync(this IServiceProvider services)
@@ -114,9 +106,30 @@ public static class IdentitySeeder
             }
 
             var existingRoles = await userManager.GetRolesAsync(user);
-            var missingRoles = definition.Roles.Except(existingRoles, StringComparer.OrdinalIgnoreCase);
-            var addRolesResult = await userManager.AddToRolesAsync(user, missingRoles);
-            EnsureSucceeded(addRolesResult, $"assign roles to demo user '{definition.Email}'");
+            var extraRoles = existingRoles
+                .Except(definition.Roles, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var missingRoles = definition.Roles
+                .Except(existingRoles, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (extraRoles.Length > 0)
+            {
+                var removeRolesResult = await userManager.RemoveFromRolesAsync(user, extraRoles);
+                EnsureSucceeded(removeRolesResult, $"remove roles from demo user '{definition.Email}'");
+            }
+
+            if (missingRoles.Length > 0)
+            {
+                var addRolesResult = await userManager.AddToRolesAsync(user, missingRoles);
+                EnsureSucceeded(addRolesResult, $"assign roles to demo user '{definition.Email}'");
+            }
+
+            if (extraRoles.Length > 0 || missingRoles.Length > 0)
+            {
+                var stampResult = await userManager.UpdateSecurityStampAsync(user);
+                EnsureSucceeded(stampResult, $"refresh demo user '{definition.Email}' security stamp");
+            }
         }
     }
 

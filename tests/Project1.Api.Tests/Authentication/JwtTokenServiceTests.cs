@@ -24,7 +24,8 @@ public sealed class JwtTokenServiceTests
             Id = 42,
             Email = "requester@demo.local",
             FullName = "Demo Requester",
-            DepartmentId = 7
+            DepartmentId = 7,
+            SecurityStamp = "current-security-stamp"
         };
 
         var result = service.CreateToken(user, [ApplicationRoles.Requester]);
@@ -37,6 +38,9 @@ public sealed class JwtTokenServiceTests
             claim.Type == ApplicationClaimTypes.DepartmentId && claim.Value == "7");
         Assert.Contains(token.Claims, claim =>
             claim.Type == ClaimTypes.Role && claim.Value == ApplicationRoles.Requester);
+        Assert.Contains(token.Claims, claim =>
+            claim.Type == ApplicationClaimTypes.SecurityStamp &&
+            claim.Value == "current-security-stamp");
         Assert.True(result.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(55));
     }
 }

@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Project1.Api.Authentication;
 using Project1.Api.Data;
 using Project1.Api.DTOs.Workflows;
 using Project1.Api.Entities.Workflows;
@@ -289,6 +290,11 @@ public sealed class WorkflowEngine(AppDbContext dbContext) : IWorkflowEngine
     {
         var roles = actor.Roles.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var actorId = actor.UserId.ToString(CultureInfo.InvariantCulture);
+
+        if (roles.Contains(ApplicationRoles.Admin))
+        {
+            return true;
+        }
 
         return actioners.Any(actioner => actioner.ActionerType switch
         {

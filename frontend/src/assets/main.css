@@ -597,7 +597,8 @@ tbody tr:hover {
 .supplier-identity,
 .category-identity,
 .unit-identity,
-.product-identity {
+.product-identity,
+.user-identity {
   display: flex;
   min-width: 210px;
   gap: 11px;
@@ -626,7 +627,9 @@ tbody tr:hover {
 .unit-identity strong,
 .unit-identity small,
 .product-identity strong,
-.product-identity small {
+.product-identity small,
+.user-identity strong,
+.user-identity small {
   display: block;
 }
 
@@ -634,7 +637,8 @@ tbody tr:hover {
 .supplier-identity strong,
 .category-identity strong,
 .unit-identity strong,
-.product-identity strong {
+.product-identity strong,
+.user-identity strong {
   color: #203331;
   font-size: 12px;
 }
@@ -643,7 +647,8 @@ tbody tr:hover {
 .supplier-identity small,
 .category-identity small,
 .unit-identity small,
-.product-identity small {
+.product-identity small,
+.user-identity small {
   margin-top: 4px;
   color: #83908e;
   font-size: 9px;
@@ -723,6 +728,12 @@ tbody tr:hover {
 
 .text-button:hover {
   text-decoration: underline;
+}
+
+.text-button:disabled {
+  color: #9aa5a3;
+  cursor: not-allowed;
+  text-decoration: none;
 }
 
 .text-button-danger {
@@ -847,7 +858,8 @@ tbody tr:hover {
 .supplier-form,
 .category-form,
 .unit-form,
-.product-form {
+.product-form,
+.user-form {
   display: grid;
   gap: 18px;
   padding: 23px 25px 25px;
@@ -855,8 +867,118 @@ tbody tr:hover {
 
 .supplier-form,
 .product-form,
-.purchase-request-form {
+.purchase-request-form,
+.user-form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.role-selection {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.role-selection legend {
+  margin-bottom: 8px;
+  color: #314744;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.role-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.role-option {
+  display: flex;
+  min-width: 0;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 12px;
+  cursor: pointer;
+  background: #f8faf9;
+  border: 1px solid #dce5e3;
+  border-radius: 9px;
+}
+
+.role-option:has(input:checked) {
+  background: #edf7f3;
+  border-color: #a8d2c5;
+}
+
+.role-option.is-locked {
+  cursor: not-allowed;
+  background: #f2f4f3;
+}
+
+.role-option input {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  accent-color: var(--brand);
+}
+
+.role-option strong,
+.role-option small {
+  display: block;
+}
+
+.role-option strong {
+  color: #29413e;
+  font-size: 10px;
+}
+
+.role-option small {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+  color: #81908d;
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.role-badge-list {
+  display: flex;
+  min-width: 190px;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.role-badge {
+  padding: 4px 7px;
+  color: #37665e;
+  font-size: 8px;
+  font-weight: 750;
+  white-space: nowrap;
+  background: #eaf3f0;
+  border-radius: 999px;
+}
+
+.table-primary,
+.table-secondary {
+  display: block;
+}
+
+.table-primary {
+  color: #314744;
+}
+
+.table-secondary {
+  margin-top: 4px;
+  color: #83908e;
+  font-size: 9px;
+}
+
+.table-muted {
+  color: #8a9694;
+  font-style: italic;
+}
+
+.user-row-actions {
+  min-width: 255px;
 }
 
 .purchase-request-form,
@@ -1885,7 +2007,9 @@ tbody tr:hover {
 
   .supplier-form,
   .product-form,
-  .purchase-request-form {
+  .purchase-request-form,
+  .user-form,
+  .role-option-grid {
     grid-template-columns: 1fr;
   }
 

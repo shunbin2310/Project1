@@ -25,6 +25,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
             new(ClaimTypes.NameIdentifier, user.Id.ToString(CultureInfo.InvariantCulture)),
             new(ClaimTypes.Name, user.FullName),
             new(ClaimTypes.Email, user.Email ?? string.Empty),
+            new(ApplicationClaimTypes.SecurityStamp, user.SecurityStamp ?? string.Empty),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
         };
 
