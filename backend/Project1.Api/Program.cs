@@ -16,6 +16,7 @@ using Project1.Api.Services.Products;
 using Project1.Api.Services.PurchaseRequests;
 using Project1.Api.Services.Suppliers;
 using Project1.Api.Services.UnitsOfMeasure;
+using Project1.Api.Services.Users;
 using Project1.Api.Services.Workflows;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -97,6 +98,39 @@ builder.Services
             RoleClaimType = ClaimTypes.Role,
             ClockSkew = TimeSpan.FromSeconds(30)
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var userIdValue = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var tokenSecurityStamp = context.Principal?
+                    .FindFirstValue(ApplicationClaimTypes.SecurityStamp);
+
+                if (!int.TryParse(userIdValue, out var userId) || tokenSecurityStamp is null)
+                {
+                    context.Fail("The access token does not contain a valid user session.");
+                    return;
+                }
+
+                var dbContext = context.HttpContext.RequestServices
+                    .GetRequiredService<AppDbContext>();
+                var userSession = await dbContext.Users
+                    .AsNoTracking()
+                    .Where(user => user.Id == userId)
+                    .Select(user => new { user.IsActive, user.SecurityStamp })
+                    .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
+
+                if (userSession is null ||
+                    !userSession.IsActive ||
+                    !string.Equals(
+                        userSession.SecurityStamp ?? string.Empty,
+                        tokenSecurityStamp,
+                        StringComparison.Ordinal))
+                {
+                    context.Fail("The user session is no longer valid.");
+                }
+            }
+        };
     });
 builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
@@ -111,6 +145,7 @@ builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IPurchaseRequestService, PurchaseRequestService>();
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 
 builder.Services.AddCors(options =>
 {

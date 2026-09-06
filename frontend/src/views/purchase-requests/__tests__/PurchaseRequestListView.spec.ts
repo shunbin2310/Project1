@@ -194,17 +194,17 @@ describe('PurchaseRequestListView', () => {
     expect(wrapper.get('[role="dialog"]').text()).toContain('Edit PR-0003')
   })
 
-  it('shows read-only Details without draft actions for a draft owned by another user', async () => {
+  it('allows the super admin to edit a draft owned by another user', async () => {
     mocks.getPurchaseRequests.mockResolvedValue([draftPurchaseRequest])
     const wrapper = await mountView('ADMIN', 'Demo Admin')
     await flushPromises()
 
-    expect(wrapper.findAll('button').some((button) => button.text() === 'Edit')).toBe(false)
-    const detailsButton = wrapper.findAll('button').find((button) => button.text() === 'Details')
-    await detailsButton?.trigger('click')
+    expect(wrapper.findAll('button').some((button) => button.text() === 'Details')).toBe(false)
+    const editButton = wrapper.findAll('button').find((button) => button.text() === 'Edit')
+    await editButton?.trigger('click')
 
-    expect(wrapper.findComponent(PurchaseRequestDetails).exists()).toBe(true)
-    expect(wrapper.find('.workflow-actions-panel').exists()).toBe(false)
+    expect(wrapper.findComponent(PurchaseRequestForm).exists()).toBe(true)
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Edit PR-0003')
   })
 
   it('closes workflow dialogs and shows a toast after an action succeeds', async () => {

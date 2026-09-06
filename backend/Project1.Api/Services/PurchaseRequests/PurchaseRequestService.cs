@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Project1.Api.Authentication;
 using Project1.Api.Data;
 using Project1.Api.DTOs.PurchaseRequests;
 using Project1.Api.DTOs.Workflows;
@@ -466,7 +467,8 @@ public sealed class PurchaseRequestService(
         currentUser.Roles);
 
     private bool CanManageDraft(PurchaseRequest request) =>
-        currentUser.UserId > 0 && request.RequesterUserId == currentUser.UserId;
+        currentUser.IsInRole(ApplicationRoles.Admin) ||
+        (currentUser.UserId > 0 && request.RequesterUserId == currentUser.UserId);
 
     private static PurchaseRequestOperationResult NotFound() =>
         new(PurchaseRequestOperationStatus.NotFound);

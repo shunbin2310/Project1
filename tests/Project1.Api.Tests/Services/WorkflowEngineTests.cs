@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Project1.Api.Authentication;
 using Project1.Api.Data;
 using Project1.Api.Entities.Workflows;
 using Project1.Api.Services.Workflows;
@@ -139,6 +140,47 @@ public sealed class WorkflowEngineTests
 
         Assert.Equal(WorkflowExecutionStatus.CommentRequired, result.Status);
         Assert.Equal("A comment is required for action 'REJECT'.", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task ExecuteActionAsync_AllowsAdminToPerformEveryWorkflowAction()
+    {
+        await using var fixture = await WorkflowFixture.CreateAsync();
+        var engine = new WorkflowEngine(fixture.DbContext);
+        var administrator = new WorkflowActor(99, "Demo Admin", [ApplicationRoles.Admin]);
+
+        await engine.StartAsync(
+            "PurchaseRequest",
+            101,
+            new WorkflowActor(10, "Alex Tan", []),
+            CancellationToken.None);
+
+        var submitted = await engine.ExecuteActionAsync(
+            "PurchaseRequest",
+            101,
+            "SUBMIT",
+            administrator,
+            null,
+            CancellationToken.None);
+        var departmentApproved = await engine.ExecuteActionAsync(
+            "PurchaseRequest",
+            101,
+            "APPROVE",
+            administrator,
+            "Approved by administrator.",
+            CancellationToken.None);
+        var financeApproved = await engine.ExecuteActionAsync(
+            "PurchaseRequest",
+            101,
+            "APPROVE",
+            administrator,
+            "Approved by administrator.",
+            CancellationToken.None);
+
+        Assert.Equal(WorkflowExecutionStatus.Success, submitted.Status);
+        Assert.Equal(WorkflowExecutionStatus.Success, departmentApproved.Status);
+        Assert.Equal(WorkflowExecutionStatus.Success, financeApproved.Status);
+        Assert.Equal("APPROVED", financeApproved.Workflow!.CurrentStepCode);
     }
 
     private sealed class WorkflowFixture : IAsyncDisposable

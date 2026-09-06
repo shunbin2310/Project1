@@ -1,3 +1,4 @@
+import { applicationRoles } from '@/types/auth'
 import type { WorkflowActorIdentity, WorkflowAvailableAction } from '@/types/purchaseRequest'
 
 export function isWorkflowActionAuthorized(
@@ -7,6 +8,8 @@ export function isWorkflowActionAuthorized(
   const roles = new Set(actor.roles.map((role) => role.toLowerCase()))
   const actorName = actor.name.toLowerCase()
   const actorId = String(actor.id)
+
+  if (roles.has(applicationRoles.admin.toLowerCase())) return true
 
   return action.actioners.some((actioner) => {
     if (actioner.actionerType === 'Role') {
@@ -21,6 +24,10 @@ export function isWorkflowActionDirectlyAssignedToActor(
   action: WorkflowAvailableAction,
   actor: WorkflowActorIdentity,
 ) {
+  if (actor.roles.some((role) => role.toLowerCase() === applicationRoles.admin.toLowerCase())) {
+    return true
+  }
+
   const actorName = actor.name.toLowerCase()
   const actorId = String(actor.id)
 

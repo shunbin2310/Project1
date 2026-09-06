@@ -173,15 +173,11 @@ describe('MyTaskListView', () => {
     expect(wrapper.get('[role="dialog"]').text()).toContain('Edit PR-0003')
   })
 
-  it('allows the multi-role admin to review approvals without editing another requester draft', async () => {
-    const wrapper = mountView(
-      ['ADMIN', 'REQUESTER', 'DEPARTMENT_APPROVER', 'FINANCE_APPROVER'],
-      'Demo Admin',
-    )
+  it('allows the Admin-only super admin to manage every assigned workflow task', async () => {
+    const wrapper = mountView('ADMIN', 'Demo Admin')
     await flushPromises()
 
     expect(wrapper.get('tbody tr').text()).toContain('PR-0003')
-    expect(wrapper.findAll('button').some((button) => button.text() === 'Edit')).toBe(false)
 
     const detailsButton = wrapper.findAll('button').find((button) => button.text() === 'Details')
     await detailsButton?.trigger('click')

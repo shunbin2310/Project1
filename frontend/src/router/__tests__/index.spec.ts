@@ -47,6 +47,14 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('access-denied')
   })
 
+  it('redirects a requester away from user administration', async () => {
+    authenticate('REQUESTER')
+
+    await router.push('/users')
+
+    expect(router.currentRoute.value.name).toBe('access-denied')
+  })
+
   it('uses My Tasks as the requester default page', async () => {
     authenticate('REQUESTER')
 
@@ -61,6 +69,14 @@ describe('router authentication guards', () => {
     await router.push('/departments')
 
     expect(router.currentRoute.value.name).toBe('departments')
+  })
+
+  it('allows an administrator to open user administration', async () => {
+    authenticate('ADMIN')
+
+    await router.push('/users')
+
+    expect(router.currentRoute.value.name).toBe('users')
   })
 
   it('allows every authenticated role to open My Tasks', async () => {
