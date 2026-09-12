@@ -55,6 +55,14 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('access-denied')
   })
 
+  it('redirects a requester away from workflow template administration', async () => {
+    authenticate('REQUESTER')
+
+    await router.push('/workflow-templates')
+
+    expect(router.currentRoute.value.name).toBe('access-denied')
+  })
+
   it('uses My Tasks as the requester default page', async () => {
     authenticate('REQUESTER')
 
@@ -77,6 +85,14 @@ describe('router authentication guards', () => {
     await router.push('/users')
 
     expect(router.currentRoute.value.name).toBe('users')
+  })
+
+  it('allows an administrator to open workflow template administration', async () => {
+    authenticate('ADMIN')
+
+    await router.push('/workflow-templates')
+
+    expect(router.currentRoute.value.name).toBe('workflow-templates')
   })
 
   it('allows every authenticated role to open My Tasks', async () => {

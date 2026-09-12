@@ -136,15 +136,34 @@ public sealed class WorkflowTemplateServiceTests
     {
         await using var fixture = await WorkflowTemplateFixture.CreateAsync();
         var draft = await fixture.Service.CreateVersionAsync(1, CancellationToken.None);
+        var draftId = draft.Template!.Id;
+        var stepIds = await fixture.DbContext.WorkflowStepTemplates
+            .Where(step => step.ProcessTemplateId == draftId)
+            .Select(step => step.Id)
+            .ToListAsync();
+        var actionIds = await fixture.DbContext.WorkflowActionTemplates
+            .Where(action => stepIds.Contains(action.FromStepTemplateId))
+            .Select(action => action.Id)
+            .ToListAsync();
+        var actionerIds = await fixture.DbContext.WorkflowActionerTemplates
+            .Where(actioner => actionIds.Contains(actioner.ActionTemplateId))
+            .Select(actioner => actioner.Id)
+            .ToListAsync();
 
         var publishedResult = await fixture.Service.DeleteAsync(1, CancellationToken.None);
         var draftResult = await fixture.Service.DeleteAsync(
-            draft.Template!.Id,
+            draftId,
             CancellationToken.None);
 
         Assert.Equal(WorkflowTemplateOperationStatus.InvalidState, publishedResult.Status);
         Assert.Equal(WorkflowTemplateOperationStatus.Success, draftResult.Status);
-        Assert.Null(await fixture.Service.GetByIdAsync(draft.Template.Id, CancellationToken.None));
+        Assert.Null(await fixture.Service.GetByIdAsync(draftId, CancellationToken.None));
+        Assert.False(await fixture.DbContext.WorkflowStepTemplates
+            .AnyAsync(step => stepIds.Contains(step.Id)));
+        Assert.False(await fixture.DbContext.WorkflowActionTemplates
+            .AnyAsync(action => actionIds.Contains(action.Id)));
+        Assert.False(await fixture.DbContext.WorkflowActionerTemplates
+            .AnyAsync(actioner => actionerIds.Contains(actioner.Id)));
     }
 
     private static CreateWorkflowTemplateRequest NewTemplateRequest() => new()

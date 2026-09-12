@@ -67,11 +67,10 @@ export DemoUsers__DefaultPassword="replace-with-demo-password"
 
 ## Pending tasks
 
-1. Workflow Template Admin Vue page
-2. Supplier-Product Relationship
-3. Quotation / Supplier Comparison
-4. Purchase Order
-5. Goods Receiving
-6. Inventory
-7. Dashboard / Notifications
-8. Docker / CI / Deployment
+1. Supplier-Product Relationship
+2. Quotation / Supplier Comparison
+3. Purchase Order
+4. Goods Receiving
+5. Inventory
+6. Dashboard / Notifications
+7. Docker / CI / Deployment

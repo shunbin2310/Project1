@@ -64,6 +64,10 @@ async function logout() {
             <span class="nav-icon" aria-hidden="true">US</span>
             <span>Users</span>
           </RouterLink>
+          <RouterLink to="/workflow-templates">
+            <span class="nav-icon" aria-hidden="true">WF</span>
+            <span>Workflow Templates</span>
+          </RouterLink>
           <RouterLink to="/suppliers">
             <span class="nav-icon" aria-hidden="true">SP</span>
             <span>Suppliers</span>

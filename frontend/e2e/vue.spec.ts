@@ -75,6 +75,23 @@ test.describe('authenticated administration workspace', () => {
     await expect(page.getByLabel('Temporary password')).toHaveCount(0)
   })
 
+  test('opens workflow template administration and its create form', async ({ page }) => {
+    await page.route('http://localhost:5165/api/workflow-templates', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    })
+    await page.route('http://localhost:5165/api/users?includeInactive=true', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    })
+
+    await page.goto('/workflow-templates')
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Workflow Templates')
+    await expect(page.getByRole('link', { name: 'Workflow Templates' })).toBeVisible()
+    await page.getByRole('button', { name: 'New template' }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Create workflow template' })).toBeVisible()
+  })
+
   test('opens the supplier management page and create form', async ({ page }) => {
     await page.goto('/suppliers')
 
