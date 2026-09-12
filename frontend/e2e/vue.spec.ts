@@ -104,6 +104,26 @@ test.describe('authenticated administration workspace', () => {
     await expect(page.getByRole('heading', { name: 'Create supplier' })).toBeVisible()
   })
 
+  test('opens supplier product administration and its create form', async ({ page }) => {
+    await page.route('http://localhost:5165/api/supplier-products?includeInactive=true', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    })
+    await page.route('http://localhost:5165/api/suppliers?includeInactive=true', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    })
+    await page.route('http://localhost:5165/api/products?includeInactive=true', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    })
+
+    await page.goto('/supplier-products')
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Supplier Products')
+    await expect(page.getByRole('link', { name: 'Supplier Products' })).toBeVisible()
+    await page.getByRole('button', { name: 'New relationship' }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'New supplier product' })).toBeVisible()
+  })
+
   test('opens the product category management page and create form', async ({ page }) => {
     await page.goto('/product-categories')
 
@@ -132,7 +152,7 @@ test.describe('authenticated administration workspace', () => {
     await page.goto('/products')
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Products')
-    await expect(page.getByRole('link', { name: 'Products' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Products', exact: true })).toBeVisible()
 
     await page.getByRole('button', { name: 'New product' }).click()
 

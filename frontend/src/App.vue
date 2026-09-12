@@ -72,6 +72,10 @@ async function logout() {
             <span class="nav-icon" aria-hidden="true">SP</span>
             <span>Suppliers</span>
           </RouterLink>
+          <RouterLink to="/supplier-products">
+            <span class="nav-icon" aria-hidden="true">LK</span>
+            <span>Supplier Products</span>
+          </RouterLink>
 
           <p>Catalog</p>
           <RouterLink to="/product-categories">
