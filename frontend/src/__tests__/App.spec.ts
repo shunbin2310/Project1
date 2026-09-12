@@ -48,6 +48,7 @@ describe('App', () => {
     expect(wrapper.get('a.router-link-active').text()).toContain('Departments')
     expect(wrapper.get('a[href="/suppliers"]').text()).toContain('Suppliers')
     expect(wrapper.get('a[href="/users"]').text()).toContain('Users')
+    expect(wrapper.get('a[href="/workflow-templates"]').text()).toContain('Workflow Templates')
     expect(wrapper.get('a[href="/product-categories"]').text()).toContain('Product Categories')
     expect(wrapper.get('a[href="/units-of-measure"]').text()).toContain('Units of Measure')
     expect(wrapper.get('a[href="/products"]').text()).toContain('Products')
@@ -91,6 +92,7 @@ describe('App', () => {
 
     expect(wrapper.find('a[href="/departments"]').exists()).toBe(false)
     expect(wrapper.find('a[href="/users"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="/workflow-templates"]').exists()).toBe(false)
     expect(wrapper.get('a[href="/my-tasks"]').text()).toContain('My Tasks')
     expect(wrapper.get('a[href="/purchase-requests"]').text()).toContain('Purchase Requests')
   })

@@ -287,8 +287,21 @@ public sealed partial class WorkflowTemplateService(AppDbContext dbContext)
             return InvalidState("A workflow template used by an instance cannot be deleted.");
         }
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            cancellationToken);
+
+        var existingSteps = template.Steps.ToArray();
+        var existingActions = existingSteps.SelectMany(step => step.Actions).ToArray();
+        dbContext.WorkflowActionTemplates.RemoveRange(existingActions);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        dbContext.WorkflowStepTemplates.RemoveRange(existingSteps);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
         dbContext.WorkflowProcessTemplates.Remove(template);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
         return new WorkflowTemplateOperationResult(WorkflowTemplateOperationStatus.Success);
     }
 
