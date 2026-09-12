@@ -18,6 +18,7 @@ using Project1.Api.Services.Suppliers;
 using Project1.Api.Services.UnitsOfMeasure;
 using Project1.Api.Services.Users;
 using Project1.Api.Services.Workflows;
+using Project1.Api.Services.WorkflowTemplates;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -144,6 +145,7 @@ builder.Services.AddScoped<IUnitOfMeasureService, UnitOfMeasureService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IPurchaseRequestService, PurchaseRequestService>();
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
+builder.Services.AddScoped<IWorkflowTemplateService, WorkflowTemplateService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 
