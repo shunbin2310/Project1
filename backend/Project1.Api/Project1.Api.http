@@ -494,6 +494,53 @@ Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 ###
 
+# @name createSupplierProduct
+POST {{Project1.Api_HostAddress}}/api/supplier-products
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "supplierId": {{supplierId}},
+  "productId": {{productId}},
+  "isPreferred": true
+}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/supplier-products?supplierId={{supplierId}}
+Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/supplier-products?productId={{productId}}
+Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/supplier-products/{{createSupplierProduct.response.body.$.id}}
+Accept: application/json
+Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
+
+###
+
+PUT {{Project1.Api_HostAddress}}/api/supplier-products/{{createSupplierProduct.response.body.$.id}}
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "isPreferred": false,
+  "isActive": true
+}
+
+###
+
+DELETE {{Project1.Api_HostAddress}}/api/supplier-products/{{createSupplierProduct.response.body.$.id}}
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
 @purchaseRequestId = 1
 
 GET {{Project1.Api_HostAddress}}/api/purchase-requests

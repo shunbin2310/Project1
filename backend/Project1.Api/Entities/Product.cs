@@ -27,4 +27,6 @@ public sealed class Product
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset? UpdatedAtUtc { get; set; }
+
+    public ICollection<SupplierProduct> SupplierProducts { get; set; } = [];
 }
