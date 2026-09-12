@@ -20,6 +20,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<Product> Products => Set<Product>();
 
+    public DbSet<SupplierProduct> SupplierProducts => Set<SupplierProduct>();
+
     public DbSet<PurchaseRequest> PurchaseRequests => Set<PurchaseRequest>();
 
     public DbSet<PurchaseRequestItem> PurchaseRequestItems => Set<PurchaseRequestItem>();
@@ -189,6 +191,37 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasOne(product => product.UnitOfMeasure)
                 .WithMany(unit => unit.Products)
                 .HasForeignKey(product => product.UnitOfMeasureId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SupplierProduct>(entity =>
+        {
+            entity.ToTable("SupplierProducts");
+
+            entity.HasKey(supplierProduct => supplierProduct.Id);
+
+            entity.HasIndex(supplierProduct => new
+            {
+                supplierProduct.SupplierId,
+                supplierProduct.ProductId
+            })
+                .IsUnique();
+
+            entity.HasIndex(supplierProduct => new
+            {
+                supplierProduct.ProductId,
+                supplierProduct.IsActive,
+                supplierProduct.IsPreferred
+            });
+
+            entity.HasOne(supplierProduct => supplierProduct.Supplier)
+                .WithMany(supplier => supplier.SupplierProducts)
+                .HasForeignKey(supplierProduct => supplierProduct.SupplierId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(supplierProduct => supplierProduct.Product)
+                .WithMany(product => product.SupplierProducts)
+                .HasForeignKey(supplierProduct => supplierProduct.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

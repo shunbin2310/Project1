@@ -15,6 +15,7 @@ using Project1.Api.Services.ProductCategories;
 using Project1.Api.Services.Products;
 using Project1.Api.Services.PurchaseRequests;
 using Project1.Api.Services.Suppliers;
+using Project1.Api.Services.SupplierProducts;
 using Project1.Api.Services.UnitsOfMeasure;
 using Project1.Api.Services.Users;
 using Project1.Api.Services.Workflows;
@@ -147,6 +148,7 @@ builder.Services.AddScoped<IPurchaseRequestService, PurchaseRequestService>();
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
 builder.Services.AddScoped<IWorkflowTemplateService, WorkflowTemplateService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
+builder.Services.AddScoped<ISupplierProductService, SupplierProductService>();
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 
 builder.Services.AddCors(options =>

@@ -67,7 +67,7 @@ export DemoUsers__DefaultPassword="replace-with-demo-password"
 
 ## Pending tasks
 
-1. Supplier-Product Relationship
+1. Supplier-Product Relationship UI
 2. Quotation / Supplier Comparison
 3. Purchase Order
 4. Goods Receiving
