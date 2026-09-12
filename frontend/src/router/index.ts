@@ -62,6 +62,12 @@ const router = createRouter({
       meta: { title: 'Suppliers', requiresAuth: true, roles: adminRoutes },
     },
     {
+      path: '/supplier-products',
+      name: 'supplier-products',
+      component: () => import('@/views/supplier-products/SupplierProductListView.vue'),
+      meta: { title: 'Supplier Products', requiresAuth: true, roles: adminRoutes },
+    },
+    {
       path: '/product-categories',
       name: 'product-categories',
       component: () => import('@/views/product-categories/ProductCategoryListView.vue'),
