@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 
 import SupplierForm from '@/components/suppliers/SupplierForm.vue'
+import AppToast from '@/components/ui/AppToast.vue'
+import { useToast } from '@/composables/useToast'
 import { supplierService } from '@/services/supplierService'
 import type { Supplier, SupplierFormValues } from '@/types/supplier'
 
@@ -13,9 +15,9 @@ const includeInactive = ref(false)
 const loadError = ref('')
 const operationError = ref('')
 const formError = ref('')
-const successMessage = ref('')
 const formOpen = ref(false)
 const editingSupplier = ref<Supplier | null>(null)
+const { toast, showSuccess, dismissToast } = useToast()
 
 const activeCount = computed(() => suppliers.value.filter((item) => item.isActive).length)
 const inactiveCount = computed(() => suppliers.value.length - activeCount.value)
@@ -144,13 +146,6 @@ async function reactivateSupplier(supplier: Supplier) {
   }
 }
 
-function showSuccess(message: string) {
-  successMessage.value = message
-  window.setTimeout(() => {
-    if (successMessage.value === message) successMessage.value = ''
-  }, 3500)
-}
-
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
@@ -200,10 +195,7 @@ function formatDate(value: string | null) {
       </article>
     </div>
 
-    <div v-if="successMessage" class="alert alert-success" role="status">
-      <span aria-hidden="true">✓</span>
-      {{ successMessage }}
-    </div>
+    <AppToast :toast="toast" @dismiss="dismissToast" />
 
     <div v-if="operationError" class="alert alert-error" role="alert">
       <span>{{ operationError }}</span>

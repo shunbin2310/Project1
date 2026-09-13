@@ -97,11 +97,15 @@ async function logout() {
           <span class="nav-icon" aria-hidden="true">RQ</span>
           <span>Purchase Requests</span>
         </RouterLink>
+        <RouterLink v-if="isAdmin" to="/quotations">
+          <span class="nav-icon" aria-hidden="true">QT</span>
+          <span>Supplier Quotations</span>
+        </RouterLink>
 
         <p>Coming next</p>
         <span class="nav-placeholder">
-          <span class="nav-icon" aria-hidden="true">AP</span>
-          Approvals
+          <span class="nav-icon" aria-hidden="true">PO</span>
+          Purchase Orders
         </span>
         <span class="nav-placeholder">
           <span class="nav-icon" aria-hidden="true">IN</span>

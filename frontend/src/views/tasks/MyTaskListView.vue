@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import PurchaseRequestDetails from '@/components/purchase-requests/PurchaseRequestDetails.vue'
 import PurchaseRequestForm from '@/components/purchase-requests/PurchaseRequestForm.vue'
 import WorkflowActionDialog from '@/components/purchase-requests/WorkflowActionDialog.vue'
+import AppToast from '@/components/ui/AppToast.vue'
+import { useToast } from '@/composables/useToast'
 import { productService } from '@/services/productService'
 import { purchaseRequestService } from '@/services/purchaseRequestService'
 import { useAuthStore } from '@/stores/auth'
@@ -27,12 +29,11 @@ const actioning = ref(false)
 const loadError = ref('')
 const formError = ref('')
 const actionError = ref('')
-const successMessage = ref('')
 const selectedRequest = ref<PurchaseRequest | null>(null)
 const editingRequest = ref<PurchaseRequest | null>(null)
 const selectedAction = ref<WorkflowAvailableAction | null>(null)
 const authStore = useAuthStore()
-let successTimer: number | undefined
+const { toast, showSuccess, dismissToast } = useToast()
 
 const actor = computed<WorkflowActorIdentity>(() => ({
   id: authStore.user?.id ?? 0,
@@ -44,8 +45,6 @@ const currentTasks = computed(() =>
 )
 
 onMounted(loadTasks)
-onUnmounted(() => window.clearTimeout(successTimer))
-
 function authorizedActions(request: PurchaseRequest) {
   return getAuthorizedWorkflowActions(request.workflow.availableActions, actor.value)
 }
@@ -164,19 +163,6 @@ async function executeAction(comment: string | null) {
   } finally {
     actioning.value = false
   }
-}
-
-function showSuccess(message: string) {
-  window.clearTimeout(successTimer)
-  successMessage.value = message
-  successTimer = window.setTimeout(() => {
-    if (successMessage.value === message) successMessage.value = ''
-  }, 3500)
-}
-
-function dismissSuccess() {
-  window.clearTimeout(successTimer)
-  successMessage.value = ''
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -305,18 +291,7 @@ function stepClass(stepCode: string) {
       </div>
     </section>
 
-    <Transition name="toast">
-      <div v-if="successMessage" class="success-toast" role="status" aria-live="polite">
-        <span class="success-toast-icon" aria-hidden="true">OK</span>
-        <div>
-          <strong>Action completed</strong>
-          <p>{{ successMessage }}</p>
-        </div>
-        <button type="button" aria-label="Dismiss success message" @click="dismissSuccess">
-          &times;
-        </button>
-      </div>
-    </Transition>
+    <AppToast :toast="toast" @dismiss="dismissToast" />
 
     <PurchaseRequestForm
       v-if="editingRequest"

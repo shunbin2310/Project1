@@ -67,9 +67,8 @@ export DemoUsers__DefaultPassword="replace-with-demo-password"
 
 ## Pending tasks
 
-1. Quotation / Supplier Comparison UI
-2. Purchase Order
-3. Goods Receiving
-4. Inventory
-5. Dashboard / Notifications
-6. Docker / CI / Deployment
+1. Purchase Order
+2. Goods Receiving
+3. Inventory
+4. Dashboard / Notifications
+5. Docker / CI / Deployment

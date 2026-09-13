@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 
 import ProductCategoryForm from '@/components/product-categories/ProductCategoryForm.vue'
+import AppToast from '@/components/ui/AppToast.vue'
+import { useToast } from '@/composables/useToast'
 import { productCategoryService } from '@/services/productCategoryService'
 import type { ProductCategory, ProductCategoryFormValues } from '@/types/productCategory'
 
@@ -13,9 +15,9 @@ const includeInactive = ref(false)
 const loadError = ref('')
 const operationError = ref('')
 const formError = ref('')
-const successMessage = ref('')
 const formOpen = ref(false)
 const editingCategory = ref<ProductCategory | null>(null)
+const { toast, showSuccess, dismissToast } = useToast()
 
 const activeCount = computed(() => categories.value.filter((item) => item.isActive).length)
 const inactiveCount = computed(() => categories.value.length - activeCount.value)
@@ -126,13 +128,6 @@ async function reactivateCategory(category: ProductCategory) {
   }
 }
 
-function showSuccess(message: string) {
-  successMessage.value = message
-  window.setTimeout(() => {
-    if (successMessage.value === message) successMessage.value = ''
-  }, 3500)
-}
-
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
@@ -182,10 +177,7 @@ function formatDate(value: string | null) {
       </article>
     </div>
 
-    <div v-if="successMessage" class="alert alert-success" role="status">
-      <span aria-hidden="true">OK</span>
-      {{ successMessage }}
-    </div>
+    <AppToast :toast="toast" @dismiss="dismissToast" />
 
     <div v-if="operationError" class="alert alert-error" role="alert">
       <span>{{ operationError }}</span>

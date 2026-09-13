@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 
 import SupplierProductForm from '@/components/supplier-products/SupplierProductForm.vue'
+import AppToast from '@/components/ui/AppToast.vue'
+import { useToast } from '@/composables/useToast'
 import { productService } from '@/services/productService'
 import { supplierProductService } from '@/services/supplierProductService'
 import { supplierService } from '@/services/supplierService'
@@ -21,9 +23,9 @@ const statusFilter = ref('all')
 const loadError = ref('')
 const operationError = ref('')
 const formError = ref('')
-const successMessage = ref('')
 const formOpen = ref(false)
 const editingSupplierProduct = ref<SupplierProduct | null>(null)
+const { toast, showSuccess, dismissToast } = useToast()
 
 const activeCount = computed(
   () => supplierProducts.value.filter((item) => isAvailable(item)).length,
@@ -164,13 +166,6 @@ function relationshipStatus(supplierProduct: SupplierProduct) {
   return supplier?.isActive && product?.isActive ? 'Active' : 'Unavailable'
 }
 
-function showSuccess(message: string) {
-  successMessage.value = message
-  window.setTimeout(() => {
-    if (successMessage.value === message) successMessage.value = ''
-  }, 3500)
-}
-
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
@@ -218,18 +213,7 @@ function formatCurrency(value: number) {
       </article>
     </div>
 
-    <Transition name="toast">
-      <div v-if="successMessage" class="success-toast" role="status">
-        <span class="success-toast-icon" aria-hidden="true">OK</span>
-        <div>
-          <strong>Relationship updated</strong>
-          <p>{{ successMessage }}</p>
-        </div>
-        <button type="button" aria-label="Dismiss success message" @click="successMessage = ''">
-          &times;
-        </button>
-      </div>
-    </Transition>
+    <AppToast :toast="toast" @dismiss="dismissToast" />
 
     <div v-if="operationError" class="alert alert-error" role="alert">
       <span>{{ operationError }}</span>

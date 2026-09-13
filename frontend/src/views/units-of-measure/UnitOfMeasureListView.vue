@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
+import AppToast from '@/components/ui/AppToast.vue'
 import UnitOfMeasureForm from '@/components/units-of-measure/UnitOfMeasureForm.vue'
+import { useToast } from '@/composables/useToast'
 import { unitOfMeasureService } from '@/services/unitOfMeasureService'
 import type { UnitOfMeasure, UnitOfMeasureFormValues } from '@/types/unitOfMeasure'
 
@@ -13,9 +15,9 @@ const includeInactive = ref(false)
 const loadError = ref('')
 const operationError = ref('')
 const formError = ref('')
-const successMessage = ref('')
 const formOpen = ref(false)
 const editingUnit = ref<UnitOfMeasure | null>(null)
+const { toast, showSuccess, dismissToast } = useToast()
 
 const activeCount = computed(() => units.value.filter((item) => item.isActive).length)
 const inactiveCount = computed(() => units.value.length - activeCount.value)
@@ -131,13 +133,6 @@ async function reactivateUnit(unit: UnitOfMeasure) {
   }
 }
 
-function showSuccess(message: string) {
-  successMessage.value = message
-  window.setTimeout(() => {
-    if (successMessage.value === message) successMessage.value = ''
-  }, 3500)
-}
-
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
@@ -187,10 +182,7 @@ function formatDate(value: string | null) {
       </article>
     </div>
 
-    <div v-if="successMessage" class="alert alert-success" role="status">
-      <span aria-hidden="true">OK</span>
-      {{ successMessage }}
-    </div>
+    <AppToast :toast="toast" @dismiss="dismissToast" />
 
     <div v-if="operationError" class="alert alert-error" role="alert">
       <span>{{ operationError }}</span>

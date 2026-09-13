@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import PurchaseRequestDetails from '@/components/purchase-requests/PurchaseRequestDetails.vue'
 import PurchaseRequestForm from '@/components/purchase-requests/PurchaseRequestForm.vue'
 import WorkflowActionDialog from '@/components/purchase-requests/WorkflowActionDialog.vue'
+import AppToast from '@/components/ui/AppToast.vue'
+import { useToast } from '@/composables/useToast'
 import { productService } from '@/services/productService'
 import { purchaseRequestService } from '@/services/purchaseRequestService'
 import { useAuthStore } from '@/stores/auth'
@@ -39,7 +41,6 @@ const loadError = ref('')
 const operationError = ref('')
 const formError = ref('')
 const actionError = ref('')
-const successMessage = ref('')
 const formOpen = ref(false)
 const selectedRequest = ref<PurchaseRequest | null>(null)
 const editingRequest = ref<PurchaseRequest | null>(null)
@@ -47,7 +48,7 @@ const selectedAction = ref<WorkflowAvailableAction | null>(null)
 const authStore = useAuthStore()
 const route = useRoute()
 const router = useRouter()
-let successTimer: number | undefined
+const { toast, showSuccess, dismissToast } = useToast()
 
 const draftCount = computed(
   () => requests.value.filter((request) => request.workflow.currentStepCode === 'DRAFT').length,
@@ -98,8 +99,6 @@ onMounted(async () => {
     await router.replace({ name: 'purchase-requests', query })
   }
 })
-onUnmounted(() => window.clearTimeout(successTimer))
-
 async function loadData() {
   loading.value = true
   loadError.value = ''
@@ -271,19 +270,6 @@ async function executeAction(comment: string | null) {
   }
 }
 
-function showSuccess(message: string) {
-  window.clearTimeout(successTimer)
-  successMessage.value = message
-  successTimer = window.setTimeout(() => {
-    if (successMessage.value === message) successMessage.value = ''
-  }, 3500)
-}
-
-function dismissSuccess() {
-  window.clearTimeout(successTimer)
-  successMessage.value = ''
-}
-
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
@@ -343,18 +329,7 @@ function stepClass(stepCode: string) {
       </article>
     </div>
 
-    <Transition name="toast">
-      <div v-if="successMessage" class="success-toast" role="status" aria-live="polite">
-        <span class="success-toast-icon" aria-hidden="true">OK</span>
-        <div>
-          <strong>Action completed</strong>
-          <p>{{ successMessage }}</p>
-        </div>
-        <button type="button" aria-label="Dismiss success message" @click="dismissSuccess">
-          &times;
-        </button>
-      </div>
-    </Transition>
+    <AppToast :toast="toast" @dismiss="dismissToast" />
 
     <div v-if="operationError" class="alert alert-error" role="alert">
       <span>{{ operationError }}</span>
