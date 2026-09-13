@@ -644,3 +644,115 @@ DELETE {{Project1.Api_HostAddress}}/api/purchase-requests/{{purchaseRequestId}}
 Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
 
 ###
+
+# Quotation testing prerequisites:
+# 1. The purchase request must have completed the APPROVED workflow step.
+# 2. Each supplier must have an active supplier-product relationship for every request item.
+# 3. Replace these IDs with values from your database/API responses.
+# 4. If the purchase request has multiple items, include every item in each quotation request.
+@quotationPurchaseRequestId = 1
+@quotationPurchaseRequestItemId = 1
+@quotationSupplierOneId = 1
+@quotationSupplierTwoId = 2
+
+# @name createQuotationOne
+POST {{Project1.Api_HostAddress}}/api/quotations
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "purchaseRequestId": {{quotationPurchaseRequestId}},
+  "supplierId": {{quotationSupplierOneId}},
+  "supplierQuotationReference": "SUP-Q-001",
+  "quotationDate": "2026-09-12",
+  "validUntil": "2030-12-31",
+  "notes": "First supplier quotation.",
+  "items": [
+    {
+      "purchaseRequestItemId": {{quotationPurchaseRequestItemId}},
+      "unitPrice": 1250.00
+    }
+  ]
+}
+
+###
+
+# @name createQuotationTwo
+POST {{Project1.Api_HostAddress}}/api/quotations
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "purchaseRequestId": {{quotationPurchaseRequestId}},
+  "supplierId": {{quotationSupplierTwoId}},
+  "supplierQuotationReference": "SUP-Q-002",
+  "quotationDate": "2026-09-12",
+  "validUntil": "2030-12-31",
+  "notes": "Second supplier quotation.",
+  "items": [
+    {
+      "purchaseRequestItemId": {{quotationPurchaseRequestItemId}},
+      "unitPrice": 1190.00
+    }
+  ]
+}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/quotations?purchaseRequestId={{quotationPurchaseRequestId}}
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/quotations/{{createQuotationOne.response.body.$.id}}
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+PUT {{Project1.Api_HostAddress}}/api/quotations/{{createQuotationOne.response.body.$.id}}
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "supplierQuotationReference": "SUP-Q-001-UPDATED",
+  "quotationDate": "2026-09-12",
+  "validUntil": "2030-12-31",
+  "notes": "Updated while still Draft.",
+  "items": [
+    {
+      "purchaseRequestItemId": {{quotationPurchaseRequestItemId}},
+      "unitPrice": 1230.00
+    }
+  ]
+}
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/quotations/{{createQuotationOne.response.body.$.id}}/submit
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/quotations/{{createQuotationTwo.response.body.$.id}}/submit
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/quotations/comparison?purchaseRequestId={{quotationPurchaseRequestId}}
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/quotations/{{createQuotationTwo.response.body.$.id}}/select
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+# Delete only works while the quotation is still Draft.
+DELETE {{Project1.Api_HostAddress}}/api/quotations/{{createQuotationOne.response.body.$.id}}
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###

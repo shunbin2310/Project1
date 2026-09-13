@@ -26,6 +26,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<PurchaseRequestItem> PurchaseRequestItems => Set<PurchaseRequestItem>();
 
+    public DbSet<Quotation> Quotations => Set<Quotation>();
+
+    public DbSet<QuotationItem> QuotationItems => Set<QuotationItem>();
+
     public DbSet<WorkflowProcessTemplate> WorkflowProcessTemplates => Set<WorkflowProcessTemplate>();
 
     public DbSet<WorkflowStepTemplate> WorkflowStepTemplates => Set<WorkflowStepTemplate>();
@@ -274,6 +278,112 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
                 .WithMany(request => request.Items)
                 .HasForeignKey(item => item.PurchaseRequestId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(item => item.Product)
+                .WithMany()
+                .HasForeignKey(item => item.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Quotation>(entity =>
+        {
+            entity.ToTable("Quotations");
+
+            entity.HasKey(quotation => quotation.Id);
+
+            entity.Property(quotation => quotation.QuotationNumber)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.HasIndex(quotation => quotation.QuotationNumber)
+                .IsUnique();
+
+            entity.HasIndex(quotation => new
+            {
+                quotation.PurchaseRequestId,
+                quotation.SupplierId
+            })
+                .IsUnique();
+
+            entity.HasIndex(quotation => new
+            {
+                quotation.PurchaseRequestId,
+                quotation.Status
+            });
+
+            entity.Property(quotation => quotation.SupplierCode)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(quotation => quotation.SupplierName)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(quotation => quotation.SupplierQuotationReference)
+                .HasMaxLength(100);
+
+            entity.Property(quotation => quotation.Notes)
+                .HasMaxLength(1000);
+
+            entity.Property(quotation => quotation.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            entity.Property(quotation => quotation.CreatedByName)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.HasOne(quotation => quotation.PurchaseRequest)
+                .WithMany(request => request.Quotations)
+                .HasForeignKey(quotation => quotation.PurchaseRequestId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(quotation => quotation.Supplier)
+                .WithMany(supplier => supplier.Quotations)
+                .HasForeignKey(quotation => quotation.SupplierId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<QuotationItem>(entity =>
+        {
+            entity.ToTable("QuotationItems");
+
+            entity.HasKey(item => item.Id);
+
+            entity.Property(item => item.ProductCode)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(item => item.ProductName)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(item => item.UnitOfMeasureCode)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(item => item.Quantity)
+                .HasPrecision(18, 3);
+
+            entity.Property(item => item.UnitPrice)
+                .HasPrecision(18, 2);
+
+            entity.HasIndex(item => new
+            {
+                item.QuotationId,
+                item.PurchaseRequestItemId
+            })
+                .IsUnique();
+
+            entity.HasOne(item => item.Quotation)
+                .WithMany(quotation => quotation.Items)
+                .HasForeignKey(item => item.QuotationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(item => item.PurchaseRequestItem)
+                .WithMany()
+                .HasForeignKey(item => item.PurchaseRequestItemId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasOne(item => item.Product)
                 .WithMany()
