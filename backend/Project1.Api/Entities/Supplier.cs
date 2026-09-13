@@ -23,4 +23,6 @@ public sealed class Supplier
     public DateTimeOffset? UpdatedAtUtc { get; set; }
 
     public ICollection<SupplierProduct> SupplierProducts { get; set; } = [];
+
+    public ICollection<Quotation> Quotations { get; set; } = [];
 }

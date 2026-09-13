@@ -27,4 +27,6 @@ public sealed class PurchaseRequest
     public DateTimeOffset? UpdatedAtUtc { get; set; }
 
     public ICollection<PurchaseRequestItem> Items { get; set; } = [];
+
+    public ICollection<Quotation> Quotations { get; set; } = [];
 }
