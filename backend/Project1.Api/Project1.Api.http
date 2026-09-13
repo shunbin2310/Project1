@@ -756,3 +756,67 @@ DELETE {{Project1.Api_HostAddress}}/api/quotations/{{createQuotationOne.response
 Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 ###
+
+# Purchase Order testing prerequisite:
+# Run the quotation flow above and select createQuotationTwo as the winner first.
+# @name createPurchaseOrder
+POST {{Project1.Api_HostAddress}}/api/purchase-orders
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "quotationId": {{createQuotationTwo.response.body.$.id}},
+  "orderDate": "2026-09-13",
+  "expectedDeliveryDate": "2030-12-31",
+  "deliveryAddress": "Main Warehouse, Kuala Lumpur",
+  "notes": "Deliver during office hours."
+}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/purchase-orders
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/purchase-orders/{{createPurchaseOrder.response.body.$.id}}
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+PUT {{Project1.Api_HostAddress}}/api/purchase-orders/{{createPurchaseOrder.response.body.$.id}}
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "orderDate": "2026-09-13",
+  "expectedDeliveryDate": "2030-12-31",
+  "deliveryAddress": "Main Warehouse, Kuala Lumpur",
+  "notes": "Updated delivery instructions while the order is Draft."
+}
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/purchase-orders/{{createPurchaseOrder.response.body.$.id}}/issue
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/purchase-orders/{{createPurchaseOrder.response.body.$.id}}/cancel
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "reason": "Supplier can no longer meet the required delivery date."
+}
+
+###
+
+# Delete only works while the purchase order is still Draft.
+# Run this instead of Issue when testing draft deletion.
+DELETE {{Project1.Api_HostAddress}}/api/purchase-orders/{{createPurchaseOrder.response.body.$.id}}
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###

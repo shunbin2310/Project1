@@ -29,4 +29,6 @@ public sealed class PurchaseRequest
     public ICollection<PurchaseRequestItem> Items { get; set; } = [];
 
     public ICollection<Quotation> Quotations { get; set; } = [];
+
+    public ICollection<PurchaseOrder> PurchaseOrders { get; set; } = [];
 }
