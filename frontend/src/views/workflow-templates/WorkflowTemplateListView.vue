@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
+import AppToast from '@/components/ui/AppToast.vue'
 import WorkflowTemplateDetails from '@/components/workflow-templates/WorkflowTemplateDetails.vue'
 import WorkflowTemplateForm from '@/components/workflow-templates/WorkflowTemplateForm.vue'
+import { useToast } from '@/composables/useToast'
 import { userService } from '@/services/userService'
 import { ApiError, workflowTemplateService } from '@/services/workflowTemplateService'
 import type { User } from '@/types/user'
@@ -24,11 +26,11 @@ const statusFilter = ref<TemplateStatusFilter>('all')
 const loadError = ref('')
 const operationError = ref('')
 const formError = ref('')
-const successMessage = ref('')
 const formOpen = ref(false)
 const detailsOpen = ref(false)
 const editingTemplate = ref<WorkflowTemplate | null>(null)
 const selectedTemplate = ref<WorkflowTemplate | null>(null)
+const { toast, showSuccess, dismissToast } = useToast()
 
 const draftCount = computed(
   () => templates.value.filter((template) => !template.isPublished).length,
@@ -226,13 +228,6 @@ function formatDate(value: string | null) {
   }).format(new Date(value))
 }
 
-function showSuccess(message: string) {
-  successMessage.value = message
-  window.setTimeout(() => {
-    if (successMessage.value === message) successMessage.value = ''
-  }, 3500)
-}
-
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiError || error instanceof Error) return error.message
   return fallback
@@ -273,18 +268,7 @@ function getErrorMessage(error: unknown, fallback: string) {
       </article>
     </div>
 
-    <Transition name="toast">
-      <div v-if="successMessage" class="success-toast" role="status">
-        <span class="success-toast-icon" aria-hidden="true">OK</span>
-        <div>
-          <strong>Operation completed</strong>
-          <p>{{ successMessage }}</p>
-        </div>
-        <button type="button" aria-label="Dismiss success message" @click="successMessage = ''">
-          ×
-        </button>
-      </div>
-    </Transition>
+    <AppToast :toast="toast" @dismiss="dismissToast" />
 
     <div v-if="operationError" class="alert alert-error" role="alert">
       <span>{{ operationError }}</span>

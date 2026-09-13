@@ -71,6 +71,14 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('access-denied')
   })
 
+  it('redirects a requester away from supplier quotations', async () => {
+    authenticate('REQUESTER')
+
+    await router.push('/quotations')
+
+    expect(router.currentRoute.value.name).toBe('access-denied')
+  })
+
   it('uses My Tasks as the requester default page', async () => {
     authenticate('REQUESTER')
 
@@ -109,6 +117,14 @@ describe('router authentication guards', () => {
     await router.push('/supplier-products')
 
     expect(router.currentRoute.value.name).toBe('supplier-products')
+  })
+
+  it('allows an administrator to open supplier quotations', async () => {
+    authenticate('ADMIN')
+
+    await router.push('/quotations')
+
+    expect(router.currentRoute.value.name).toBe('quotations')
   })
 
   it('allows every authenticated role to open My Tasks', async () => {

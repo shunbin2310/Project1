@@ -2,7 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import AppToast from '@/components/ui/AppToast.vue'
 import UserForm from '@/components/users/UserForm.vue'
+import { useToast } from '@/composables/useToast'
 import { departmentService } from '@/services/departmentService'
 import { ApiError, userService } from '@/services/userService'
 import { useAuthStore } from '@/stores/auth'
@@ -24,9 +26,9 @@ const statusFilter = ref<StatusFilter>('all')
 const loadError = ref('')
 const operationError = ref('')
 const formError = ref('')
-const successMessage = ref('')
 const formOpen = ref(false)
 const editingUser = ref<User | null>(null)
+const { toast, showSuccess, dismissToast } = useToast()
 
 const currentUserId = computed(() => authStore.user?.id ?? null)
 const activeCount = computed(() => users.value.filter((user) => user.isActive).length)
@@ -179,13 +181,6 @@ function initials(user: User) {
     .join('')
 }
 
-function showSuccess(message: string) {
-  successMessage.value = message
-  window.setTimeout(() => {
-    if (successMessage.value === message) successMessage.value = ''
-  }, 3500)
-}
-
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiError || error instanceof Error) return error.message
   return fallback
@@ -234,18 +229,7 @@ function formatDate(value: string) {
       </article>
     </div>
 
-    <Transition name="toast">
-      <div v-if="successMessage" class="success-toast" role="status">
-        <span class="success-toast-icon" aria-hidden="true">OK</span>
-        <div>
-          <strong>Operation completed</strong>
-          <p>{{ successMessage }}</p>
-        </div>
-        <button type="button" aria-label="Dismiss success message" @click="successMessage = ''">
-          ×
-        </button>
-      </div>
-    </Transition>
+    <AppToast :toast="toast" @dismiss="dismissToast" />
 
     <div v-if="operationError" class="alert alert-error" role="alert">
       <span>{{ operationError }}</span>

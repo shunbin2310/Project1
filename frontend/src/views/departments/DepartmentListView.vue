@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 
 import DepartmentForm from '@/components/departments/DepartmentForm.vue'
+import AppToast from '@/components/ui/AppToast.vue'
+import { useToast } from '@/composables/useToast'
 import { ApiError, departmentService } from '@/services/departmentService'
 import type { Department, DepartmentFormValues } from '@/types/department'
 
@@ -13,9 +15,9 @@ const includeInactive = ref(false)
 const loadError = ref('')
 const operationError = ref('')
 const formError = ref('')
-const successMessage = ref('')
 const formOpen = ref(false)
 const editingDepartment = ref<Department | null>(null)
+const { toast, showSuccess, dismissToast } = useToast()
 
 const activeCount = computed(() => departments.value.filter((item) => item.isActive).length)
 const inactiveCount = computed(() => departments.value.length - activeCount.value)
@@ -132,13 +134,6 @@ async function reactivateDepartment(department: Department) {
   }
 }
 
-function showSuccess(message: string) {
-  successMessage.value = message
-  window.setTimeout(() => {
-    if (successMessage.value === message) successMessage.value = ''
-  }, 3500)
-}
-
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiError || error instanceof Error) return error.message
   return fallback
@@ -189,10 +184,7 @@ function formatDate(value: string | null) {
       </article>
     </div>
 
-    <div v-if="successMessage" class="alert alert-success" role="status">
-      <span aria-hidden="true">✓</span>
-      {{ successMessage }}
-    </div>
+    <AppToast :toast="toast" @dismiss="dismissToast" />
 
     <div v-if="operationError" class="alert alert-error" role="alert">
       <span>{{ operationError }}</span>

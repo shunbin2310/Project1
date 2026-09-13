@@ -104,10 +104,59 @@ test.describe('authenticated administration workspace', () => {
     await expect(page.getByRole('heading', { name: 'Create supplier' })).toBeVisible()
   })
 
-  test('opens supplier product administration and its create form', async ({ page }) => {
-    await page.route('http://localhost:5165/api/supplier-products?includeInactive=true', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  test('shows the common toast after creating a supplier', async ({ page }) => {
+    const createdSupplier = {
+      id: 7,
+      code: 'SUP-0007',
+      name: 'Example Supplies',
+      contactPerson: null,
+      email: null,
+      phone: null,
+      address: null,
+      isActive: true,
+      createdAtUtc: '2026-09-13T00:00:00Z',
+      updatedAtUtc: null,
+    }
+    let suppliers: (typeof createdSupplier)[] = []
+
+    await page.route('http://localhost:5165/api/suppliers*', async (route) => {
+      if (route.request().method() === 'POST') {
+        suppliers = [createdSupplier]
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify(createdSupplier),
+        })
+        return
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(suppliers),
+      })
     })
+
+    await page.goto('/suppliers')
+    await page.getByRole('button', { name: 'New supplier' }).click()
+
+    const dialog = page.getByRole('dialog')
+    await dialog.getByLabel('Supplier name').fill('Example Supplies')
+    await dialog.getByRole('button', { name: 'Create supplier' }).click()
+
+    await expect(dialog).toBeHidden()
+    const toast = page.getByRole('status')
+    await expect(toast).toContainText('Action completed')
+    await expect(toast).toContainText('SUP-0007 was created successfully.')
+  })
+
+  test('opens supplier product administration and its create form', async ({ page }) => {
+    await page.route(
+      'http://localhost:5165/api/supplier-products?includeInactive=true',
+      async (route) => {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+      },
+    )
     await page.route('http://localhost:5165/api/suppliers?includeInactive=true', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
     })
@@ -170,6 +219,157 @@ test.describe('authenticated administration workspace', () => {
 
     await expect(page.getByRole('dialog')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Create purchase request' })).toBeVisible()
+  })
+
+  test('opens supplier quotations and loads eligible suppliers into the create form', async ({
+    page,
+  }) => {
+    await page.route('http://localhost:5165/api/quotations', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    })
+    await page.route(
+      'http://localhost:5165/api/purchase-requests?stepCode=APPROVED',
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([
+            {
+              id: 7,
+              requestNumber: 'PR-0007',
+              requesterName: 'Demo Requester',
+              departmentId: 1,
+              departmentCode: 'IT',
+              departmentName: 'Information Technology',
+              requiredDate: '2026-10-01',
+              justification: 'New workstation',
+              estimatedTotal: 2400,
+              createdAtUtc: '2026-09-01T00:00:00Z',
+              updatedAtUtc: null,
+              items: [
+                {
+                  id: 11,
+                  productId: 1,
+                  productCode: 'ITEM-0001',
+                  productName: 'Monitor',
+                  unitOfMeasureCode: 'UNIT',
+                  quantity: 2,
+                  estimatedUnitPrice: 1200,
+                  lineTotal: 2400,
+                },
+              ],
+              workflow: {
+                id: 7,
+                templateCode: 'PURCHASE_REQUEST',
+                templateName: 'Purchase Request Approval',
+                templateVersion: 1,
+                entityType: 'PurchaseRequest',
+                entityId: 7,
+                status: 'Completed',
+                currentStepCode: 'APPROVED',
+                currentStepName: 'Approved',
+                startedAtUtc: '2026-09-01T00:00:00Z',
+                completedAtUtc: '2026-09-02T00:00:00Z',
+                availableActions: [],
+                history: [],
+              },
+            },
+          ]),
+        })
+      },
+    )
+    await page.route('http://localhost:5165/api/suppliers', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: 1,
+            code: 'SUP-0001',
+            name: 'Example Supplies',
+            isActive: true,
+            createdAtUtc: '2026-09-01T00:00:00Z',
+          },
+        ]),
+      })
+    })
+    await page.route('http://localhost:5165/api/supplier-products', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: 1,
+            supplierId: 1,
+            supplierCode: 'SUP-0001',
+            supplierName: 'Example Supplies',
+            productId: 1,
+            productCode: 'ITEM-0001',
+            productName: 'Monitor',
+            unitOfMeasureCode: 'UNIT',
+            unitOfMeasureName: 'Unit',
+            productDefaultUnitPrice: 1200,
+            isPreferred: true,
+            isActive: true,
+            createdAtUtc: '2026-09-01T00:00:00Z',
+          },
+        ]),
+      })
+    })
+
+    await page.goto('/quotations')
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Supplier Quotations')
+    await expect(page.getByRole('link', { name: 'Supplier Quotations' })).toBeVisible()
+    await page.getByRole('button', { name: 'New quotation' }).click()
+    await expect(page.getByRole('heading', { name: 'Create supplier quotation' })).toBeVisible()
+    await expect(page.getByLabel('Eligible supplier')).toContainText('Example Supplies')
+    await expect(page.getByText('Monitor', { exact: true })).toBeVisible()
+  })
+
+  test('keeps an overflowing desktop navigation inside the sidebar', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 560 })
+    await page.route('http://localhost:5165/api/quotations', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    })
+    await page.route(
+      'http://localhost:5165/api/purchase-requests?stepCode=APPROVED',
+      async (route) => {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+      },
+    )
+    await page.route('http://localhost:5165/api/suppliers', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    })
+    await page.route('http://localhost:5165/api/supplier-products', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    })
+
+    await page.goto('/quotations')
+
+    const sidebar = page.locator('.sidebar')
+    await expect(sidebar).toBeVisible()
+    const dimensions = await sidebar.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      overflowY: getComputedStyle(element).overflowY,
+    }))
+
+    expect(dimensions.overflowY).toBe('auto')
+    expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight)
+
+    await sidebar.evaluate((element) => {
+      element.scrollTop = element.scrollHeight
+    })
+    const footer = page.locator('.sidebar-footer')
+    await expect(footer).toBeInViewport()
+
+    const [sidebarBox, footerBox] = await Promise.all([sidebar.boundingBox(), footer.boundingBox()])
+    expect(sidebarBox).not.toBeNull()
+    expect(footerBox).not.toBeNull()
+    expect(footerBox!.y + footerBox!.height).toBeLessThanOrEqual(
+      sidebarBox!.y + sidebarBox!.height + 1,
+    )
   })
 
   test('opens the My Tasks workflow inbox', async ({ page }) => {
