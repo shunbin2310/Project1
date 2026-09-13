@@ -41,4 +41,6 @@ public sealed class Quotation
     public DateTimeOffset? SelectedAtUtc { get; set; }
 
     public ICollection<QuotationItem> Items { get; set; } = [];
+
+    public PurchaseOrder? PurchaseOrder { get; set; }
 }

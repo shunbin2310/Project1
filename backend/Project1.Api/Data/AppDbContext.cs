@@ -30,6 +30,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<QuotationItem> QuotationItems => Set<QuotationItem>();
 
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+
+    public DbSet<PurchaseOrderItem> PurchaseOrderItems => Set<PurchaseOrderItem>();
+
     public DbSet<WorkflowProcessTemplate> WorkflowProcessTemplates => Set<WorkflowProcessTemplate>();
 
     public DbSet<WorkflowStepTemplate> WorkflowStepTemplates => Set<WorkflowStepTemplate>();
@@ -383,6 +387,132 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasOne(item => item.PurchaseRequestItem)
                 .WithMany()
                 .HasForeignKey(item => item.PurchaseRequestItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(item => item.Product)
+                .WithMany()
+                .HasForeignKey(item => item.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PurchaseOrder>(entity =>
+        {
+            entity.ToTable("PurchaseOrders");
+
+            entity.HasKey(order => order.Id);
+
+            entity.Property(order => order.PurchaseOrderNumber)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.HasIndex(order => order.PurchaseOrderNumber)
+                .IsUnique();
+
+            entity.HasIndex(order => order.QuotationId)
+                .IsUnique();
+
+            entity.HasIndex(order => order.PurchaseRequestId)
+                .IsUnique();
+
+            entity.HasIndex(order => new { order.SupplierId, order.Status });
+
+            entity.Property(order => order.QuotationNumber)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(order => order.PurchaseRequestNumber)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(order => order.SupplierCode)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(order => order.SupplierName)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(order => order.SupplierQuotationReference)
+                .HasMaxLength(100);
+
+            entity.Property(order => order.DeliveryAddress)
+                .HasMaxLength(500);
+
+            entity.Property(order => order.Notes)
+                .HasMaxLength(1000);
+
+            entity.Property(order => order.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            entity.Property(order => order.CreatedByName)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(order => order.IssuedByName)
+                .HasMaxLength(100);
+
+            entity.Property(order => order.CancelledByName)
+                .HasMaxLength(100);
+
+            entity.Property(order => order.CancellationReason)
+                .HasMaxLength(500);
+
+            entity.HasOne(order => order.Quotation)
+                .WithOne(quotation => quotation.PurchaseOrder)
+                .HasForeignKey<PurchaseOrder>(order => order.QuotationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(order => order.PurchaseRequest)
+                .WithMany(request => request.PurchaseOrders)
+                .HasForeignKey(order => order.PurchaseRequestId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(order => order.Supplier)
+                .WithMany(supplier => supplier.PurchaseOrders)
+                .HasForeignKey(order => order.SupplierId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PurchaseOrderItem>(entity =>
+        {
+            entity.ToTable("PurchaseOrderItems");
+
+            entity.HasKey(item => item.Id);
+
+            entity.Property(item => item.ProductCode)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(item => item.ProductName)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(item => item.UnitOfMeasureCode)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(item => item.Quantity)
+                .HasPrecision(18, 3);
+
+            entity.Property(item => item.UnitPrice)
+                .HasPrecision(18, 2);
+
+            entity.HasIndex(item => new
+            {
+                item.PurchaseOrderId,
+                item.QuotationItemId
+            })
+                .IsUnique();
+
+            entity.HasOne(item => item.PurchaseOrder)
+                .WithMany(order => order.Items)
+                .HasForeignKey(item => item.PurchaseOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(item => item.QuotationItem)
+                .WithMany()
+                .HasForeignKey(item => item.QuotationItemId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasOne(item => item.Product)
