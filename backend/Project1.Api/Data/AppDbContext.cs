@@ -34,6 +34,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<PurchaseOrderItem> PurchaseOrderItems => Set<PurchaseOrderItem>();
 
+    public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
+
+    public DbSet<GoodsReceiptItem> GoodsReceiptItems => Set<GoodsReceiptItem>();
+
     public DbSet<WorkflowProcessTemplate> WorkflowProcessTemplates => Set<WorkflowProcessTemplate>();
 
     public DbSet<WorkflowStepTemplate> WorkflowStepTemplates => Set<WorkflowStepTemplate>();
@@ -513,6 +517,126 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasOne(item => item.QuotationItem)
                 .WithMany()
                 .HasForeignKey(item => item.QuotationItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(item => item.Product)
+                .WithMany()
+                .HasForeignKey(item => item.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<GoodsReceipt>(entity =>
+        {
+            entity.ToTable("GoodsReceipts");
+
+            entity.HasKey(receipt => receipt.Id);
+
+            entity.Property(receipt => receipt.GoodsReceiptNumber)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.HasIndex(receipt => receipt.GoodsReceiptNumber)
+                .IsUnique();
+
+            entity.HasIndex(receipt => new
+            {
+                receipt.PurchaseOrderId,
+                receipt.Status
+            });
+
+            entity.HasIndex(receipt => new
+            {
+                receipt.SupplierId,
+                receipt.Status
+            });
+
+            entity.HasIndex(receipt => new
+            {
+                receipt.PurchaseOrderId,
+                receipt.SupplierDeliveryNoteNumber
+            })
+                .IsUnique()
+                .HasFilter("[SupplierDeliveryNoteNumber] IS NOT NULL");
+
+            entity.Property(receipt => receipt.PurchaseOrderNumber)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(receipt => receipt.SupplierCode)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(receipt => receipt.SupplierName)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(receipt => receipt.SupplierDeliveryNoteNumber)
+                .HasMaxLength(100);
+
+            entity.Property(receipt => receipt.Notes)
+                .HasMaxLength(1000);
+
+            entity.Property(receipt => receipt.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            entity.Property(receipt => receipt.CreatedByName)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(receipt => receipt.PostedByName)
+                .HasMaxLength(100);
+
+            entity.HasOne(receipt => receipt.PurchaseOrder)
+                .WithMany(order => order.GoodsReceipts)
+                .HasForeignKey(receipt => receipt.PurchaseOrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(receipt => receipt.Supplier)
+                .WithMany(supplier => supplier.GoodsReceipts)
+                .HasForeignKey(receipt => receipt.SupplierId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<GoodsReceiptItem>(entity =>
+        {
+            entity.ToTable("GoodsReceiptItems");
+
+            entity.HasKey(item => item.Id);
+
+            entity.Property(item => item.ProductCode)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(item => item.ProductName)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(item => item.UnitOfMeasureCode)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(item => item.OrderedQuantity)
+                .HasPrecision(18, 3);
+
+            entity.Property(item => item.QuantityReceived)
+                .HasPrecision(18, 3);
+
+            entity.HasIndex(item => new
+            {
+                item.GoodsReceiptId,
+                item.PurchaseOrderItemId
+            })
+                .IsUnique();
+
+            entity.HasOne(item => item.GoodsReceipt)
+                .WithMany(receipt => receipt.Items)
+                .HasForeignKey(item => item.GoodsReceiptId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(item => item.PurchaseOrderItem)
+                .WithMany(orderItem => orderItem.GoodsReceiptItems)
+                .HasForeignKey(item => item.PurchaseOrderItemId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasOne(item => item.Product)

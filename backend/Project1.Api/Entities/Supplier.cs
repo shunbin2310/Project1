@@ -27,4 +27,6 @@ public sealed class Supplier
     public ICollection<Quotation> Quotations { get; set; } = [];
 
     public ICollection<PurchaseOrder> PurchaseOrders { get; set; } = [];
+
+    public ICollection<GoodsReceipt> GoodsReceipts { get; set; } = [];
 }
