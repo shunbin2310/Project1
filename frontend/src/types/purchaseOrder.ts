@@ -1,4 +1,9 @@
-export type PurchaseOrderStatus = 'Draft' | 'Issued' | 'Cancelled'
+export type PurchaseOrderStatus =
+  | 'Draft'
+  | 'Issued'
+  | 'PartiallyReceived'
+  | 'Received'
+  | 'Cancelled'
 
 export interface PurchaseOrderItem {
   id: number

@@ -103,6 +103,12 @@ const router = createRouter({
       component: () => import('@/views/purchase-orders/PurchaseOrderListView.vue'),
       meta: { title: 'Purchase Orders', requiresAuth: true, roles: adminRoutes },
     },
+    {
+      path: '/goods-receipts',
+      name: 'goods-receipts',
+      component: () => import('@/views/goods-receipts/GoodsReceiptListView.vue'),
+      meta: { title: 'Goods Receiving', requiresAuth: true, roles: adminRoutes },
+    },
   ],
 })
 

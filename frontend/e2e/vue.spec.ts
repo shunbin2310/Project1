@@ -390,6 +390,74 @@ test.describe('authenticated administration workspace', () => {
     await expect(page.getByText('RM 1,500.00', { exact: true }).last()).toBeVisible()
   })
 
+  test('opens goods receiving and loads an issued purchase order into the create form', async ({
+    page,
+  }) => {
+    await page.route('http://localhost:5165/api/goods-receipts', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    })
+    await page.route('http://localhost:5165/api/purchase-orders', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: 5,
+            purchaseOrderNumber: 'PO-0005',
+            quotationId: 8,
+            quotationNumber: 'QT-0008',
+            purchaseRequestId: 4,
+            purchaseRequestNumber: 'PR-0004',
+            supplierId: 2,
+            supplierCode: 'SUP-0002',
+            supplierName: 'Office Supply Co',
+            supplierQuotationReference: 'REF-08',
+            orderDate: '2026-09-15',
+            expectedDeliveryDate: '2026-09-30',
+            deliveryAddress: 'Main warehouse',
+            notes: null,
+            status: 'Issued',
+            totalAmount: 1500,
+            createdByUserId: 4,
+            createdByName: 'Demo Admin',
+            createdAtUtc: '2026-09-15T00:00:00Z',
+            updatedAtUtc: null,
+            issuedAtUtc: '2026-09-15T01:00:00Z',
+            issuedByUserId: 4,
+            issuedByName: 'Demo Admin',
+            cancelledAtUtc: null,
+            cancelledByUserId: null,
+            cancelledByName: null,
+            cancellationReason: null,
+            items: [
+              {
+                id: 2,
+                quotationItemId: 12,
+                productId: 3,
+                productCode: 'ITEM-0003',
+                productName: 'Office Chair',
+                unitOfMeasureCode: 'UNIT',
+                quantity: 10,
+                unitPrice: 150,
+                lineTotal: 1500,
+              },
+            ],
+          },
+        ]),
+      })
+    })
+
+    await page.goto('/goods-receipts')
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Goods Receiving')
+    await expect(page.getByRole('link', { name: 'Goods Receiving' })).toBeVisible()
+    await page.getByRole('button', { name: 'New goods receipt' }).click()
+    await expect(page.getByRole('heading', { name: 'Create goods receipt' })).toBeVisible()
+    await expect(page.getByLabel('Open purchase order')).toContainText('PO-0005')
+    await expect(page.getByText('Office Chair', { exact: true })).toBeVisible()
+    await expect(page.getByText('10', { exact: true }).first()).toBeVisible()
+  })
+
   test('keeps an overflowing desktop navigation inside the sidebar', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 560 })
     await page.route('http://localhost:5165/api/quotations', async (route) => {

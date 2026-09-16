@@ -2821,6 +2821,16 @@ tbody tr:hover {
   background: #def2ea;
 }
 
+.purchase-order-status.status-partiallyreceived {
+  color: #7a5920;
+  background: #fff0c9;
+}
+
+.purchase-order-status.status-received {
+  color: #17644f;
+  background: #d7efe6;
+}
+
 .purchase-order-status.status-cancelled {
   color: #8a4141;
   background: #f6e7e7;
@@ -2964,6 +2974,215 @@ tbody tr:hover {
   border-radius: 9px;
 }
 
+.goods-receipt-form-modal,
+.goods-receipt-details-modal {
+  width: min(1080px, 100%);
+}
+
+.goods-receipt-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  padding: 23px 25px 25px;
+}
+
+.goods-receipt-toolbar {
+  align-items: flex-start;
+}
+
+.goods-receipt-filters {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.goods-receipt-identity {
+  display: flex;
+  min-width: 155px;
+  gap: 11px;
+  align-items: center;
+}
+
+.goods-receipt-identity strong,
+.goods-receipt-identity small {
+  display: block;
+}
+
+.goods-receipt-identity strong {
+  color: #203331;
+  font-size: 12px;
+}
+
+.goods-receipt-identity small {
+  margin-top: 4px;
+  color: #83908e;
+  font-size: 9px;
+}
+
+.goods-receipt-row-actions {
+  min-width: 170px;
+}
+
+.goods-receipt-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 9px;
+  color: #77591d;
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+  background: #fff0ca;
+  border-radius: 999px;
+}
+
+.goods-receipt-status.status-posted {
+  color: #17644f;
+  background: #def2ea;
+}
+
+.goods-receipt-items {
+  overflow: hidden;
+  border: 1px solid #d7e1df;
+  border-radius: 12px;
+}
+
+.goods-receipt-items .request-items-heading {
+  padding: 16px 18px;
+  background: #f8faf9;
+  border-bottom: 1px solid #dce5e3;
+}
+
+.goods-receipt-items-error {
+  margin: 12px 18px 0;
+}
+
+.goods-receipt-entry-table input {
+  width: 115px;
+}
+
+.goods-receipt-entry-table td strong,
+.goods-receipt-entry-table td small {
+  display: block;
+}
+
+.goods-receipt-entry-table td small {
+  margin-top: 4px;
+  color: #83908e;
+  font-size: 8px;
+}
+
+.table-quantity-input {
+  min-height: 38px;
+  padding: 8px 10px;
+  color: #203331;
+  background: #f8fbfa;
+  border: 1px solid #cddbd7;
+  border-radius: 8px;
+}
+
+.goods-receipt-total {
+  margin: 0;
+  padding: 14px 18px;
+  background: #edf7f3;
+  border-top: 1px solid #d4e5df;
+}
+
+.goods-receipt-details-title > div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.goods-receipt-details {
+  display: grid;
+  gap: 18px;
+  padding: 23px 25px 25px;
+}
+
+.goods-receipt-summary {
+  overflow: hidden;
+  background: linear-gradient(135deg, #f4faf7 0%, #f8faf9 100%);
+  border: 1px solid #d4e4df;
+  border-radius: 13px;
+}
+
+.goods-receipt-summary-primary,
+.goods-receipt-summary-meta,
+.goods-receipt-audit {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.goods-receipt-summary-primary {
+  gap: 22px;
+  padding: 19px 20px;
+  border-bottom: 1px solid #dce8e4;
+}
+
+.goods-receipt-summary-meta {
+  padding: 14px 20px;
+  background: rgb(255 255 255 / 48%);
+}
+
+.goods-receipt-summary-primary span,
+.goods-receipt-summary-meta span,
+.goods-receipt-audit span {
+  display: block;
+  color: #7e8d8a;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.goods-receipt-summary-primary strong,
+.goods-receipt-summary-primary small,
+.goods-receipt-summary-meta strong,
+.goods-receipt-audit strong,
+.goods-receipt-audit small {
+  display: block;
+}
+
+.goods-receipt-summary-primary strong,
+.goods-receipt-summary-meta strong {
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  color: #253b38;
+  font-size: 12px;
+}
+
+.goods-receipt-summary-primary small,
+.goods-receipt-audit small {
+  margin-top: 4px;
+  color: #80908d;
+  font-size: 8px;
+}
+
+.goods-receipt-summary-meta > div {
+  padding-right: 16px;
+}
+
+.goods-receipt-summary-meta > div + div {
+  padding-left: 16px;
+  border-left: 1px solid #dce6e3;
+}
+
+.goods-receipt-audit {
+  gap: 10px;
+}
+
+.goods-receipt-audit > div {
+  padding: 13px;
+  background: #f7faf9;
+  border: 1px solid #dce5e3;
+  border-radius: 10px;
+}
+
+.goods-receipt-audit strong {
+  margin-top: 6px;
+  color: #29413e;
+  font-size: 10px;
+}
+
 @media (max-width: 900px) {
   .auth-page {
     grid-template-columns: 1fr;
@@ -3045,6 +3264,10 @@ tbody tr:hover {
   .purchase-order-summary-primary {
     grid-template-columns: 1fr;
   }
+
+  .goods-receipt-summary-primary {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 650px) {
@@ -3119,6 +3342,7 @@ tbody tr:hover {
   .purchase-request-form,
   .quotation-form,
   .purchase-order-form,
+  .goods-receipt-form,
   .user-form,
   .supplier-product-form,
   .role-option-grid {
@@ -3127,6 +3351,8 @@ tbody tr:hover {
 
   .supplier-product-filters,
   .quotation-filters,
+  .goods-receipt-filters,
+  .goods-receipt-filters .search-control,
   .quotation-filters .search-control,
   .supplier-product-filters .search-control,
   .relationship-filter-control,
@@ -3164,6 +3390,12 @@ tbody tr:hover {
     grid-template-columns: 1fr;
   }
 
+  .goods-receipt-summary-primary,
+  .goods-receipt-summary-meta,
+  .goods-receipt-audit {
+    grid-template-columns: 1fr;
+  }
+
   .quotation-summary-primary,
   .quotation-summary-meta {
     gap: 16px;
@@ -3180,6 +3412,12 @@ tbody tr:hover {
   .quotation-summary-meta > div + div,
   .purchase-order-summary-meta > div,
   .purchase-order-summary-meta > div + div {
+    padding: 0;
+    border-left: 0;
+  }
+
+  .goods-receipt-summary-meta > div,
+  .goods-receipt-summary-meta > div + div {
     padding: 0;
     border-left: 0;
   }

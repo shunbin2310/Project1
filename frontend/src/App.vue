@@ -105,6 +105,10 @@ async function logout() {
           <span class="nav-icon" aria-hidden="true">PO</span>
           <span>Purchase Orders</span>
         </RouterLink>
+        <RouterLink v-if="isAdmin" to="/goods-receipts">
+          <span class="nav-icon" aria-hidden="true">GR</span>
+          <span>Goods Receiving</span>
+        </RouterLink>
 
         <p>Coming next</p>
         <span class="nav-placeholder">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PurchaseOrder } from '@/types/purchaseOrder'
+import type { PurchaseOrder, PurchaseOrderStatus } from '@/types/purchaseOrder'
 
 defineProps<{
   purchaseOrder: PurchaseOrder
@@ -31,6 +31,10 @@ function formatDateTime(value: string | null) {
 function formatQuantity(value: number) {
   return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 3 }).format(value)
 }
+
+function statusLabel(status: PurchaseOrderStatus) {
+  return status === 'PartiallyReceived' ? 'Partially received' : status
+}
 </script>
 
 <template>
@@ -50,7 +54,7 @@ function formatQuantity(value: number) {
               class="purchase-order-status"
               :class="`status-${purchaseOrder.status.toLowerCase()}`"
             >
-              {{ purchaseOrder.status }}
+              {{ statusLabel(purchaseOrder.status) }}
             </span>
           </div>
         </div>

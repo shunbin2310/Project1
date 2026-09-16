@@ -83,6 +83,14 @@ describe('PurchaseOrderDetails', () => {
     )
   })
 
+  it('formats the partially received status label', () => {
+    const wrapper = mount(PurchaseOrderDetails, {
+      props: { purchaseOrder: purchaseOrder({ status: 'PartiallyReceived' }) },
+    })
+
+    expect(wrapper.get('.purchase-order-status').text()).toBe('Partially received')
+  })
+
   it('emits close from both close buttons', async () => {
     const wrapper = mount(PurchaseOrderDetails, {
       props: { purchaseOrder: purchaseOrder() },
