@@ -804,6 +804,112 @@ Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 ###
 
+# Goods Receiving prerequisites:
+# 1. Run the Purchase Order flow above through Issue.
+# 2. Do not cancel the purchase order.
+# 3. This example assumes the first purchase order item has an ordered quantity of 2.
+# @name createGoodsReceiptOne
+POST {{Project1.Api_HostAddress}}/api/goods-receipts
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "purchaseOrderId": {{createPurchaseOrder.response.body.$.id}},
+  "supplierDeliveryNoteNumber": "DN-2026-001",
+  "receivedDate": "2026-09-16",
+  "notes": "First partial delivery received in good condition.",
+  "items": [
+    {
+      "purchaseOrderItemId": {{createPurchaseOrder.response.body.$.items[0].id}},
+      "quantityReceived": 1
+    }
+  ]
+}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/goods-receipts?purchaseOrderId={{createPurchaseOrder.response.body.$.id}}
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/goods-receipts/{{createGoodsReceiptOne.response.body.$.id}}
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+PUT {{Project1.Api_HostAddress}}/api/goods-receipts/{{createGoodsReceiptOne.response.body.$.id}}
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "supplierDeliveryNoteNumber": "DN-2026-001",
+  "receivedDate": "2026-09-16",
+  "notes": "First delivery inspected and ready to post.",
+  "items": [
+    {
+      "purchaseOrderItemId": {{createPurchaseOrder.response.body.$.items[0].id}},
+      "quantityReceived": 1
+    }
+  ]
+}
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/goods-receipts/{{createGoodsReceiptOne.response.body.$.id}}/post
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+# After the first post, the purchase order status should be PartiallyReceived.
+GET {{Project1.Api_HostAddress}}/api/purchase-orders/{{createPurchaseOrder.response.body.$.id}}
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+# @name createGoodsReceiptTwo
+POST {{Project1.Api_HostAddress}}/api/goods-receipts
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+{
+  "purchaseOrderId": {{createPurchaseOrder.response.body.$.id}},
+  "supplierDeliveryNoteNumber": "DN-2026-002",
+  "receivedDate": "2026-09-16",
+  "notes": "Final delivery received.",
+  "items": [
+    {
+      "purchaseOrderItemId": {{createPurchaseOrder.response.body.$.items[0].id}},
+      "quantityReceived": 1
+    }
+  ]
+}
+
+###
+
+POST {{Project1.Api_HostAddress}}/api/goods-receipts/{{createGoodsReceiptTwo.response.body.$.id}}/post
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+# After the final post, the purchase order status should be Received.
+GET {{Project1.Api_HostAddress}}/api/purchase-orders/{{createPurchaseOrder.response.body.$.id}}
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+# Delete only works while a goods receipt is still Draft.
+# Run this instead of Post when testing draft deletion.
+DELETE {{Project1.Api_HostAddress}}/api/goods-receipts/{{createGoodsReceiptOne.response.body.$.id}}
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+# Run this cancellation request instead of the Goods Receiving flow above.
 POST {{Project1.Api_HostAddress}}/api/purchase-orders/{{createPurchaseOrder.response.body.$.id}}/cancel
 Content-Type: application/json
 Authorization: Bearer {{adminLogin.response.body.$.accessToken}}

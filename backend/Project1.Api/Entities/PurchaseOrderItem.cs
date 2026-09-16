@@ -25,4 +25,6 @@ public sealed class PurchaseOrderItem
     public decimal Quantity { get; set; }
 
     public decimal UnitPrice { get; set; }
+
+    public ICollection<GoodsReceiptItem> GoodsReceiptItems { get; set; } = [];
 }

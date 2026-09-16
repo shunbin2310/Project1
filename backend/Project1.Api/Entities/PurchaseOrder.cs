@@ -61,4 +61,6 @@ public sealed class PurchaseOrder
     public string? CancellationReason { get; set; }
 
     public ICollection<PurchaseOrderItem> Items { get; set; } = [];
+
+    public ICollection<GoodsReceipt> GoodsReceipts { get; set; } = [];
 }
