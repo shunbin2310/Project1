@@ -56,6 +56,7 @@ describe('App', () => {
     expect(wrapper.get('a[href="/my-tasks"]').text()).toContain('My Tasks')
     expect(wrapper.get('a[href="/purchase-requests"]').text()).toContain('Purchase Requests')
     expect(wrapper.get('a[href="/quotations"]').text()).toContain('Supplier Quotations')
+    expect(wrapper.get('a[href="/purchase-orders"]').text()).toContain('Purchase Orders')
   })
 
   it('hides administration navigation from a requester', async () => {
@@ -97,6 +98,7 @@ describe('App', () => {
     expect(wrapper.find('a[href="/workflow-templates"]').exists()).toBe(false)
     expect(wrapper.find('a[href="/supplier-products"]').exists()).toBe(false)
     expect(wrapper.find('a[href="/quotations"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="/purchase-orders"]').exists()).toBe(false)
     expect(wrapper.get('a[href="/my-tasks"]').text()).toContain('My Tasks')
     expect(wrapper.get('a[href="/purchase-requests"]').text()).toContain('Purchase Requests')
   })
