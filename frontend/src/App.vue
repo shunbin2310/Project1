@@ -101,12 +101,12 @@ async function logout() {
           <span class="nav-icon" aria-hidden="true">QT</span>
           <span>Supplier Quotations</span>
         </RouterLink>
+        <RouterLink v-if="isAdmin" to="/purchase-orders">
+          <span class="nav-icon" aria-hidden="true">PO</span>
+          <span>Purchase Orders</span>
+        </RouterLink>
 
         <p>Coming next</p>
-        <span class="nav-placeholder">
-          <span class="nav-icon" aria-hidden="true">PO</span>
-          Purchase Orders
-        </span>
         <span class="nav-placeholder">
           <span class="nav-icon" aria-hidden="true">IN</span>
           Inventory

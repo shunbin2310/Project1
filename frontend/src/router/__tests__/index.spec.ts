@@ -79,6 +79,14 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('access-denied')
   })
 
+  it('redirects a requester away from purchase orders', async () => {
+    authenticate('REQUESTER')
+
+    await router.push('/purchase-orders')
+
+    expect(router.currentRoute.value.name).toBe('access-denied')
+  })
+
   it('uses My Tasks as the requester default page', async () => {
     authenticate('REQUESTER')
 
@@ -125,6 +133,14 @@ describe('router authentication guards', () => {
     await router.push('/quotations')
 
     expect(router.currentRoute.value.name).toBe('quotations')
+  })
+
+  it('allows an administrator to open purchase orders', async () => {
+    authenticate('ADMIN')
+
+    await router.push('/purchase-orders')
+
+    expect(router.currentRoute.value.name).toBe('purchase-orders')
   })
 
   it('allows every authenticated role to open My Tasks', async () => {

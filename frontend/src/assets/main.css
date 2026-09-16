@@ -2751,6 +2751,219 @@ tbody tr:hover {
   align-items: center;
 }
 
+.purchase-order-form-modal,
+.purchase-order-details-modal {
+  width: min(1080px, 100%);
+}
+
+.purchase-order-cancel-modal {
+  width: min(540px, 100%);
+}
+
+.purchase-order-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  padding: 23px 25px 25px;
+}
+
+.purchase-order-toolbar {
+  align-items: flex-start;
+}
+
+.purchase-order-filters {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.purchase-order-identity {
+  display: flex;
+  min-width: 160px;
+  gap: 11px;
+  align-items: center;
+}
+
+.purchase-order-identity strong,
+.purchase-order-identity small {
+  display: block;
+}
+
+.purchase-order-identity strong {
+  color: #203331;
+  font-size: 12px;
+}
+
+.purchase-order-identity small {
+  margin-top: 4px;
+  color: #83908e;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.purchase-order-row-actions {
+  min-width: 190px;
+}
+
+.purchase-order-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 9px;
+  color: #536460;
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+  background: #edf0ef;
+  border-radius: 999px;
+}
+
+.purchase-order-status.status-issued {
+  color: #17644f;
+  background: #def2ea;
+}
+
+.purchase-order-status.status-cancelled {
+  color: #8a4141;
+  background: #f6e7e7;
+}
+
+.purchase-order-details-title > div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.purchase-order-details {
+  display: grid;
+  gap: 18px;
+  padding: 23px 25px 25px;
+}
+
+.purchase-order-summary {
+  overflow: hidden;
+  background: linear-gradient(135deg, #f4faf7 0%, #f8faf9 100%);
+  border: 1px solid #d4e4df;
+  border-radius: 13px;
+}
+
+.purchase-order-summary-primary,
+.purchase-order-summary-meta,
+.purchase-order-copy-grid,
+.purchase-order-audit {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.purchase-order-summary-primary {
+  gap: 22px;
+  padding: 19px 20px;
+  border-bottom: 1px solid #dce8e4;
+}
+
+.purchase-order-summary-meta {
+  padding: 14px 20px;
+  background: rgb(255 255 255 / 48%);
+}
+
+.purchase-order-summary-primary span,
+.purchase-order-summary-meta span,
+.purchase-order-audit span {
+  display: block;
+  color: #7e8d8a;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.purchase-order-summary-primary strong,
+.purchase-order-summary-primary small,
+.purchase-order-summary-meta strong,
+.purchase-order-audit strong,
+.purchase-order-audit small {
+  display: block;
+}
+
+.purchase-order-summary-primary strong,
+.purchase-order-summary-meta strong {
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  color: #253b38;
+  font-size: 12px;
+}
+
+.purchase-order-summary-primary small,
+.purchase-order-audit small {
+  margin-top: 4px;
+  color: #80908d;
+  font-size: 8px;
+}
+
+.purchase-order-summary-meta > div {
+  padding-right: 16px;
+}
+
+.purchase-order-summary-meta > div + div {
+  padding-left: 16px;
+  border-left: 1px solid #dce6e3;
+}
+
+.purchase-order-copy-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.purchase-order-cancellation {
+  padding: 15px 17px;
+  color: #7d3f3f;
+  background: #faeeee;
+  border: 1px solid #edcccc;
+  border-radius: 11px;
+}
+
+.purchase-order-cancellation strong {
+  font-size: 11px;
+}
+
+.purchase-order-cancellation p {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.purchase-order-audit {
+  gap: 10px;
+}
+
+.purchase-order-audit > div {
+  padding: 13px;
+  background: #f7faf9;
+  border: 1px solid #dce5e3;
+  border-radius: 10px;
+}
+
+.purchase-order-audit strong {
+  margin-top: 6px;
+  color: #29413e;
+  font-size: 10px;
+}
+
+.purchase-order-cancel-form {
+  display: grid;
+  gap: 17px;
+  padding: 22px 24px 24px;
+}
+
+.purchase-order-cancel-warning {
+  margin: 0;
+  padding: 12px 13px;
+  color: #77582c;
+  font-size: 10px;
+  line-height: 1.55;
+  background: #fff7e5;
+  border: 1px solid #efdfba;
+  border-radius: 9px;
+}
+
 @media (max-width: 900px) {
   .auth-page {
     grid-template-columns: 1fr;
@@ -2828,6 +3041,10 @@ tbody tr:hover {
   .quotation-summary-primary {
     grid-template-columns: minmax(0, 1.5fr) minmax(170px, 1fr);
   }
+
+  .purchase-order-summary-primary {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 650px) {
@@ -2901,6 +3118,7 @@ tbody tr:hover {
   .product-form,
   .purchase-request-form,
   .quotation-form,
+  .purchase-order-form,
   .user-form,
   .supplier-product-form,
   .role-option-grid {
@@ -2938,7 +3156,11 @@ tbody tr:hover {
   .quotation-date-grid,
   .quotation-summary-primary,
   .quotation-summary-meta,
-  .comparison-summary {
+  .comparison-summary,
+  .purchase-order-summary-primary,
+  .purchase-order-summary-meta,
+  .purchase-order-copy-grid,
+  .purchase-order-audit {
     grid-template-columns: 1fr;
   }
 
@@ -2955,7 +3177,9 @@ tbody tr:hover {
   }
 
   .quotation-summary-meta > div,
-  .quotation-summary-meta > div + div {
+  .quotation-summary-meta > div + div,
+  .purchase-order-summary-meta > div,
+  .purchase-order-summary-meta > div + div {
     padding: 0;
     border-left: 0;
   }

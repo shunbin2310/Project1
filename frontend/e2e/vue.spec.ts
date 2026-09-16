@@ -327,6 +327,69 @@ test.describe('authenticated administration workspace', () => {
     await expect(page.getByText('Monitor', { exact: true })).toBeVisible()
   })
 
+  test('opens purchase orders and previews a selected quotation in the create form', async ({
+    page,
+  }) => {
+    await page.route('http://localhost:5165/api/purchase-orders', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    })
+    await page.route(
+      'http://localhost:5165/api/quotations?status=Selected',
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([
+            {
+              id: 8,
+              quotationNumber: 'QT-0008',
+              purchaseRequestId: 4,
+              purchaseRequestNumber: 'PR-0004',
+              supplierId: 2,
+              supplierCode: 'SUP-0002',
+              supplierName: 'Office Supply Co',
+              supplierQuotationReference: 'REF-08',
+              quotationDate: '2026-09-15',
+              validUntil: '2030-10-15',
+              notes: null,
+              status: 'Selected',
+              totalAmount: 1500,
+              createdByUserId: 4,
+              createdByName: 'Demo Admin',
+              createdAtUtc: '2026-09-15T00:00:00Z',
+              updatedAtUtc: null,
+              submittedAtUtc: '2026-09-15T01:00:00Z',
+              selectedAtUtc: '2026-09-15T02:00:00Z',
+              items: [
+                {
+                  id: 12,
+                  purchaseRequestItemId: 9,
+                  productId: 3,
+                  productCode: 'ITEM-0003',
+                  productName: 'Office Chair',
+                  unitOfMeasureCode: 'UNIT',
+                  quantity: 3,
+                  unitPrice: 500,
+                  lineTotal: 1500,
+                },
+              ],
+            },
+          ]),
+        })
+      },
+    )
+
+    await page.goto('/purchase-orders')
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Purchase Orders')
+    await expect(page.getByRole('link', { name: 'Purchase Orders' })).toBeVisible()
+    await page.getByRole('button', { name: 'New purchase order' }).click()
+    await expect(page.getByRole('heading', { name: 'Create purchase order' })).toBeVisible()
+    await expect(page.getByLabel('Selected supplier quotation')).toContainText('Office Supply Co')
+    await expect(page.getByText('Office Chair', { exact: true })).toBeVisible()
+    await expect(page.getByText('RM 1,500.00', { exact: true }).last()).toBeVisible()
+  })
+
   test('keeps an overflowing desktop navigation inside the sidebar', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 560 })
     await page.route('http://localhost:5165/api/quotations', async (route) => {
