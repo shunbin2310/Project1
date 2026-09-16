@@ -19,6 +19,8 @@ const statusFilters: { value: '' | PurchaseOrderStatus; label: string }[] = [
   { value: '', label: 'All statuses' },
   { value: 'Draft', label: 'Draft' },
   { value: 'Issued', label: 'Issued' },
+  { value: 'PartiallyReceived', label: 'Partially received' },
+  { value: 'Received', label: 'Received' },
   { value: 'Cancelled', label: 'Cancelled' },
 ]
 
@@ -43,11 +45,17 @@ const { toast, showSuccess, dismissToast } = useToast()
 const draftCount = computed(
   () => purchaseOrders.value.filter((order) => order.status === 'Draft').length,
 )
-const issuedCount = computed(
-  () => purchaseOrders.value.filter((order) => order.status === 'Issued').length,
+const openDeliveryCount = computed(
+  () =>
+    purchaseOrders.value.filter(
+      (order) => order.status === 'Issued' || order.status === 'PartiallyReceived',
+    ).length,
 )
-const cancelledCount = computed(
-  () => purchaseOrders.value.filter((order) => order.status === 'Cancelled').length,
+const closedCount = computed(
+  () =>
+    purchaseOrders.value.filter(
+      (order) => order.status === 'Received' || order.status === 'Cancelled',
+    ).length,
 )
 const usedQuotationIds = computed(
   () => new Set(purchaseOrders.value.map((order) => order.quotationId)),
@@ -243,6 +251,10 @@ function formatDate(value: string | null) {
     new Date(`${value}T00:00:00`),
   )
 }
+
+function statusLabel(status: PurchaseOrderStatus) {
+  return status === 'PartiallyReceived' ? 'Partially received' : status
+}
 </script>
 
 <template>
@@ -273,14 +285,14 @@ function formatDate(value: string | null) {
         <span>Orders still being prepared</span>
       </article>
       <article class="summary-card summary-card-positive">
-        <span class="summary-label">Issued</span>
-        <strong>{{ issuedCount }}</strong>
-        <span>Sent to selected suppliers</span>
+        <span class="summary-label">Open delivery</span>
+        <strong>{{ openDeliveryCount }}</strong>
+        <span>Issued or partially received</span>
       </article>
       <article class="summary-card">
-        <span class="summary-label">Cancelled</span>
-        <strong>{{ cancelledCount }}</strong>
-        <span>Retained for audit history</span>
+        <span class="summary-label">Closed</span>
+        <strong>{{ closedCount }}</strong>
+        <span>Fully received or cancelled</span>
       </article>
     </div>
 
@@ -387,7 +399,7 @@ function formatDate(value: string | null) {
               </td>
               <td>
                 <span class="purchase-order-status" :class="`status-${order.status.toLowerCase()}`">
-                  {{ order.status }}
+                  {{ statusLabel(order.status) }}
                 </span>
               </td>
               <td>

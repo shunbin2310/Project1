@@ -67,7 +67,6 @@ export DemoUsers__DefaultPassword="replace-with-demo-password"
 
 ## Pending tasks
 
-1. Goods Receiving
-2. Inventory
-3. Dashboard / Notifications
-4. Docker / CI / Deployment
+1. Inventory
+2. Dashboard / Notifications
+3. Docker / CI / Deployment
