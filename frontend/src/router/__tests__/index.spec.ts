@@ -95,6 +95,14 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('access-denied')
   })
 
+  it('redirects a requester away from inventory', async () => {
+    authenticate('REQUESTER')
+
+    await router.push('/inventory')
+
+    expect(router.currentRoute.value.name).toBe('access-denied')
+  })
+
   it('uses My Tasks as the requester default page', async () => {
     authenticate('REQUESTER')
 
@@ -157,6 +165,14 @@ describe('router authentication guards', () => {
     await router.push('/goods-receipts')
 
     expect(router.currentRoute.value.name).toBe('goods-receipts')
+  })
+
+  it('allows an administrator to open inventory', async () => {
+    authenticate('ADMIN')
+
+    await router.push('/inventory')
+
+    expect(router.currentRoute.value.name).toBe('inventory')
   })
 
   it('allows every authenticated role to open My Tasks', async () => {

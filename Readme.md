@@ -374,6 +374,36 @@ Draft → Posted
 - Only one Draft receipt is allowed for a purchase order at a time.
 - Duplicate supplier delivery note numbers are rejected for the same purchase order.
 
+### Inventory
+
+Inventory shows the latest quantity available for every product and the immutable history of stock
+movements.
+
+The Inventory page is available to Admin and provides:
+
+- Active product, low-stock, and out-of-stock counts.
+- Search by product, category, or unit of measure.
+- Category, stock status, and inactive-product filters.
+- Current quantity on hand and product reorder level.
+- A per-product transaction history with type and date filters.
+- The source document, quantity before, quantity change, quantity after, user, and timestamp for each
+  movement.
+
+Inventory quantities are not edited directly. Posting a Goods Receipt creates a `GoodsReceipt`
+inventory transaction and increases the balance inside the same database transaction. This preserves
+an auditable ledger and prevents a Posted receipt from existing without its matching stock movement.
+
+Stock status is calculated as follows:
+
+```text
+Quantity = 0                  -> Out of stock
+0 < Quantity <= ReorderLevel -> Low stock
+Quantity > ReorderLevel      -> Healthy
+```
+
+The summary uses product counts instead of adding all quantities together because units such as
+`UNIT`, `KG`, and `BOX` cannot be combined into one meaningful total.
+
 ### Access Denied
 
 An authenticated user who opens a route without the required role is redirected to a dedicated `403 Access Denied` page.
@@ -466,6 +496,17 @@ The purchase order can no longer be edited after it is issued.
 7. Click Post.
 
 If some quantities are still outstanding, the purchase order becomes Partially Received. Repeat the receiving process for later deliveries. When all quantities are received, the purchase order becomes Received.
+
+### Phase 9: Admin monitors inventory
+
+1. Open Inventory after posting a Goods Receipt.
+2. Confirm the received product's quantity on hand increased.
+3. Check whether any products are Low stock or Out of stock.
+4. Click View history for a product.
+5. Confirm the ledger shows the Goods Receipt number, quantity before, received change, quantity after,
+   posting user, and timestamp.
+
+Draft Goods Receipts do not affect inventory. Only the Post action creates a stock movement.
 
 ## Workflow engine
 
@@ -617,7 +658,8 @@ One-line version for any shell:
 dotnet tool run dotnet-ef database update --project backend/Project1.Api --startup-project backend/Project1.Api
 ```
 
-This creates or updates `Project1Db`, including Identity, workflow, purchasing, quotation, purchase order, and goods receipt tables.
+This creates or updates `Project1Db`, including Identity, workflow, purchasing, quotation, purchase
+order, goods receipt, and inventory ledger tables.
 
 ### 4. Start the backend
 
@@ -731,6 +773,287 @@ dotnet test Project1.slnx -c Release
 ```
 
 Backend tests cover controllers, authentication, workflow behavior, services, validation, and status transitions.
+
+### Complete system example
+
+The following example is useful for an interview demonstration because it passes through every main
+business module and uses each business role.
+
+Example data:
+
+| Record | Example |
+| --- | --- |
+| Product | Ergonomic Keyboard, quantity 10, reorder level 3 |
+| Suppliers | Alpha Equipment and Beta Equipment |
+| Alpha quotation | RM 115 per unit |
+| Beta quotation | RM 108 per unit and selected as the winner |
+| First delivery | 6 units |
+| Second delivery | 4 units |
+
+Expected process:
+
+```text
+Requester creates PR for 10 keyboards
+        -> Draft
+Requester submits
+        -> Department Review
+Department Approver approves
+        -> Finance Review
+Finance Approver approves
+        -> Approved / Completed
+Admin records and submits two quotations
+        -> Alpha Submitted + Beta Submitted
+Admin selects Beta
+        -> Beta Selected + Alpha Not Selected
+Admin creates and issues PO for 10
+        -> Issued
+Admin posts first receipt for 6
+        -> PO Partially Received + Inventory 6
+Admin posts second receipt for 4
+        -> PO Received + Inventory 10
+```
+
+#### Complete UI test walkthrough
+
+Use a short unique Run Tag, for example `UI0927A`, in names and references. This prevents duplicate
+master data when the walkthrough is repeated.
+
+##### 1. Prepare the application
+
+1. Apply the latest migrations and start both backend and frontend.
+2. Open `http://localhost:5173`.
+3. Sign in as Demo Admin.
+4. Open Workflow Templates.
+5. Confirm `PURCHASE_REQUEST` has one Active and Published version.
+
+Expected result: Admin can see all administration and purchasing pages.
+
+##### 2. Create the catalog and suppliers as Admin
+
+Create this master data in order:
+
+1. Open Product Categories and click New category.
+   - Name: `Interview Equipment UI0927A`
+   - Description: `Complete UI test category`
+2. Open Units of Measure and click New unit.
+   - Code: `TST0927A`
+   - Name: `Test Unit UI0927A`
+3. Open Products and click New product.
+   - Name: `Ergonomic Keyboard UI0927A`
+   - Category: the category created above
+   - Unit: the unit created above
+   - Default unit price: `120.00`
+   - Reorder level: `3`
+4. Open Suppliers and create two suppliers:
+   - `Alpha Equipment UI0927A`
+   - `Beta Equipment UI0927A`
+5. Open Supplier Products and click New relationship twice:
+   - Link Alpha Equipment to Ergonomic Keyboard.
+   - Link Beta Equipment to Ergonomic Keyboard and mark it Preferred.
+
+Expected result: both suppliers are eligible to quote for the new product. Record the generated
+product and supplier codes if you want to search for them later.
+
+##### 3. Create a Draft Purchase Request as Requester
+
+1. Sign out and use the Demo Requester quick-login account.
+2. Open Purchase Requests.
+3. Click New purchase request.
+4. Enter:
+   - Required date: any future date
+   - Business justification: `Ten keyboards for new employee onboarding UI0927A`
+   - Product: `Ergonomic Keyboard UI0927A`
+   - Quantity: `10`
+5. Click Create draft.
+
+Expected result: the request has workflow step `Draft`, and its estimated total is RM 1,200.00.
+
+To test Draft editing and submission:
+
+1. Open My Tasks.
+2. Click Edit on the Draft request.
+3. Check the values and click Save and submit.
+
+Expected result: the form closes, a success toast appears, and the request moves to
+`Department Review`.
+
+##### 4. Perform Department Review
+
+1. Sign out and use the Department Approver account.
+2. Open My Tasks.
+3. Open Details for the request waiting at Department Review.
+4. Click Approve department review.
+5. Enter comment: `Department approved UI walkthrough.`
+6. Click Approve department review in the confirmation dialog.
+
+Expected result: the request disappears from the Department Approver task list and moves to
+`Finance Review`.
+
+##### 5. Perform Finance Review
+
+1. Sign out and use the Finance Approver account.
+2. Open My Tasks.
+3. Open the same request.
+4. Click Approve finance review.
+5. Enter comment: `Budget confirmed for UI walkthrough.`
+6. Confirm the action.
+
+Expected result: the workflow becomes `Completed`, the current step becomes `Approved`, and no more
+workflow actions are available.
+
+##### 6. Record and compare supplier quotations as Admin
+
+1. Sign out and use the Demo Admin account.
+2. Open Supplier Quotations and click New quotation.
+3. Create the Alpha quotation:
+   - Purchase request: the Approved request created above
+   - Supplier: `Alpha Equipment UI0927A`
+   - Supplier reference: `ALPHA-UI0927A`
+   - Quotation date: today
+   - Valid until: a future date
+   - Supplier unit price: `115.00`
+   - Click Save and submit
+4. Click New quotation again and create the Beta quotation:
+   - Same purchase request
+   - Supplier: `Beta Equipment UI0927A`
+   - Supplier reference: `BETA-UI0927A`
+   - Supplier unit price: `108.00`
+   - Click Save and submit
+
+Expected result:
+
+- Alpha total is RM 1,150.00.
+- Beta total is RM 1,080.00.
+- Both quotations have status `Submitted`.
+
+Click Compare on either quotation, check both prices, and click Select winner for Beta Equipment.
+Confirm the selection.
+
+Expected result: Beta becomes `Selected`, while Alpha becomes `Not selected`.
+
+##### 7. Create and issue the Purchase Order
+
+1. Open Purchase Orders and click New purchase order.
+2. Select the winning Beta quotation.
+3. Enter:
+   - Order date: today
+   - Expected delivery date: a future date
+   - Delivery address: `Project1 Main Warehouse`
+   - Notes: `Complete UI walkthrough order`
+4. Confirm the preview shows quantity `10`, unit price RM 108.00, and total RM 1,080.00.
+5. Click Create draft.
+6. Find the new Draft order and click Issue.
+7. Confirm the warning.
+
+Expected result: the Purchase Order status becomes `Issued` and it can no longer be edited or
+deleted.
+
+##### 8. Test partial Goods Receiving
+
+Before receiving, open Inventory and find `Ergonomic Keyboard UI0927A`.
+
+Expected result: quantity on hand is `0`, and its status is `Out of stock`.
+
+Create the first receipt:
+
+1. Open Goods Receiving and click New goods receipt.
+2. Select the Issued Purchase Order.
+3. Enter:
+   - Supplier delivery note: `DN-1-UI0927A`
+   - Received date: today
+   - Notes: `First partial delivery`
+   - Quantity received: `6`
+4. Click Create draft.
+5. Return to Inventory before posting.
+
+Expected result: the inventory quantity is still `0` because a Draft receipt must not update stock.
+
+Return to Goods Receiving, find the Draft receipt, click Post, and confirm.
+
+Expected result:
+
+- Goods Receipt status becomes `Posted`.
+- Purchase Order status becomes `Partially Received`.
+- Inventory quantity becomes `6`.
+- Inventory status becomes `Healthy` because 6 is above the reorder level of 3.
+
+##### 9. Receive the remaining quantity
+
+1. Open Goods Receiving and create another receipt for the same Purchase Order.
+2. Enter delivery note `DN-2-UI0927A`.
+3. The form should show:
+   - Ordered: `10`
+   - Previously received: `6`
+   - Remaining: `4`
+4. Enter Quantity received `4`.
+5. Create the Draft and Post it.
+
+Expected result:
+
+- The second Goods Receipt becomes `Posted`.
+- The Purchase Order becomes `Received`.
+- Final inventory quantity becomes `10`.
+
+##### 10. Verify the Inventory ledger
+
+1. Open Inventory.
+2. Search for `Ergonomic Keyboard UI0927A`.
+3. Click View history.
+
+Expected ledger:
+
+| Movement | Reference | Before | Change | After |
+| --- | --- | ---: | ---: | ---: |
+| First Posted receipt | First `GR-xxxx` | 0 | +6 | 6 |
+| Second Posted receipt | Second `GR-xxxx` | 6 | +4 | 10 |
+
+Both rows should show transaction type `Goods receipt`, the posting Admin, and a timestamp. Date and
+transaction-type filters should return the matching rows.
+
+##### 11. Optional permission checks
+
+1. Sign in as Requester and manually open `/inventory`, `/purchase-orders`, or `/users`.
+2. Confirm the application displays `403 Access Denied`.
+3. Sign in as Admin and confirm those pages are available.
+
+This verifies both normal business processing and frontend role navigation. The API separately
+enforces the same authorization rules.
+
+### Complete API smoke test
+
+[`scripts/Test-EndToEnd.ps1`](scripts/Test-EndToEnd.ps1) automates the same complete process against a
+running local API. It creates unique master data, so it can be run more than once without duplicate
+category or unit codes.
+
+Before running it:
+
+1. Apply the latest database migrations.
+2. Start the backend at `http://localhost:5165`.
+3. Confirm Development demo users are enabled.
+4. Confirm an active, published `PURCHASE_REQUEST` workflow template exists.
+
+Run from the repository root:
+
+```powershell
+.\scripts\Test-EndToEnd.ps1
+```
+
+Use a different API address or demo password when required:
+
+```powershell
+.\scripts\Test-EndToEnd.ps1 `
+  -BaseUrl "http://localhost:5165" `
+  -DemoPassword "Project1Demo123!"
+```
+
+The script stops immediately when an expected state is incorrect. A successful run ends with
+`Complete system smoke test passed` and prints the created PR, quotation, PO, receipt, product, and
+final inventory information.
+
+The script intentionally leaves its records in the development database. Completed workflow,
+quotation, purchase order, posted receipt, and inventory ledger records are audit history and should
+not be deleted automatically. Use a disposable development database when a clean database is needed
+after every run.
 
 ### Frontend unit tests
 
@@ -978,8 +1301,168 @@ Confirm SQL Server is running, the server name is correct, and the current Windo
 
 ## Pending work
 
-1. Inventory UI (backend stock ledger and balance APIs completed)
-2. Dashboard and notifications
-3. Docker configuration
-4. GitHub Actions automated build and test
-5. Ubuntu server deployment and production environment configuration
+The following tasks are arranged in the planned development order. Complete and verify one task
+before starting the next one.
+
+### 1. Make Purchase Request estimated prices system-controlled
+
+Status: Pending
+
+Agreed business rule: a Requester chooses a product and quantity but cannot decide its estimated unit
+price. The estimate comes from the Product master record, while the real commercial price is entered
+later through Supplier Quotations.
+
+- Display the Product default unit price as read-only in the Purchase Request form.
+- Do not trust an `EstimatedUnitPrice` supplied by the browser or a manual API request.
+- Make the backend copy `Product.DefaultUnitPrice` into the Purchase Request item snapshot.
+- Keep historical Purchase Request prices unchanged when the Product master price changes later.
+- Update backend, frontend, and API tests for the enforced rule.
+
+Completion check: a Requester cannot change the price in the UI or API, and a newly created request
+uses the current Product default price.
+
+### 2. Clarify Supplier Quotation references
+
+Status: Pending
+
+Agreed business rule: `QT-xxxx` is the internal number generated by Project1. The Supplier Quotation
+Reference is an optional external number printed on the document received from the supplier, so the
+system should not invent it automatically.
+
+- Rename the field label to `Supplier quotation reference (optional)`.
+- Add helper text explaining that the value comes from the supplier's quotation document.
+- Keep the value optional and manually entered.
+- Continue generating the internal `QT-xxxx` number automatically.
+- Update component tests and the UI test guide.
+
+Completion check: users can clearly distinguish the internal quotation number from the supplier's
+external reference.
+
+### 3. Separate daily purchasing work from the Admin role
+
+Status: Pending
+
+Agreed business rule: Admin remains a Super Admin for configuration, demonstrations, and recovery,
+but normal purchasing and warehouse work should be performed by dedicated users.
+
+Add these roles:
+
+| Role | Main responsibility |
+| --- | --- |
+| `PROCUREMENT_OFFICER` | Suppliers, Supplier Products, Supplier Quotations, and Purchase Orders |
+| `WAREHOUSE_OFFICER` | Goods Receiving and Inventory |
+| `CATALOG_MANAGER` | Product Categories, Units of Measure, and Products; optional if the scope is kept smaller |
+
+Implementation scope:
+
+- Seed the new ASP.NET Core Identity roles.
+- Add Procurement and Warehouse demo users for portfolio testing.
+- Assign users to suitable Departments such as Procurement and Warehouse.
+- Use Roles, not Department names, as the authorization rule.
+- Update controller authorization, Vue Router guards, sidebar visibility, and Access Denied behavior.
+- Keep `ADMIN` authorized for every page and operation.
+- Update the permission matrix, automated tests, and UI walkthrough.
+
+Completion check: Procurement can manage quotations and orders but cannot manage Users; Warehouse can
+receive goods and view inventory but cannot manage quotations; Admin can access everything.
+
+### 4. Send Purchase Orders to suppliers by email
+
+Status: Pending
+
+Current behavior: Issue validates the Purchase Order and changes it from Draft to Issued, but does not
+currently send an email.
+
+Planned behavior:
+
+```text
+Issue Purchase Order
+        -> save Issued status and audit information
+        -> create an email outbox record
+        -> background worker sends the email
+        -> record Pending, Sent, or Failed delivery status
+```
+
+Implementation scope:
+
+- Create a Purchase Order email template with placeholders for supplier, PO number, dates, delivery
+  address, items, and total amount.
+- Replace template placeholders using the Purchase Order snapshot data.
+- Send to the Supplier email address.
+- Use an outbox/queue so a temporary email failure does not undo a successfully Issued PO.
+- Store recipient, attempt count, last error, sent time, and delivery status.
+- Allow Admin or Procurement to retry a Failed email.
+- Use a local email catcher during development instead of sending real email.
+- Add email preview, service, queue, retry, and integration tests.
+
+Completion check: issuing a PO queues one email, successful delivery is recorded as Sent, and a failed
+delivery can be retried without issuing the PO again.
+
+### 5. Connect additional business modules to the Workflow Engine
+
+Status: Pending future extension
+
+Creating a Workflow Template for a new Entity Type only stores its definition. It does not run until
+the corresponding business service calls the Workflow Engine.
+
+For each new workflow-enabled module:
+
+- Choose a real business entity, for example `PurchaseOrder` approval.
+- Call `StartAsync(entityType, entityId)` when the business record is created.
+- Use `ExecuteActionAsync` for its workflow actions.
+- Return the Workflow Instance in the module response.
+- Add My Tasks support and action UI for that entity.
+- Preserve Template + Instance snapshot behavior so old records do not change when a new template is
+  published.
+- Add authorization, transition, history, and versioning tests.
+
+Completion check: publishing a template for the new Entity Type affects new records, while existing
+records continue using their copied Workflow Instance.
+
+### 6. Simplify and separate project documentation
+
+Status: Pending
+
+- Keep the root README focused on introduction, quick start, quick demo, and major architecture.
+- Move the detailed UI walkthrough to `docs/UI_TEST_GUIDE.md`.
+- Move Workflow Engine internals to `docs/WORKFLOW_ENGINE.md`.
+- Move detailed architecture and coding notes to `docs/ARCHITECTURE.md`.
+- Keep commands and links between documents consistent.
+
+Completion check: a new user can start and demonstrate the project without reading the technical
+implementation sections first.
+
+### 7. Dashboard and notifications
+
+Status: Pending
+
+- Role-specific dashboard summaries.
+- Pending approval and receiving reminders.
+- Low-stock notifications.
+- Recent purchasing and inventory activity.
+
+### 8. Docker configuration
+
+Status: Pending
+
+- ASP.NET Core API Dockerfile.
+- Vue production Dockerfile.
+- SQL Server container for local deployment.
+- Docker Compose configuration and environment variables.
+
+### 9. GitHub Actions automated build and test
+
+Status: Pending
+
+- Backend restore, build, and tests.
+- Frontend install, lint, unit tests, and production build.
+- Optional Playwright browser tests.
+
+### 10. Ubuntu server deployment
+
+Status: Pending
+
+- Production configuration and secrets.
+- Database and container deployment.
+- HTTPS and reverse proxy.
+- Backup, logging, and deployment instructions.
