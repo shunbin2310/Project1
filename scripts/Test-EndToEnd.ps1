@@ -123,10 +123,13 @@ Write-Step "Checking API health"
 $health = Invoke-ProjectApi -Method GET -Path "/api/health"
 Write-Host "API health response: $($health.status)"
 
-Write-Step "Signing in with all four demo roles"
+Write-Step "Signing in with all seven demo roles"
 $requesterToken = Login-DemoUser -Email "requester@demo.local"
 $departmentToken = Login-DemoUser -Email "department@demo.local"
 $financeToken = Login-DemoUser -Email "finance@demo.local"
+$procurementToken = Login-DemoUser -Email "procurement@demo.local"
+$warehouseToken = Login-DemoUser -Email "warehouse@demo.local"
+$catalogToken = Login-DemoUser -Email "catalog@demo.local"
 $adminToken = Login-DemoUser -Email "admin@demo.local"
 
 Write-Step "Checking the active Purchase Request workflow template"
@@ -147,18 +150,18 @@ $expectedDeliveryDate = $today.AddDays(7).ToString("yyyy-MM-dd")
 $businessDate = $today.ToString("yyyy-MM-dd")
 
 Write-Step "Creating master data for run $runId"
-$category = Invoke-ProjectApi -Method POST -Path "/api/product-categories" -Token $adminToken -Body @{
+$category = Invoke-ProjectApi -Method POST -Path "/api/product-categories" -Token $catalogToken -Body @{
     name        = "E2E Office Equipment $runId"
     description = "Created by the complete system smoke test."
 }
 
-$unit = Invoke-ProjectApi -Method POST -Path "/api/units-of-measure" -Token $adminToken -Body @{
+$unit = Invoke-ProjectApi -Method POST -Path "/api/units-of-measure" -Token $catalogToken -Body @{
     code        = "E2E$($runId.Substring($runId.Length - 10))"
     name        = "E2E Unit $runId"
     description = "Unit used by the complete system smoke test."
 }
 
-$product = Invoke-ProjectApi -Method POST -Path "/api/products" -Token $adminToken -Body @{
+$product = Invoke-ProjectApi -Method POST -Path "/api/products" -Token $catalogToken -Body @{
     name                 = "Ergonomic Keyboard $runId"
     description          = "Inventory item created by the complete system smoke test."
     productCategoryId    = $category.id
@@ -167,7 +170,7 @@ $product = Invoke-ProjectApi -Method POST -Path "/api/products" -Token $adminTok
     reorderLevel         = 3
 }
 
-$supplierA = Invoke-ProjectApi -Method POST -Path "/api/suppliers" -Token $adminToken -Body @{
+$supplierA = Invoke-ProjectApi -Method POST -Path "/api/suppliers" -Token $procurementToken -Body @{
     name          = "Alpha Equipment $runId"
     contactPerson = "Alpha Sales"
     email         = "alpha.$runId@example.test"
@@ -175,7 +178,7 @@ $supplierA = Invoke-ProjectApi -Method POST -Path "/api/suppliers" -Token $admin
     address       = "Kuala Lumpur"
 }
 
-$supplierB = Invoke-ProjectApi -Method POST -Path "/api/suppliers" -Token $adminToken -Body @{
+$supplierB = Invoke-ProjectApi -Method POST -Path "/api/suppliers" -Token $procurementToken -Body @{
     name          = "Beta Equipment $runId"
     contactPerson = "Beta Sales"
     email         = "beta.$runId@example.test"
@@ -183,13 +186,13 @@ $supplierB = Invoke-ProjectApi -Method POST -Path "/api/suppliers" -Token $admin
     address       = "Selangor"
 }
 
-$null = Invoke-ProjectApi -Method POST -Path "/api/supplier-products" -Token $adminToken -Body @{
+$null = Invoke-ProjectApi -Method POST -Path "/api/supplier-products" -Token $procurementToken -Body @{
     supplierId = $supplierA.id
     productId  = $product.id
     isPreferred = $false
 }
 
-$null = Invoke-ProjectApi -Method POST -Path "/api/supplier-products" -Token $adminToken -Body @{
+$null = Invoke-ProjectApi -Method POST -Path "/api/supplier-products" -Token $procurementToken -Body @{
     supplierId = $supplierB.id
     productId  = $product.id
     isPreferred = $true
@@ -243,7 +246,7 @@ Assert-Equal -Actual $purchaseRequest.workflow.status -Expected "Completed" `
 $purchaseRequestItemId = $purchaseRequest.items[0].id
 
 Write-Step "Recording and submitting two supplier quotations"
-$quotationA = Invoke-ProjectApi -Method POST -Path "/api/quotations" -Token $adminToken -Body @{
+$quotationA = Invoke-ProjectApi -Method POST -Path "/api/quotations" -Token $procurementToken -Body @{
     purchaseRequestId          = $purchaseRequest.id
     supplierId                = $supplierA.id
     supplierQuotationReference = "ALPHA-$runId"
@@ -258,7 +261,7 @@ $quotationA = Invoke-ProjectApi -Method POST -Path "/api/quotations" -Token $adm
     )
 }
 
-$quotationB = Invoke-ProjectApi -Method POST -Path "/api/quotations" -Token $adminToken -Body @{
+$quotationB = Invoke-ProjectApi -Method POST -Path "/api/quotations" -Token $procurementToken -Body @{
     purchaseRequestId          = $purchaseRequest.id
     supplierId                = $supplierB.id
     supplierQuotationReference = "BETA-$runId"
@@ -273,25 +276,25 @@ $quotationB = Invoke-ProjectApi -Method POST -Path "/api/quotations" -Token $adm
     )
 }
 
-$quotationA = Invoke-ProjectApi -Method POST -Path "/api/quotations/$($quotationA.id)/submit" -Token $adminToken
-$quotationB = Invoke-ProjectApi -Method POST -Path "/api/quotations/$($quotationB.id)/submit" -Token $adminToken
+$quotationA = Invoke-ProjectApi -Method POST -Path "/api/quotations/$($quotationA.id)/submit" -Token $procurementToken
+$quotationB = Invoke-ProjectApi -Method POST -Path "/api/quotations/$($quotationB.id)/submit" -Token $procurementToken
 Assert-Equal -Actual $quotationA.status -Expected "Submitted" -Message "Supplier A quotation is Submitted."
 Assert-Equal -Actual $quotationB.status -Expected "Submitted" -Message "Supplier B quotation is Submitted."
 
 $comparison = Invoke-ProjectApi -Method GET `
     -Path "/api/quotations/comparison?purchaseRequestId=$($purchaseRequest.id)" `
-    -Token $adminToken
+    -Token $procurementToken
 Assert-Equal -Actual @($comparison.quotations).Count -Expected 2 `
     -Message "Quotation comparison contains both suppliers."
 
-$quotationB = Invoke-ProjectApi -Method POST -Path "/api/quotations/$($quotationB.id)/select" -Token $adminToken
-$quotationA = Invoke-ProjectApi -Method GET -Path "/api/quotations/$($quotationA.id)" -Token $adminToken
+$quotationB = Invoke-ProjectApi -Method POST -Path "/api/quotations/$($quotationB.id)/select" -Token $procurementToken
+$quotationA = Invoke-ProjectApi -Method GET -Path "/api/quotations/$($quotationA.id)" -Token $procurementToken
 Assert-Equal -Actual $quotationB.status -Expected "Selected" -Message "The lower Beta quotation is Selected."
 Assert-Equal -Actual $quotationA.status -Expected "NotSelected" `
     -Message "The competing Alpha quotation becomes Not Selected."
 
 Write-Step "Creating and issuing a Purchase Order from the selected quotation"
-$purchaseOrder = Invoke-ProjectApi -Method POST -Path "/api/purchase-orders" -Token $adminToken -Body @{
+$purchaseOrder = Invoke-ProjectApi -Method POST -Path "/api/purchase-orders" -Token $procurementToken -Body @{
     quotationId         = $quotationB.id
     orderDate           = $businessDate
     expectedDeliveryDate = $expectedDeliveryDate
@@ -302,15 +305,15 @@ Assert-Equal -Actual $purchaseOrder.status -Expected "Draft" -Message "A new Pur
 
 $purchaseOrder = Invoke-ProjectApi -Method POST `
     -Path "/api/purchase-orders/$($purchaseOrder.id)/issue" `
-    -Token $adminToken
+    -Token $procurementToken
 Assert-Equal -Actual $purchaseOrder.status -Expected "Issued" -Message "The Purchase Order is Issued."
 
 $purchaseOrderItemId = $purchaseOrder.items[0].id
-$initialInventory = Invoke-ProjectApi -Method GET -Path "/api/inventory/$($product.id)" -Token $adminToken
+$initialInventory = Invoke-ProjectApi -Method GET -Path "/api/inventory/$($product.id)" -Token $warehouseToken
 $initialQuantity = [decimal]$initialInventory.quantityOnHand
 
 Write-Step "Creating the first partial Goods Receipt"
-$receiptOne = Invoke-ProjectApi -Method POST -Path "/api/goods-receipts" -Token $adminToken -Body @{
+$receiptOne = Invoke-ProjectApi -Method POST -Path "/api/goods-receipts" -Token $warehouseToken -Body @{
     purchaseOrderId            = $purchaseOrder.id
     supplierDeliveryNoteNumber = "DN-1-$runId"
     receivedDate               = $businessDate
@@ -324,15 +327,15 @@ $receiptOne = Invoke-ProjectApi -Method POST -Path "/api/goods-receipts" -Token 
 }
 Assert-Equal -Actual $receiptOne.status -Expected "Draft" -Message "A new Goods Receipt starts in Draft."
 
-$inventoryBeforePost = Invoke-ProjectApi -Method GET -Path "/api/inventory/$($product.id)" -Token $adminToken
+$inventoryBeforePost = Invoke-ProjectApi -Method GET -Path "/api/inventory/$($product.id)" -Token $warehouseToken
 Assert-DecimalEqual -Actual ([decimal]$inventoryBeforePost.quantityOnHand) -Expected $initialQuantity `
     -Message "A Draft Goods Receipt does not change inventory."
 
 $receiptOne = Invoke-ProjectApi -Method POST `
     -Path "/api/goods-receipts/$($receiptOne.id)/post" `
-    -Token $adminToken
-$purchaseOrder = Invoke-ProjectApi -Method GET -Path "/api/purchase-orders/$($purchaseOrder.id)" -Token $adminToken
-$inventoryAfterFirstPost = Invoke-ProjectApi -Method GET -Path "/api/inventory/$($product.id)" -Token $adminToken
+    -Token $warehouseToken
+$purchaseOrder = Invoke-ProjectApi -Method GET -Path "/api/purchase-orders/$($purchaseOrder.id)" -Token $warehouseToken
+$inventoryAfterFirstPost = Invoke-ProjectApi -Method GET -Path "/api/inventory/$($product.id)" -Token $warehouseToken
 
 Assert-Equal -Actual $receiptOne.status -Expected "Posted" -Message "The first Goods Receipt is Posted."
 Assert-Equal -Actual $purchaseOrder.status -Expected "PartiallyReceived" `
@@ -342,7 +345,7 @@ Assert-DecimalEqual -Actual ([decimal]$inventoryAfterFirstPost.quantityOnHand) `
     -Message "Posting the first receipt adds 6 units to inventory."
 
 Write-Step "Receiving the remaining quantity"
-$receiptTwo = Invoke-ProjectApi -Method POST -Path "/api/goods-receipts" -Token $adminToken -Body @{
+$receiptTwo = Invoke-ProjectApi -Method POST -Path "/api/goods-receipts" -Token $warehouseToken -Body @{
     purchaseOrderId            = $purchaseOrder.id
     supplierDeliveryNoteNumber = "DN-2-$runId"
     receivedDate               = $businessDate
@@ -356,13 +359,13 @@ $receiptTwo = Invoke-ProjectApi -Method POST -Path "/api/goods-receipts" -Token 
 }
 $receiptTwo = Invoke-ProjectApi -Method POST `
     -Path "/api/goods-receipts/$($receiptTwo.id)/post" `
-    -Token $adminToken
+    -Token $warehouseToken
 
-$purchaseOrder = Invoke-ProjectApi -Method GET -Path "/api/purchase-orders/$($purchaseOrder.id)" -Token $adminToken
-$finalInventory = Invoke-ProjectApi -Method GET -Path "/api/inventory/$($product.id)" -Token $adminToken
+$purchaseOrder = Invoke-ProjectApi -Method GET -Path "/api/purchase-orders/$($purchaseOrder.id)" -Token $warehouseToken
+$finalInventory = Invoke-ProjectApi -Method GET -Path "/api/inventory/$($product.id)" -Token $warehouseToken
 $transactions = @(Invoke-ProjectApi -Method GET `
     -Path "/api/inventory/$($product.id)/transactions?type=GoodsReceipt" `
-    -Token $adminToken)
+    -Token $warehouseToken)
 
 Assert-Equal -Actual $purchaseOrder.status -Expected "Received" `
     -Message "Receiving all 10 units completes the Purchase Order."

@@ -2,6 +2,9 @@ export const applicationRoles = {
   requester: 'REQUESTER',
   departmentApprover: 'DEPARTMENT_APPROVER',
   financeApprover: 'FINANCE_APPROVER',
+  procurementOfficer: 'PROCUREMENT_OFFICER',
+  warehouseOfficer: 'WAREHOUSE_OFFICER',
+  catalogManager: 'CATALOG_MANAGER',
   admin: 'ADMIN',
 } as const
 

@@ -8,7 +8,7 @@ using Project1.Api.Services.GoodsReceipts;
 namespace Project1.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = ApplicationRoles.Admin)]
+[Authorize(Roles = ApplicationRoles.GoodsReceiptReaders)]
 [Route("api/goods-receipts")]
 public sealed class GoodsReceiptsController(
     IGoodsReceiptService goodsReceiptService) : ControllerBase
@@ -41,6 +41,7 @@ public sealed class GoodsReceiptsController(
         return receipt is null ? NotFound() : Ok(receipt);
     }
 
+    [Authorize(Roles = ApplicationRoles.AdminOrWarehouse)]
     [HttpPost]
     [ProducesResponseType<GoodsReceiptResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -59,6 +60,7 @@ public sealed class GoodsReceiptsController(
         return CreatedAtAction(nameof(GetById), new { id = receipt.Id }, receipt);
     }
 
+    [Authorize(Roles = ApplicationRoles.AdminOrWarehouse)]
     [HttpPut("{id:int}")]
     [ProducesResponseType<GoodsReceiptResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -75,6 +77,7 @@ public sealed class GoodsReceiptsController(
             : OperationProblem(result);
     }
 
+    [Authorize(Roles = ApplicationRoles.AdminOrWarehouse)]
     [HttpPost("{id:int}/post")]
     [ProducesResponseType<GoodsReceiptResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -89,6 +92,7 @@ public sealed class GoodsReceiptsController(
             : OperationProblem(result);
     }
 
+    [Authorize(Roles = ApplicationRoles.AdminOrWarehouse)]
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

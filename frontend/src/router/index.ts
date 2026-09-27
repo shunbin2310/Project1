@@ -5,9 +5,36 @@ import { useAuthStore } from '@/stores/auth'
 import { applicationRoles, type ApplicationRole } from '@/types/auth'
 
 const adminRoutes: readonly ApplicationRole[] = [applicationRoles.admin]
+const procurementRoutes: readonly ApplicationRole[] = [
+  applicationRoles.admin,
+  applicationRoles.procurementOfficer,
+]
+const catalogRoutes: readonly ApplicationRole[] = [
+  applicationRoles.admin,
+  applicationRoles.catalogManager,
+]
+const purchaseOrderRoutes: readonly ApplicationRole[] = [
+  applicationRoles.admin,
+  applicationRoles.procurementOfficer,
+  applicationRoles.warehouseOfficer,
+]
+const goodsReceiptRoutes: readonly ApplicationRole[] = [
+  applicationRoles.admin,
+  applicationRoles.procurementOfficer,
+  applicationRoles.warehouseOfficer,
+]
+const inventoryRoutes: readonly ApplicationRole[] = [
+  applicationRoles.admin,
+  applicationRoles.procurementOfficer,
+  applicationRoles.warehouseOfficer,
+]
 
 function defaultAuthenticatedPath(roles: readonly string[]) {
-  return roles.includes(applicationRoles.admin) ? '/departments' : '/my-tasks'
+  if (roles.includes(applicationRoles.admin)) return '/departments'
+  if (roles.includes(applicationRoles.procurementOfficer)) return '/quotations'
+  if (roles.includes(applicationRoles.warehouseOfficer)) return '/goods-receipts'
+  if (roles.includes(applicationRoles.catalogManager)) return '/products'
+  return '/my-tasks'
 }
 
 const router = createRouter({
@@ -59,31 +86,31 @@ const router = createRouter({
       path: '/suppliers',
       name: 'suppliers',
       component: () => import('@/views/suppliers/SupplierListView.vue'),
-      meta: { title: 'Suppliers', requiresAuth: true, roles: adminRoutes },
+      meta: { title: 'Suppliers', requiresAuth: true, roles: procurementRoutes },
     },
     {
       path: '/supplier-products',
       name: 'supplier-products',
       component: () => import('@/views/supplier-products/SupplierProductListView.vue'),
-      meta: { title: 'Supplier Products', requiresAuth: true, roles: adminRoutes },
+      meta: { title: 'Supplier Products', requiresAuth: true, roles: procurementRoutes },
     },
     {
       path: '/product-categories',
       name: 'product-categories',
       component: () => import('@/views/product-categories/ProductCategoryListView.vue'),
-      meta: { title: 'Product Categories', requiresAuth: true, roles: adminRoutes },
+      meta: { title: 'Product Categories', requiresAuth: true, roles: catalogRoutes },
     },
     {
       path: '/units-of-measure',
       name: 'units-of-measure',
       component: () => import('@/views/units-of-measure/UnitOfMeasureListView.vue'),
-      meta: { title: 'Units of Measure', requiresAuth: true, roles: adminRoutes },
+      meta: { title: 'Units of Measure', requiresAuth: true, roles: catalogRoutes },
     },
     {
       path: '/products',
       name: 'products',
       component: () => import('@/views/products/ProductListView.vue'),
-      meta: { title: 'Products', requiresAuth: true, roles: adminRoutes },
+      meta: { title: 'Products', requiresAuth: true, roles: catalogRoutes },
     },
     {
       path: '/purchase-requests',
@@ -95,25 +122,25 @@ const router = createRouter({
       path: '/quotations',
       name: 'quotations',
       component: () => import('@/views/quotations/QuotationListView.vue'),
-      meta: { title: 'Supplier Quotations', requiresAuth: true, roles: adminRoutes },
+      meta: { title: 'Supplier Quotations', requiresAuth: true, roles: procurementRoutes },
     },
     {
       path: '/purchase-orders',
       name: 'purchase-orders',
       component: () => import('@/views/purchase-orders/PurchaseOrderListView.vue'),
-      meta: { title: 'Purchase Orders', requiresAuth: true, roles: adminRoutes },
+      meta: { title: 'Purchase Orders', requiresAuth: true, roles: purchaseOrderRoutes },
     },
     {
       path: '/goods-receipts',
       name: 'goods-receipts',
       component: () => import('@/views/goods-receipts/GoodsReceiptListView.vue'),
-      meta: { title: 'Goods Receiving', requiresAuth: true, roles: adminRoutes },
+      meta: { title: 'Goods Receiving', requiresAuth: true, roles: goodsReceiptRoutes },
     },
     {
       path: '/inventory',
       name: 'inventory',
       component: () => import('@/views/inventory/InventoryListView.vue'),
-      meta: { title: 'Inventory', requiresAuth: true, roles: adminRoutes },
+      meta: { title: 'Inventory', requiresAuth: true, roles: inventoryRoutes },
     },
   ],
 })

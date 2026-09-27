@@ -31,7 +31,7 @@ public sealed class ProductsController(IProductService productService) : Control
         return product is null ? NotFound() : Ok(product);
     }
 
-    [Authorize(Roles = ApplicationRoles.Admin)]
+    [Authorize(Roles = ApplicationRoles.AdminOrCatalog)]
     [HttpPost]
     [ProducesResponseType<ProductResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -50,7 +50,7 @@ public sealed class ProductsController(IProductService productService) : Control
         return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
     }
 
-    [Authorize(Roles = ApplicationRoles.Admin)]
+    [Authorize(Roles = ApplicationRoles.AdminOrCatalog)]
     [HttpPut("{id:int}")]
     [ProducesResponseType<ProductResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -75,7 +75,7 @@ public sealed class ProductsController(IProductService productService) : Control
         return Ok(result.Product);
     }
 
-    [Authorize(Roles = ApplicationRoles.Admin)]
+    [Authorize(Roles = ApplicationRoles.AdminOrCatalog)]
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

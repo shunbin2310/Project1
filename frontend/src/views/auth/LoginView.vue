@@ -26,6 +26,24 @@ const demoAccounts = [
     description: 'Confirm budget and final approval',
   },
   {
+    email: 'procurement@demo.local',
+    name: 'Procurement Officer',
+    role: applicationRoles.procurementOfficer,
+    description: 'Manage suppliers, quotations, and purchase orders',
+  },
+  {
+    email: 'warehouse@demo.local',
+    name: 'Warehouse Officer',
+    role: applicationRoles.warehouseOfficer,
+    description: 'Receive goods and review inventory',
+  },
+  {
+    email: 'catalog@demo.local',
+    name: 'Catalog Manager',
+    role: applicationRoles.catalogManager,
+    description: 'Maintain product and catalog master data',
+  },
+  {
     email: 'admin@demo.local',
     name: 'Demo Admin',
     role: applicationRoles.admin,
@@ -56,7 +74,7 @@ async function submit() {
     })
     const requestedPath = typeof route.query.redirect === 'string' ? route.query.redirect : ''
     const safeRedirect = requestedPath.startsWith('/') && !requestedPath.startsWith('//')
-    const defaultPath = user.roles.includes(applicationRoles.admin) ? '/departments' : '/my-tasks'
+    const defaultPath = defaultAuthenticatedPath(user.roles)
 
     await router.replace(safeRedirect ? requestedPath : defaultPath)
   } catch (error) {
@@ -64,6 +82,14 @@ async function submit() {
   } finally {
     selectedDemoEmail.value = ''
   }
+}
+
+function defaultAuthenticatedPath(roles: readonly string[]) {
+  if (roles.includes(applicationRoles.admin)) return '/departments'
+  if (roles.includes(applicationRoles.procurementOfficer)) return '/quotations'
+  if (roles.includes(applicationRoles.warehouseOfficer)) return '/goods-receipts'
+  if (roles.includes(applicationRoles.catalogManager)) return '/products'
+  return '/my-tasks'
 }
 
 async function loginAsDemo(email: string) {

@@ -8,7 +8,7 @@ using Project1.Api.Services.Quotations;
 namespace Project1.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = ApplicationRoles.Admin)]
+[Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
 [Route("api/quotations")]
 public sealed class QuotationsController(IQuotationService quotationService) : ControllerBase
 {

@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia } from 'pinia'
 
 import { flushPromises, mount } from '@vue/test-utils'
+import { useAuthStore } from '@/stores/auth'
+import { applicationRoles, type ApplicationRole } from '@/types/auth'
 import type {
   CreateGoodsReceiptRequest,
   GoodsReceipt,
@@ -123,6 +126,28 @@ function receipt(status: GoodsReceiptStatus = 'Draft', id = 9): GoodsReceipt {
   }
 }
 
+function mountView(role: ApplicationRole = applicationRoles.warehouseOfficer) {
+  const pinia = createPinia()
+  const authStore = useAuthStore(pinia)
+  authStore.$patch({
+    session: {
+      accessToken: 'test-token',
+      expiresAtUtc: '2099-01-01T00:00:00Z',
+      user: {
+        id: 6,
+        email: 'user@demo.local',
+        fullName: 'Demo User',
+        departmentId: 1,
+        departmentCode: 'WH',
+        departmentName: 'Warehouse',
+        roles: [role],
+      },
+    },
+  })
+
+  return mount(GoodsReceiptListView, { global: { plugins: [pinia] } })
+}
+
 describe('GoodsReceiptListView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -139,7 +164,7 @@ describe('GoodsReceiptListView', () => {
   })
 
   it('loads receipts and shows draft actions', async () => {
-    const wrapper = mount(GoodsReceiptListView)
+    const wrapper = mountView()
     await flushPromises()
 
     expect(mocks.getReceipts).toHaveBeenCalled()
@@ -153,7 +178,7 @@ describe('GoodsReceiptListView', () => {
   })
 
   it('posts a draft, shows a toast, and reloads the register', async () => {
-    const wrapper = mount(GoodsReceiptListView)
+    const wrapper = mountView()
     await flushPromises()
 
     await wrapper
@@ -171,7 +196,7 @@ describe('GoodsReceiptListView', () => {
   it('uses posted receipts to calculate previous and remaining quantities', async () => {
     mocks.getReceipts.mockResolvedValue([receipt('Posted')])
     mocks.getPurchaseOrders.mockResolvedValue([purchaseOrder('PartiallyReceived')])
-    const wrapper = mount(GoodsReceiptListView)
+    const wrapper = mountView()
     await flushPromises()
 
     await wrapper.get('.page-heading .button').trigger('click')
@@ -180,5 +205,16 @@ describe('GoodsReceiptListView', () => {
     expect(formText).toContain('Previously received')
     expect(formText).toContain('4')
     expect(formText).toContain('6')
+  })
+
+  it('allows procurement to review receipts without warehouse actions', async () => {
+    const wrapper = mountView(applicationRoles.procurementOfficer)
+    await flushPromises()
+
+    expect(wrapper.get('tbody').text()).toContain('View')
+    expect(wrapper.get('tbody').text()).not.toContain('Edit')
+    expect(wrapper.get('tbody').text()).not.toContain('Post')
+    expect(wrapper.get('tbody').text()).not.toContain('Delete')
+    expect(wrapper.find('.page-heading .button').exists()).toBe(false)
   })
 })

@@ -43,7 +43,7 @@ public sealed class SupplierProductsController(
         return supplierProduct is null ? NotFound() : Ok(supplierProduct);
     }
 
-    [Authorize(Roles = ApplicationRoles.Admin)]
+    [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
     [HttpPost]
     [ProducesResponseType<SupplierProductResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -66,7 +66,7 @@ public sealed class SupplierProductsController(
             supplierProduct);
     }
 
-    [Authorize(Roles = ApplicationRoles.Admin)]
+    [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
     [HttpPut("{id:int}")]
     [ProducesResponseType<SupplierProductResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -94,7 +94,7 @@ public sealed class SupplierProductsController(
         return Ok(result.SupplierProduct);
     }
 
-    [Authorize(Roles = ApplicationRoles.Admin)]
+    [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

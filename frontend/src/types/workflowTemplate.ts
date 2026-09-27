@@ -95,5 +95,8 @@ export const workflowActionerRoles: readonly ApplicationRole[] = [
   'REQUESTER',
   'DEPARTMENT_APPROVER',
   'FINANCE_APPROVER',
+  'PROCUREMENT_OFFICER',
+  'WAREHOUSE_OFFICER',
+  'CATALOG_MANAGER',
   'ADMIN',
 ]

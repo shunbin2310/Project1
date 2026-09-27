@@ -133,6 +133,26 @@ public sealed class UserManagementServiceTests
         Assert.Null(await fixture.UserManager.FindByEmailAsync("unknown.role@demo.local"));
     }
 
+    [Theory]
+    [InlineData(ApplicationRoles.ProcurementOfficer)]
+    [InlineData(ApplicationRoles.WarehouseOfficer)]
+    [InlineData(ApplicationRoles.CatalogManager)]
+    public async Task CreateAsync_AcceptsOperationalRole(string role)
+    {
+        await using var fixture = await UserManagementFixture.CreateAsync();
+
+        var result = await fixture.Service.CreateAsync(new CreateUserRequest
+        {
+            Email = $"{role.ToLowerInvariant()}@demo.local",
+            FullName = "Operational User",
+            DepartmentId = fixture.DepartmentId,
+            Roles = [role]
+        }, CancellationToken.None);
+
+        Assert.Equal(UserManagementStatus.Success, result.Status);
+        Assert.Contains(role, result.User!.Roles);
+    }
+
     [Fact]
     public async Task CreateAsync_RejectsCombiningAdminWithOtherRoles()
     {
