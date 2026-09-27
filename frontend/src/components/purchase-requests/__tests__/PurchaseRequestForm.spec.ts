@@ -79,8 +79,9 @@ describe('PurchaseRequestForm', () => {
 
     expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
       requiredDate: '2030-12-31',
-      items: [{ productId: 1, quantity: 1, estimatedUnitPrice: 1399.9 }],
+      items: [{ productId: 1, quantity: 1 }],
     })
+    expect(wrapper.emitted('save')?.[0]?.[0]).not.toHaveProperty('items.0.estimatedUnitPrice')
     expect(wrapper.emitted('save')?.[0]?.[1]).toBe(true)
   })
 
@@ -105,6 +106,8 @@ describe('PurchaseRequestForm', () => {
     await wrapper.get('#purchase-product-0').trigger('change')
 
     expect((wrapper.get('#purchase-price-0').element as HTMLInputElement).value).toBe('1399.9')
+    expect(wrapper.get('#purchase-price-0').attributes('readonly')).toBeDefined()
+    expect(wrapper.text()).toContain('Requesters cannot change it.')
   })
 
   it('shows an API workflow validation error inside the form', async () => {

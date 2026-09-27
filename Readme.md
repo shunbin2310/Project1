@@ -282,7 +282,10 @@ The requester enters:
 - Business justification
 - Products and quantities
 
-The system automatically gets the requester name and department from the logged-in account. Product estimated prices are copied into the request as a snapshot.
+The system automatically gets the requester name and department from the logged-in account. Product
+estimated prices are read-only in the form and are copied by the backend from the Product master
+record into the request as a historical snapshot. Changing a Product price later does not change an
+existing Purchase Request.
 
 Available operations include:
 
@@ -864,9 +867,11 @@ product and supplier codes if you want to search for them later.
    - Business justification: `Ten keyboards for new employee onboarding UI0927A`
    - Product: `Ergonomic Keyboard UI0927A`
    - Quantity: `10`
+   - Confirm that Unit price automatically shows RM 120.00 and cannot be edited
 5. Click Create draft.
 
-Expected result: the request has workflow step `Draft`, and its estimated total is RM 1,200.00.
+Expected result: the request has workflow step `Draft`, its stored unit-price snapshot is RM 120.00,
+and its estimated total is RM 1,200.00.
 
 To test Draft editing and submission:
 
@@ -1304,24 +1309,7 @@ Confirm SQL Server is running, the server name is correct, and the current Windo
 The following tasks are arranged in the planned development order. Complete and verify one task
 before starting the next one.
 
-### 1. Make Purchase Request estimated prices system-controlled
-
-Status: Pending
-
-Agreed business rule: a Requester chooses a product and quantity but cannot decide its estimated unit
-price. The estimate comes from the Product master record, while the real commercial price is entered
-later through Supplier Quotations.
-
-- Display the Product default unit price as read-only in the Purchase Request form.
-- Do not trust an `EstimatedUnitPrice` supplied by the browser or a manual API request.
-- Make the backend copy `Product.DefaultUnitPrice` into the Purchase Request item snapshot.
-- Keep historical Purchase Request prices unchanged when the Product master price changes later.
-- Update backend, frontend, and API tests for the enforced rule.
-
-Completion check: a Requester cannot change the price in the UI or API, and a newly created request
-uses the current Product default price.
-
-### 2. Clarify Supplier Quotation references
+### 1. Clarify Supplier Quotation references
 
 Status: Pending
 
@@ -1338,7 +1326,7 @@ system should not invent it automatically.
 Completion check: users can clearly distinguish the internal quotation number from the supplier's
 external reference.
 
-### 3. Separate daily purchasing work from the Admin role
+### 2. Separate daily purchasing work from the Admin role
 
 Status: Pending
 
@@ -1366,7 +1354,7 @@ Implementation scope:
 Completion check: Procurement can manage quotations and orders but cannot manage Users; Warehouse can
 receive goods and view inventory but cannot manage quotations; Admin can access everything.
 
-### 4. Send Purchase Orders to suppliers by email
+### 3. Send Purchase Orders to suppliers by email
 
 Status: Pending
 
@@ -1398,7 +1386,7 @@ Implementation scope:
 Completion check: issuing a PO queues one email, successful delivery is recorded as Sent, and a failed
 delivery can be retried without issuing the PO again.
 
-### 5. Connect additional business modules to the Workflow Engine
+### 4. Connect additional business modules to the Workflow Engine
 
 Status: Pending future extension
 
@@ -1419,7 +1407,7 @@ For each new workflow-enabled module:
 Completion check: publishing a template for the new Entity Type affects new records, while existing
 records continue using their copied Workflow Instance.
 
-### 6. Simplify and separate project documentation
+### 5. Simplify and separate project documentation
 
 Status: Pending
 
@@ -1432,7 +1420,7 @@ Status: Pending
 Completion check: a new user can start and demonstrate the project without reading the technical
 implementation sections first.
 
-### 7. Dashboard and notifications
+### 6. Dashboard and notifications
 
 Status: Pending
 
@@ -1441,7 +1429,7 @@ Status: Pending
 - Low-stock notifications.
 - Recent purchasing and inventory activity.
 
-### 8. Docker configuration
+### 7. Docker configuration
 
 Status: Pending
 
@@ -1450,7 +1438,7 @@ Status: Pending
 - SQL Server container for local deployment.
 - Docker Compose configuration and environment variables.
 
-### 9. GitHub Actions automated build and test
+### 8. GitHub Actions automated build and test
 
 Status: Pending
 
@@ -1458,7 +1446,7 @@ Status: Pending
 - Frontend install, lint, unit tests, and production build.
 - Optional Playwright browser tests.
 
-### 10. Ubuntu server deployment
+### 9. Ubuntu server deployment
 
 Status: Pending
 
