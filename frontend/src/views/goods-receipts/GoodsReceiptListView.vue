@@ -7,6 +7,8 @@ import AppToast from '@/components/ui/AppToast.vue'
 import { useToast } from '@/composables/useToast'
 import { goodsReceiptService } from '@/services/goodsReceiptService'
 import { purchaseOrderService } from '@/services/purchaseOrderService'
+import { useAuthStore } from '@/stores/auth'
+import { applicationRoles } from '@/types/auth'
 import type {
   GoodsReceipt,
   GoodsReceiptFormValues,
@@ -21,6 +23,12 @@ const statusFilters: { value: '' | GoodsReceiptStatus; label: string }[] = [
   { value: 'Posted', label: 'Posted' },
 ]
 
+const authStore = useAuthStore()
+const canManageGoodsReceipts = computed(
+  () =>
+    authStore.roles.includes(applicationRoles.admin) ||
+    authStore.roles.includes(applicationRoles.warehouseOfficer),
+)
 const goodsReceipts = ref<GoodsReceipt[]>([])
 const purchaseOrders = ref<PurchaseOrder[]>([])
 const loading = ref(true)
@@ -241,6 +249,7 @@ function formatQuantity(value: number) {
         </p>
       </div>
       <button
+        v-if="canManageGoodsReceipts"
         class="button button-primary"
         type="button"
         :disabled="loading || !eligiblePurchaseOrders.length"
@@ -321,12 +330,13 @@ function formatQuantity(value: number) {
         <strong>{{
           goodsReceipts.length ? 'No matching receipts' : 'No goods receipts yet'
         }}</strong>
-        <p v-if="!eligiblePurchaseOrders.length">
+        <p v-if="!canManageGoodsReceipts">No goods receipts are available for review.</p>
+        <p v-else-if="!eligiblePurchaseOrders.length">
           Issue a purchase order, or post its existing draft receipt, before recording a delivery.
         </p>
         <p v-else>Create a draft receipt when a supplier delivery arrives.</p>
         <button
-          v-if="eligiblePurchaseOrders.length"
+          v-if="canManageGoodsReceipts && eligiblePurchaseOrders.length"
           class="button button-primary"
           type="button"
           @click="openCreateForm"
@@ -392,7 +402,7 @@ function formatQuantity(value: number) {
                     View
                   </button>
                   <button
-                    v-if="receipt.status === 'Draft'"
+                    v-if="canManageGoodsReceipts && receipt.status === 'Draft'"
                     class="text-button"
                     type="button"
                     :disabled="busyReceiptId === receipt.id"
@@ -401,7 +411,7 @@ function formatQuantity(value: number) {
                     Edit
                   </button>
                   <button
-                    v-if="receipt.status === 'Draft'"
+                    v-if="canManageGoodsReceipts && receipt.status === 'Draft'"
                     class="text-button text-button-positive"
                     type="button"
                     :disabled="busyReceiptId === receipt.id"
@@ -410,7 +420,7 @@ function formatQuantity(value: number) {
                     Post
                   </button>
                   <button
-                    v-if="receipt.status === 'Draft'"
+                    v-if="canManageGoodsReceipts && receipt.status === 'Draft'"
                     class="text-button text-button-danger"
                     type="button"
                     :disabled="busyReceiptId === receipt.id"
@@ -427,7 +437,7 @@ function formatQuantity(value: number) {
     </section>
 
     <GoodsReceiptForm
-      v-if="formOpen"
+      v-if="canManageGoodsReceipts && formOpen"
       :goods-receipt="editingReceipt"
       :purchase-orders="formPurchaseOrders"
       :saving="saving"

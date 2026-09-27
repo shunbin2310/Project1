@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia } from 'pinia'
 
 import { flushPromises, mount } from '@vue/test-utils'
+import { useAuthStore } from '@/stores/auth'
+import { applicationRoles, type ApplicationRole } from '@/types/auth'
 import type {
   CreatePurchaseOrderRequest,
   PurchaseOrder,
@@ -120,6 +123,28 @@ function purchaseOrder(status: PurchaseOrderStatus = 'Draft'): PurchaseOrder {
   }
 }
 
+function mountView(role: ApplicationRole = applicationRoles.procurementOfficer) {
+  const pinia = createPinia()
+  const authStore = useAuthStore(pinia)
+  authStore.$patch({
+    session: {
+      accessToken: 'test-token',
+      expiresAtUtc: '2099-01-01T00:00:00Z',
+      user: {
+        id: 5,
+        email: 'user@demo.local',
+        fullName: 'Demo User',
+        departmentId: 1,
+        departmentCode: 'PROC',
+        departmentName: 'Procurement',
+        roles: [role],
+      },
+    },
+  })
+
+  return mount(PurchaseOrderListView, { global: { plugins: [pinia] } })
+}
+
 describe('PurchaseOrderListView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -137,7 +162,7 @@ describe('PurchaseOrderListView', () => {
   })
 
   it('loads selected quotations and shows actions for a draft order', async () => {
-    const wrapper = mount(PurchaseOrderListView)
+    const wrapper = mountView()
     await flushPromises()
 
     expect(mocks.getQuotations).toHaveBeenCalledWith({ status: 'Selected' })
@@ -150,7 +175,7 @@ describe('PurchaseOrderListView', () => {
   })
 
   it('issues a draft order, shows a toast, and reloads the register', async () => {
-    const wrapper = mount(PurchaseOrderListView)
+    const wrapper = mountView()
     await flushPromises()
 
     await wrapper
@@ -167,7 +192,7 @@ describe('PurchaseOrderListView', () => {
 
   it('collects a reason before cancelling an issued order', async () => {
     mocks.getPurchaseOrders.mockResolvedValue([purchaseOrder('Issued')])
-    const wrapper = mount(PurchaseOrderListView)
+    const wrapper = mountView()
     await flushPromises()
 
     await wrapper
@@ -184,9 +209,21 @@ describe('PurchaseOrderListView', () => {
   })
 
   it('does not offer a new order when the selected quotation is already used', async () => {
-    const wrapper = mount(PurchaseOrderListView)
+    const wrapper = mountView()
     await flushPromises()
 
     expect(wrapper.get('.page-heading .button').attributes('disabled')).toBeDefined()
+  })
+
+  it('allows a warehouse officer to review orders without purchasing actions', async () => {
+    const wrapper = mountView(applicationRoles.warehouseOfficer)
+    await flushPromises()
+
+    expect(mocks.getQuotations).not.toHaveBeenCalled()
+    expect(wrapper.get('tbody').text()).toContain('View')
+    expect(wrapper.get('tbody').text()).not.toContain('Edit')
+    expect(wrapper.get('tbody').text()).not.toContain('Issue')
+    expect(wrapper.get('tbody').text()).not.toContain('Delete')
+    expect(wrapper.find('.page-heading .button').exists()).toBe(false)
   })
 })

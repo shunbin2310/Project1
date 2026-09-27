@@ -39,6 +39,39 @@ Content-Type: application/json
 
 ###
 
+# @name procurementLogin
+POST {{Project1.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "procurement@demo.local",
+  "password": "Project1Demo123!"
+}
+
+###
+
+# @name warehouseLogin
+POST {{Project1.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "warehouse@demo.local",
+  "password": "Project1Demo123!"
+}
+
+###
+
+# @name catalogLogin
+POST {{Project1.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "catalog@demo.local",
+  "password": "Project1Demo123!"
+}
+
+###
+
 # @name adminLogin
 POST {{Project1.Api_HostAddress}}/api/auth/login
 Content-Type: application/json

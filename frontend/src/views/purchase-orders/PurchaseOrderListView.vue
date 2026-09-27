@@ -8,6 +8,8 @@ import AppToast from '@/components/ui/AppToast.vue'
 import { useToast } from '@/composables/useToast'
 import { purchaseOrderService } from '@/services/purchaseOrderService'
 import { quotationService } from '@/services/quotationService'
+import { useAuthStore } from '@/stores/auth'
+import { applicationRoles } from '@/types/auth'
 import type {
   PurchaseOrder,
   PurchaseOrderFormValues,
@@ -24,6 +26,12 @@ const statusFilters: { value: '' | PurchaseOrderStatus; label: string }[] = [
   { value: 'Cancelled', label: 'Cancelled' },
 ]
 
+const authStore = useAuthStore()
+const canManagePurchaseOrders = computed(
+  () =>
+    authStore.roles.includes(applicationRoles.admin) ||
+    authStore.roles.includes(applicationRoles.procurementOfficer),
+)
 const purchaseOrders = ref<PurchaseOrder[]>([])
 const selectedQuotations = ref<Quotation[]>([])
 const loading = ref(true)
@@ -103,7 +111,9 @@ async function loadData() {
   try {
     const [orderRecords, quotationRecords] = await Promise.all([
       purchaseOrderService.getAll(),
-      quotationService.getAll({ status: 'Selected' }),
+      canManagePurchaseOrders.value
+        ? quotationService.getAll({ status: 'Selected' })
+        : Promise.resolve([]),
     ])
     purchaseOrders.value = orderRecords
     selectedQuotations.value = quotationRecords
@@ -268,6 +278,7 @@ function statusLabel(status: PurchaseOrderStatus) {
         </p>
       </div>
       <button
+        v-if="canManagePurchaseOrders"
         class="button button-primary"
         type="button"
         :disabled="loading || !eligibleQuotations.length"
@@ -348,12 +359,13 @@ function statusLabel(status: PurchaseOrderStatus) {
         <strong>{{
           purchaseOrders.length ? 'No matching purchase orders' : 'No purchase orders yet'
         }}</strong>
-        <p v-if="!eligibleQuotations.length">
+        <p v-if="!canManagePurchaseOrders">No purchase orders are available for review.</p>
+        <p v-else-if="!eligibleQuotations.length">
           Select a winning supplier quotation before creating a purchase order.
         </p>
         <p v-else>Create a draft order from a selected supplier quotation.</p>
         <button
-          v-if="eligibleQuotations.length"
+          v-if="canManagePurchaseOrders && eligibleQuotations.length"
           class="button button-primary"
           type="button"
           @click="openCreateForm"
@@ -408,7 +420,7 @@ function statusLabel(status: PurchaseOrderStatus) {
                     View
                   </button>
                   <button
-                    v-if="order.status === 'Draft'"
+                    v-if="canManagePurchaseOrders && order.status === 'Draft'"
                     class="text-button"
                     type="button"
                     :disabled="busyPurchaseOrderId === order.id"
@@ -417,7 +429,7 @@ function statusLabel(status: PurchaseOrderStatus) {
                     Edit
                   </button>
                   <button
-                    v-if="order.status === 'Draft'"
+                    v-if="canManagePurchaseOrders && order.status === 'Draft'"
                     class="text-button text-button-positive"
                     type="button"
                     :disabled="busyPurchaseOrderId === order.id"
@@ -426,7 +438,7 @@ function statusLabel(status: PurchaseOrderStatus) {
                     Issue
                   </button>
                   <button
-                    v-if="order.status === 'Issued'"
+                    v-if="canManagePurchaseOrders && order.status === 'Issued'"
                     class="text-button text-button-danger"
                     type="button"
                     @click="openCancelDialog(order)"
@@ -434,7 +446,7 @@ function statusLabel(status: PurchaseOrderStatus) {
                     Cancel
                   </button>
                   <button
-                    v-if="order.status === 'Draft'"
+                    v-if="canManagePurchaseOrders && order.status === 'Draft'"
                     class="text-button text-button-danger"
                     type="button"
                     :disabled="busyPurchaseOrderId === order.id"
@@ -451,7 +463,7 @@ function statusLabel(status: PurchaseOrderStatus) {
     </section>
 
     <PurchaseOrderForm
-      v-if="formOpen"
+      v-if="canManagePurchaseOrders && formOpen"
       :purchase-order="editingPurchaseOrder"
       :quotations="formQuotations"
       :saving="saving"
@@ -467,7 +479,7 @@ function statusLabel(status: PurchaseOrderStatus) {
     />
 
     <PurchaseOrderCancelDialog
-      v-if="cancellingPurchaseOrder"
+      v-if="canManagePurchaseOrders && cancellingPurchaseOrder"
       :purchase-order="cancellingPurchaseOrder"
       :cancelling="cancelling"
       :error-message="cancelError"

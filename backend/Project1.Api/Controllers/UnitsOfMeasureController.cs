@@ -31,7 +31,7 @@ public sealed class UnitsOfMeasureController(IUnitOfMeasureService unitService) 
         return unit is null ? NotFound() : Ok(unit);
     }
 
-    [Authorize(Roles = ApplicationRoles.Admin)]
+    [Authorize(Roles = ApplicationRoles.AdminOrCatalog)]
     [HttpPost]
     [ProducesResponseType<UnitOfMeasureResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -51,7 +51,7 @@ public sealed class UnitsOfMeasureController(IUnitOfMeasureService unitService) 
         return CreatedAtAction(nameof(GetById), new { id = unit.Id }, unit);
     }
 
-    [Authorize(Roles = ApplicationRoles.Admin)]
+    [Authorize(Roles = ApplicationRoles.AdminOrCatalog)]
     [HttpPut("{id:int}")]
     [ProducesResponseType<UnitOfMeasureResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -67,7 +67,7 @@ public sealed class UnitsOfMeasureController(IUnitOfMeasureService unitService) 
             : Ok(result.UnitOfMeasure);
     }
 
-    [Authorize(Roles = ApplicationRoles.Admin)]
+    [Authorize(Roles = ApplicationRoles.AdminOrCatalog)]
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

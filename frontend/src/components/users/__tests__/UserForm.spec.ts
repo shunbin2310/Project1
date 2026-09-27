@@ -3,7 +3,15 @@ import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import UserForm from '../UserForm.vue'
 
-const roles = ['REQUESTER', 'DEPARTMENT_APPROVER', 'FINANCE_APPROVER', 'ADMIN'] as const
+const roles = [
+  'REQUESTER',
+  'DEPARTMENT_APPROVER',
+  'FINANCE_APPROVER',
+  'PROCUREMENT_OFFICER',
+  'WAREHOUSE_OFFICER',
+  'CATALOG_MANAGER',
+  'ADMIN',
+] as const
 
 describe('UserForm', () => {
   it('locks email and the current administrators Admin role when editing self', () => {
@@ -91,5 +99,22 @@ describe('UserForm', () => {
 
     expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({ roles: ['ADMIN'] })
     expect(wrapper.get('input[value="REQUESTER"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('offers the dedicated operational roles', () => {
+    const wrapper = mount(UserForm, {
+      props: {
+        user: null,
+        currentUserId: 4,
+        availableRoles: [...roles],
+        departments: [],
+        saving: false,
+        errorMessage: '',
+      },
+    })
+
+    expect(wrapper.find('input[value="PROCUREMENT_OFFICER"]').exists()).toBe(true)
+    expect(wrapper.find('input[value="WAREHOUSE_OFFICER"]').exists()).toBe(true)
+    expect(wrapper.find('input[value="CATALOG_MANAGER"]').exists()).toBe(true)
   })
 })

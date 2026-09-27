@@ -9,20 +9,50 @@ namespace Project1.Api.Authentication;
 
 public static class IdentitySeeder
 {
+    private sealed record DemoDepartmentDefinition(
+        string Code,
+        string Name,
+        string Description);
+
     private sealed record DemoUserDefinition(
         string Email,
         string FullName,
+        string? DepartmentCode,
         IReadOnlyCollection<string> Roles);
+
+    private static readonly DemoDepartmentDefinition[] OperationalDepartments =
+    [
+        new("FIN", "Finance", "Budget review and financial approval."),
+        new("PROC", "Procurement", "Supplier sourcing, quotations, and purchase orders."),
+        new("WH", "Warehouse", "Goods receiving and inventory operations."),
+        new("CAT", "Catalog Management", "Product and purchasing catalog maintenance.")
+    ];
 
     private static readonly DemoUserDefinition[] DemoUsers =
     [
-        new("requester@demo.local", "Demo Requester", [ApplicationRoles.Requester]),
+        new("requester@demo.local", "Demo Requester", null, [ApplicationRoles.Requester]),
         new(
             "department@demo.local",
             "Department Approver",
+            null,
             [ApplicationRoles.DepartmentApprover]),
-        new("finance@demo.local", "Finance Approver", [ApplicationRoles.FinanceApprover]),
-        new("admin@demo.local", "Demo Admin", [ApplicationRoles.Admin])
+        new("finance@demo.local", "Finance Approver", "FIN", [ApplicationRoles.FinanceApprover]),
+        new(
+            "procurement@demo.local",
+            "Procurement Officer",
+            "PROC",
+            [ApplicationRoles.ProcurementOfficer]),
+        new(
+            "warehouse@demo.local",
+            "Warehouse Officer",
+            "WH",
+            [ApplicationRoles.WarehouseOfficer]),
+        new(
+            "catalog@demo.local",
+            "Catalog Manager",
+            "CAT",
+            [ApplicationRoles.CatalogManager]),
+        new("admin@demo.local", "Demo Admin", null, [ApplicationRoles.Admin])
     ];
 
     public static async Task SeedIdentityAsync(this IServiceProvider services)
@@ -61,14 +91,15 @@ public static class IdentitySeeder
 
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var defaultDepartmentCode = options.DepartmentCode.Trim().ToUpperInvariant();
         var department = await dbContext.Departments
-            .SingleOrDefaultAsync(item => item.Code == options.DepartmentCode);
+            .SingleOrDefaultAsync(item => item.Code == defaultDepartmentCode);
 
         if (department is null)
         {
             department = new Department
             {
-                Code = options.DepartmentCode.Trim().ToUpperInvariant(),
+                Code = defaultDepartmentCode,
                 Name = "Information Technology",
                 Description = "Demo department for the Project1 interview environment."
             };
@@ -76,8 +107,36 @@ public static class IdentitySeeder
             await dbContext.SaveChangesAsync();
         }
 
+        var departmentsByCode = new Dictionary<string, Department>(StringComparer.OrdinalIgnoreCase)
+        {
+            [defaultDepartmentCode] = department
+        };
+
+        foreach (var definition in OperationalDepartments)
+        {
+            var operationalDepartment = await dbContext.Departments
+                .SingleOrDefaultAsync(item => item.Code == definition.Code);
+
+            if (operationalDepartment is null)
+            {
+                operationalDepartment = new Department
+                {
+                    Code = definition.Code,
+                    Name = definition.Name,
+                    Description = definition.Description
+                };
+                dbContext.Departments.Add(operationalDepartment);
+                await dbContext.SaveChangesAsync();
+            }
+
+            departmentsByCode[definition.Code] = operationalDepartment;
+        }
+
         foreach (var definition in DemoUsers)
         {
+            var userDepartment = definition.DepartmentCode is null
+                ? department
+                : departmentsByCode[definition.DepartmentCode];
             var user = await userManager.FindByEmailAsync(definition.Email);
 
             if (user is null)
@@ -88,7 +147,7 @@ public static class IdentitySeeder
                     Email = definition.Email,
                     EmailConfirmed = true,
                     FullName = definition.FullName,
-                    DepartmentId = department.Id,
+                    DepartmentId = userDepartment.Id,
                     IsActive = true
                 };
 
@@ -97,12 +156,24 @@ public static class IdentitySeeder
             }
             else
             {
+                var identityChanged = user.FullName != definition.FullName ||
+                                      user.DepartmentId != userDepartment.Id ||
+                                      !user.IsActive ||
+                                      !user.EmailConfirmed;
                 user.FullName = definition.FullName;
-                user.DepartmentId = department.Id;
+                user.DepartmentId = userDepartment.Id;
                 user.IsActive = true;
                 user.EmailConfirmed = true;
                 var updateResult = await userManager.UpdateAsync(user);
                 EnsureSucceeded(updateResult, $"update demo user '{definition.Email}'");
+
+                if (identityChanged)
+                {
+                    var stampResult = await userManager.UpdateSecurityStampAsync(user);
+                    EnsureSucceeded(
+                        stampResult,
+                        $"refresh demo user '{definition.Email}' security stamp");
+                }
             }
 
             var existingRoles = await userManager.GetRolesAsync(user);

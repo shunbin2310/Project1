@@ -114,7 +114,25 @@ This separation prevents the UI, API contract, and database structure from becom
 | `REQUESTER` | Creates and submits purchase requests | My Tasks, Purchase Requests |
 | `DEPARTMENT_APPROVER` | Checks whether the request is required by the department | My Tasks, Purchase Requests, department approve/reject actions |
 | `FINANCE_APPROVER` | Checks budget and financial approval | My Tasks, Purchase Requests, finance approve/reject actions |
-| `ADMIN` | Maintains the system and executes the purchasing process | All pages, all workflow actions, master data, users, quotations, purchase orders, and goods receiving |
+| `PROCUREMENT_OFFICER` | Performs daily purchasing work | Suppliers, Supplier Products, Supplier Quotations, Purchase Orders; read-only Goods Receiving and Inventory |
+| `WAREHOUSE_OFFICER` | Receives deliveries and monitors stock | Read-only Purchase Orders, Goods Receiving, Inventory |
+| `CATALOG_MANAGER` | Maintains purchasing master data | Product Categories, Units of Measure, Products |
+| `ADMIN` | Configures, supports, and recovers the system | All pages and all operations |
+
+The dedicated business roles keep daily work separate from system administration:
+
+| Page or operation | Requester | Department | Finance | Procurement | Warehouse | Catalog | Admin |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Purchase Request create and own Draft | Yes | No | No | No | No | No | Yes |
+| Department approval | No | Yes | No | No | No | No | Yes |
+| Finance approval | No | No | Yes | No | No | No | Yes |
+| Suppliers and Supplier Products | No | No | No | Manage | No | No | Manage |
+| Supplier Quotations | No | No | No | Manage | No | No | Manage |
+| Purchase Orders | No | No | No | Manage | Read | No | Manage |
+| Goods Receiving | No | No | No | Read | Manage | No | Manage |
+| Inventory | No | No | No | Read | Manage | No | Manage |
+| Product Categories, Units, Products | Reference data only | Reference data only | Reference data only | Reference data only | Reference data only | Manage | Manage |
+| Departments, Users, Workflow Templates | No | No | No | No | No | No | Manage |
 
 ### Admin as Super Admin
 
@@ -145,7 +163,7 @@ After successful login:
 - The frontend stores the current session in `sessionStorage`.
 - The common API client automatically sends `Authorization: Bearer <token>`.
 
-Development mode includes four quick-login Demo Account buttons.
+Development mode includes seven quick-login Demo Account buttons.
 
 ### My Tasks
 
@@ -418,18 +436,21 @@ An authenticated user who opens a route without the required role is redirected 
 
 ## Complete purchasing process
 
-### Phase 1: Admin prepares master data
+### Phase 1: Admin prepares system configuration
 
 1. Create the required Departments.
 2. Create or maintain Users and assign roles.
-3. Create Product Categories.
-4. Create Units of Measure.
-5. Create Products with estimated prices.
-6. Create external Suppliers.
-7. Link Suppliers to the Products they can supply.
-8. Confirm that the `PURCHASE_REQUEST` workflow template is active and published.
+3. Confirm that the `PURCHASE_REQUEST` workflow template is active and published.
 
-### Phase 2: Requester creates a request
+### Phase 2: Catalog and Procurement prepare master data
+
+1. Catalog Manager creates Product Categories.
+2. Catalog Manager creates Units of Measure.
+3. Catalog Manager creates Products with estimated prices.
+4. Procurement Officer creates external Suppliers.
+5. Procurement Officer links Suppliers to the Products they can supply.
+
+### Phase 3: Requester creates a request
 
 1. Log in as `requester@demo.local`.
 2. Open Purchase Requests or My Tasks.
@@ -442,7 +463,7 @@ An authenticated user who opens a route without the required role is redirected 
 
 The logged-in user's name and department are assigned automatically. The initial workflow step is Draft.
 
-### Phase 3: Requester submits the Draft
+### Phase 4: Requester submits the Draft
 
 If the request was saved as a Draft:
 
@@ -453,7 +474,7 @@ If the request was saved as a Draft:
 
 The workflow moves from Draft to Department Review.
 
-### Phase 4: Department approval
+### Phase 5: Department approval
 
 1. Log in as `department@demo.local`.
 2. Open My Tasks.
@@ -462,7 +483,7 @@ The workflow moves from Draft to Department Review.
 
 If approved, the request moves to Finance Review. If rejected, it moves to the Rejected terminal step. Rejection requires a comment.
 
-### Phase 5: Finance approval
+### Phase 6: Finance approval
 
 1. Log in as `finance@demo.local`.
 2. Open My Tasks.
@@ -471,9 +492,9 @@ If approved, the request moves to Finance Review. If rejected, it moves to the R
 
 If approved, the request moves to the Approved terminal step. If rejected, it moves to Rejected. Rejection requires a comment.
 
-### Phase 6: Admin records supplier quotations
+### Phase 7: Procurement records supplier quotations
 
-1. Log in as `admin@demo.local`.
+1. Log in as `procurement@demo.local`.
 2. Open Supplier Quotations.
 3. Create one quotation for each eligible supplier.
 4. Enter each supplier's real unit prices, quotation date, validity, and reference.
@@ -483,7 +504,7 @@ If approved, the request moves to the Approved terminal step. If rejected, it mo
 
 The selected quotation becomes Selected and the competing quotations become Not Selected.
 
-### Phase 7: Admin creates and issues a purchase order
+### Phase 8: Procurement creates and issues a purchase order
 
 1. Open Purchase Orders.
 2. Create a Draft order from the Selected quotation.
@@ -493,9 +514,9 @@ The selected quotation becomes Selected and the competing quotations become Not 
 
 The purchase order can no longer be edited after it is issued.
 
-### Phase 8: Admin receives supplier delivery
+### Phase 9: Warehouse receives supplier delivery
 
-1. Open Goods Receiving.
+1. Log in as `warehouse@demo.local` and open Goods Receiving.
 2. Click New Goods Receipt.
 3. Select an Issued or Partially Received purchase order.
 4. Enter the supplier delivery note, received date, notes, and received quantities.
@@ -505,7 +526,7 @@ The purchase order can no longer be edited after it is issued.
 
 If some quantities are still outstanding, the purchase order becomes Partially Received. Repeat the receiving process for later deliveries. When all quantities are received, the purchase order becomes Received.
 
-### Phase 9: Admin monitors inventory
+### Phase 10: Warehouse monitors inventory
 
 1. Open Inventory after posting a Goods Receipt.
 2. Confirm the received product's quantity on hand increased.
@@ -747,6 +768,9 @@ Development mode seeds these accounts:
 | Requester | `requester@demo.local` | `Project1Demo123!` |
 | Department Approver | `department@demo.local` | `Project1Demo123!` |
 | Finance Approver | `finance@demo.local` | `Project1Demo123!` |
+| Procurement Officer | `procurement@demo.local` | `Project1Demo123!` |
+| Warehouse Officer | `warehouse@demo.local` | `Project1Demo123!` |
+| Catalog Manager | `catalog@demo.local` | `Project1Demo123!` |
 | Admin | `admin@demo.local` | `Project1Demo123!` |
 
 Development settings enable demo users in `appsettings.Development.json`.
@@ -809,15 +833,15 @@ Department Approver approves
         -> Finance Review
 Finance Approver approves
         -> Approved / Completed
-Admin records and submits two quotations
+Procurement Officer records and submits two quotations
         -> Alpha Submitted + Beta Submitted
-Admin selects Beta
+Procurement Officer selects Beta
         -> Beta Selected + Alpha Not Selected
-Admin creates and issues PO for 10
+Procurement Officer creates and issues PO for 10
         -> Issued
-Admin posts first receipt for 6
+Warehouse Officer posts first receipt for 6
         -> PO Partially Received + Inventory 6
-Admin posts second receipt for 4
+Warehouse Officer posts second receipt for 4
         -> PO Received + Inventory 10
 ```
 
@@ -836,9 +860,9 @@ master data when the walkthrough is repeated.
 
 Expected result: Admin can see all administration and purchasing pages.
 
-##### 2. Create the catalog and suppliers as Admin
+##### 2. Create the catalog and suppliers with dedicated roles
 
-Create this master data in order:
+Sign out, use the Catalog Manager account, and create the product master data:
 
 1. Open Product Categories and click New category.
    - Name: `Interview Equipment UI0927A`
@@ -852,10 +876,11 @@ Create this master data in order:
    - Unit: the unit created above
    - Default unit price: `120.00`
    - Reorder level: `3`
-4. Open Suppliers and create two suppliers:
+4. Sign out and use the Procurement Officer account.
+5. Open Suppliers and create two suppliers:
    - `Alpha Equipment UI0927A`
    - `Beta Equipment UI0927A`
-5. Open Supplier Products and click New relationship twice:
+6. Open Supplier Products and click New relationship twice:
    - Link Alpha Equipment to Ergonomic Keyboard.
    - Link Beta Equipment to Ergonomic Keyboard and mark it Preferred.
 
@@ -911,9 +936,9 @@ Expected result: the request disappears from the Department Approver task list a
 Expected result: the workflow becomes `Completed`, the current step becomes `Approved`, and no more
 workflow actions are available.
 
-##### 6. Record and compare supplier quotations as Admin
+##### 6. Record and compare supplier quotations as Procurement
 
-1. Sign out and use the Demo Admin account.
+1. Sign out and use the Procurement Officer account.
 2. Open Supplier Quotations and click New quotation.
 3. Create the Alpha quotation:
    - Purchase request: the Approved request created above
@@ -960,7 +985,8 @@ deleted.
 
 ##### 8. Test partial Goods Receiving
 
-Before receiving, open Inventory and find `Ergonomic Keyboard UI0927A`.
+Sign out and use the Warehouse Officer account. Before receiving, open Inventory and find
+`Ergonomic Keyboard UI0927A`.
 
 Expected result: quantity on hand is `0`, and its status is `Out of stock`.
 
@@ -1017,14 +1043,17 @@ Expected ledger:
 | First Posted receipt | First `GR-xxxx` | 0 | +6 | 6 |
 | Second Posted receipt | Second `GR-xxxx` | 6 | +4 | 10 |
 
-Both rows should show transaction type `Goods receipt`, the posting Admin, and a timestamp. Date and
-transaction-type filters should return the matching rows.
+Both rows should show transaction type `Goods receipt`, the posting Warehouse Officer, and a
+timestamp. Date and transaction-type filters should return the matching rows.
 
 ##### 11. Optional permission checks
 
 1. Sign in as Requester and manually open `/inventory`, `/purchase-orders`, or `/users`.
-2. Confirm the application displays `403 Access Denied`.
-3. Sign in as Admin and confirm those pages are available.
+2. Sign in as Procurement Officer and manually open `/users` or `/products`.
+3. Sign in as Warehouse Officer and manually open `/quotations`.
+4. Sign in as Catalog Manager and manually open `/quotations`.
+5. Confirm each unauthorized route displays `403 Access Denied`.
+6. Sign in as Admin and confirm every page is available.
 
 This verifies both normal business processing and frontend role navigation. The API separately
 enforces the same authorization rules.
@@ -1285,7 +1314,8 @@ Development uses a temporary JWT signing key. Log out and log in again after res
 
 ### `403 Access Denied`
 
-The account is logged in but does not have the required role. Use the correct demo account or update the user's role as Admin, then log in again.
+The account is logged in but does not have the required role. Use the correct demo account or let an
+Admin assign the appropriate role, then log in again.
 
 ### New action button is disabled
 
@@ -1314,35 +1344,7 @@ Confirm SQL Server is running, the server name is correct, and the current Windo
 The following tasks are arranged in the planned development order. Complete and verify one task
 before starting the next one.
 
-### 1. Separate daily purchasing work from the Admin role
-
-Status: Pending
-
-Agreed business rule: Admin remains a Super Admin for configuration, demonstrations, and recovery,
-but normal purchasing and warehouse work should be performed by dedicated users.
-
-Add these roles:
-
-| Role | Main responsibility |
-| --- | --- |
-| `PROCUREMENT_OFFICER` | Suppliers, Supplier Products, Supplier Quotations, and Purchase Orders |
-| `WAREHOUSE_OFFICER` | Goods Receiving and Inventory |
-| `CATALOG_MANAGER` | Product Categories, Units of Measure, and Products; optional if the scope is kept smaller |
-
-Implementation scope:
-
-- Seed the new ASP.NET Core Identity roles.
-- Add Procurement and Warehouse demo users for portfolio testing.
-- Assign users to suitable Departments such as Procurement and Warehouse.
-- Use Roles, not Department names, as the authorization rule.
-- Update controller authorization, Vue Router guards, sidebar visibility, and Access Denied behavior.
-- Keep `ADMIN` authorized for every page and operation.
-- Update the permission matrix, automated tests, and UI walkthrough.
-
-Completion check: Procurement can manage quotations and orders but cannot manage Users; Warehouse can
-receive goods and view inventory but cannot manage quotations; Admin can access everything.
-
-### 2. Send Purchase Orders to suppliers by email
+### 1. Send Purchase Orders to suppliers by email
 
 Status: Pending
 
@@ -1374,7 +1376,7 @@ Implementation scope:
 Completion check: issuing a PO queues one email, successful delivery is recorded as Sent, and a failed
 delivery can be retried without issuing the PO again.
 
-### 3. Connect additional business modules to the Workflow Engine
+### 2. Connect additional business modules to the Workflow Engine
 
 Status: Pending future extension
 
@@ -1395,7 +1397,7 @@ For each new workflow-enabled module:
 Completion check: publishing a template for the new Entity Type affects new records, while existing
 records continue using their copied Workflow Instance.
 
-### 4. Simplify and separate project documentation
+### 3. Simplify and separate project documentation
 
 Status: Pending
 
@@ -1408,7 +1410,7 @@ Status: Pending
 Completion check: a new user can start and demonstrate the project without reading the technical
 implementation sections first.
 
-### 5. Dashboard and notifications
+### 4. Dashboard and notifications
 
 Status: Pending
 
@@ -1417,7 +1419,7 @@ Status: Pending
 - Low-stock notifications.
 - Recent purchasing and inventory activity.
 
-### 6. Docker configuration
+### 5. Docker configuration
 
 Status: Pending
 
@@ -1426,7 +1428,7 @@ Status: Pending
 - SQL Server container for local deployment.
 - Docker Compose configuration and environment variables.
 
-### 7. GitHub Actions automated build and test
+### 6. GitHub Actions automated build and test
 
 Status: Pending
 
@@ -1434,7 +1436,7 @@ Status: Pending
 - Frontend install, lint, unit tests, and production build.
 - Optional Playwright browser tests.
 
-### 8. Ubuntu server deployment
+### 7. Ubuntu server deployment
 
 Status: Pending
 

@@ -13,6 +13,18 @@ const pageTitle = computed(() =>
 )
 const usesAuthLayout = computed(() => route.meta.layout === 'auth')
 const isAdmin = computed(() => authStore.roles.includes(applicationRoles.admin))
+const canManageProcurement = computed(
+  () => isAdmin.value || authStore.roles.includes(applicationRoles.procurementOfficer),
+)
+const canManageCatalog = computed(
+  () => isAdmin.value || authStore.roles.includes(applicationRoles.catalogManager),
+)
+const canManageWarehouse = computed(
+  () => isAdmin.value || authStore.roles.includes(applicationRoles.warehouseOfficer),
+)
+const canViewPurchaseOrders = computed(() => canManageProcurement.value || canManageWarehouse.value)
+const canViewGoodsReceipts = computed(() => canManageProcurement.value || canManageWarehouse.value)
+const canViewInventory = computed(() => canManageProcurement.value || canManageWarehouse.value)
 const initials = computed(() =>
   (authStore.user?.fullName ?? 'User')
     .split(/\s+/)
@@ -68,6 +80,10 @@ async function logout() {
             <span class="nav-icon" aria-hidden="true">WF</span>
             <span>Workflow Templates</span>
           </RouterLink>
+        </template>
+
+        <template v-if="canManageProcurement">
+          <p>Procurement settings</p>
           <RouterLink to="/suppliers">
             <span class="nav-icon" aria-hidden="true">SP</span>
             <span>Suppliers</span>
@@ -76,7 +92,9 @@ async function logout() {
             <span class="nav-icon" aria-hidden="true">LK</span>
             <span>Supplier Products</span>
           </RouterLink>
+        </template>
 
+        <template v-if="canManageCatalog">
           <p>Catalog</p>
           <RouterLink to="/product-categories">
             <span class="nav-icon" aria-hidden="true">PC</span>
@@ -97,20 +115,20 @@ async function logout() {
           <span class="nav-icon" aria-hidden="true">RQ</span>
           <span>Purchase Requests</span>
         </RouterLink>
-        <RouterLink v-if="isAdmin" to="/quotations">
+        <RouterLink v-if="canManageProcurement" to="/quotations">
           <span class="nav-icon" aria-hidden="true">QT</span>
           <span>Supplier Quotations</span>
         </RouterLink>
-        <RouterLink v-if="isAdmin" to="/purchase-orders">
+        <RouterLink v-if="canViewPurchaseOrders" to="/purchase-orders">
           <span class="nav-icon" aria-hidden="true">PO</span>
           <span>Purchase Orders</span>
         </RouterLink>
-        <RouterLink v-if="isAdmin" to="/goods-receipts">
+        <RouterLink v-if="canViewGoodsReceipts" to="/goods-receipts">
           <span class="nav-icon" aria-hidden="true">GR</span>
           <span>Goods Receiving</span>
         </RouterLink>
 
-        <template v-if="isAdmin">
+        <template v-if="canViewInventory">
           <p>Stock</p>
           <RouterLink to="/inventory">
             <span class="nav-icon" aria-hidden="true">IN</span>

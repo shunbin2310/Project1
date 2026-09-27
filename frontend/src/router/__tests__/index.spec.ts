@@ -182,4 +182,66 @@ describe('router authentication guards', () => {
 
     expect(router.currentRoute.value.name).toBe('my-tasks')
   })
+
+  it('routes procurement officers to quotations and purchasing pages', async () => {
+    authenticate('PROCUREMENT_OFFICER')
+
+    await router.push('/')
+    expect(router.currentRoute.value.name).toBe('quotations')
+
+    await router.push('/suppliers')
+    expect(router.currentRoute.value.name).toBe('suppliers')
+
+    await router.push('/inventory')
+    expect(router.currentRoute.value.name).toBe('inventory')
+  })
+
+  it('blocks procurement officers from administration and catalog maintenance', async () => {
+    authenticate('PROCUREMENT_OFFICER')
+
+    await router.push('/users')
+    expect(router.currentRoute.value.name).toBe('access-denied')
+
+    await router.push('/products')
+    expect(router.currentRoute.value.name).toBe('access-denied')
+  })
+
+  it('routes warehouse officers to receiving and read-only purchasing pages', async () => {
+    authenticate('WAREHOUSE_OFFICER')
+
+    await router.push('/')
+    expect(router.currentRoute.value.name).toBe('goods-receipts')
+
+    await router.push('/purchase-orders')
+    expect(router.currentRoute.value.name).toBe('purchase-orders')
+
+    await router.push('/inventory')
+    expect(router.currentRoute.value.name).toBe('inventory')
+  })
+
+  it('blocks warehouse officers from supplier quotations', async () => {
+    authenticate('WAREHOUSE_OFFICER')
+
+    await router.push('/quotations')
+
+    expect(router.currentRoute.value.name).toBe('access-denied')
+  })
+
+  it('routes catalog managers to product maintenance', async () => {
+    authenticate('CATALOG_MANAGER')
+
+    await router.push('/')
+    expect(router.currentRoute.value.name).toBe('products')
+
+    await router.push('/product-categories')
+    expect(router.currentRoute.value.name).toBe('product-categories')
+  })
+
+  it('blocks catalog managers from purchasing operations', async () => {
+    authenticate('CATALOG_MANAGER')
+
+    await router.push('/quotations')
+
+    expect(router.currentRoute.value.name).toBe('access-denied')
+  })
 })

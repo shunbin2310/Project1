@@ -8,7 +8,7 @@ using Project1.Api.Services.Inventory;
 namespace Project1.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = ApplicationRoles.Admin)]
+[Authorize(Roles = ApplicationRoles.InventoryReaders)]
 [Route("api/inventory")]
 public sealed class InventoryController(IInventoryService inventoryService) : ControllerBase
 {

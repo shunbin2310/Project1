@@ -8,7 +8,7 @@ using Project1.Api.Services.PurchaseOrders;
 namespace Project1.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = ApplicationRoles.Admin)]
+[Authorize(Roles = ApplicationRoles.PurchaseOrderReaders)]
 [Route("api/purchase-orders")]
 public sealed class PurchaseOrdersController(
     IPurchaseOrderService purchaseOrderService) : ControllerBase
@@ -39,6 +39,7 @@ public sealed class PurchaseOrdersController(
         return purchaseOrder is null ? NotFound() : Ok(purchaseOrder);
     }
 
+    [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
     [HttpPost]
     [ProducesResponseType<PurchaseOrderResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -57,6 +58,7 @@ public sealed class PurchaseOrdersController(
         return CreatedAtAction(nameof(GetById), new { id = purchaseOrder.Id }, purchaseOrder);
     }
 
+    [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
     [HttpPut("{id:int}")]
     [ProducesResponseType<PurchaseOrderResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -73,6 +75,7 @@ public sealed class PurchaseOrdersController(
             : OperationProblem(result);
     }
 
+    [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
     [HttpPost("{id:int}/issue")]
     [ProducesResponseType<PurchaseOrderResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -88,6 +91,7 @@ public sealed class PurchaseOrdersController(
             : OperationProblem(result);
     }
 
+    [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
     [HttpPost("{id:int}/cancel")]
     [ProducesResponseType<PurchaseOrderResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -104,6 +108,7 @@ public sealed class PurchaseOrdersController(
             : OperationProblem(result);
     }
 
+    [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

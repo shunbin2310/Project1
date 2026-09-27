@@ -25,6 +25,10 @@ test('signs in with a demo account', async ({ page }) => {
   })
 
   await page.goto('/login')
+  await expect(page.locator('.demo-account')).toHaveCount(7)
+  await expect(page.getByRole('button', { name: /Procurement Officer/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Warehouse Officer/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Catalog Manager/ })).toBeVisible()
   await page.getByRole('button', { name: /Demo Admin/ }).click()
 
   await expect(page).toHaveURL(/\/departments$/)
@@ -58,7 +62,15 @@ test.describe('authenticated administration workspace', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(['REQUESTER', 'DEPARTMENT_APPROVER', 'FINANCE_APPROVER', 'ADMIN']),
+        body: JSON.stringify([
+          'REQUESTER',
+          'DEPARTMENT_APPROVER',
+          'FINANCE_APPROVER',
+          'PROCUREMENT_OFFICER',
+          'WAREHOUSE_OFFICER',
+          'CATALOG_MANAGER',
+          'ADMIN',
+        ]),
       })
     })
     await page.route('http://localhost:5165/api/departments', async (route) => {
@@ -73,6 +85,9 @@ test.describe('authenticated administration workspace', () => {
     await expect(page.getByRole('dialog')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Create user' })).toBeVisible()
     await expect(page.getByLabel('Temporary password')).toHaveCount(0)
+    await expect(page.getByText('Procurement Officer', { exact: true })).toBeVisible()
+    await expect(page.getByText('Warehouse Officer', { exact: true })).toBeVisible()
+    await expect(page.getByText('Catalog Manager', { exact: true })).toBeVisible()
   })
 
   test('opens workflow template administration and its create form', async ({ page }) => {
