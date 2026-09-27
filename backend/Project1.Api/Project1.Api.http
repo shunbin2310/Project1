@@ -571,8 +571,7 @@ Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
   "items": [
     {
       "productId": {{productId}},
-      "quantity": 2,
-      "estimatedUnitPrice": null
+      "quantity": 2
     }
   ]
 }
@@ -589,8 +588,7 @@ Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
   "items": [
     {
       "productId": {{productId}},
-      "quantity": 2,
-      "estimatedUnitPrice": 1399.90
+      "quantity": 2
     }
   ]
 }

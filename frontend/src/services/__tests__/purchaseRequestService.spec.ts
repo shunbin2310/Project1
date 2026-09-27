@@ -23,6 +23,28 @@ describe('purchaseRequestService', () => {
     )
   })
 
+  it('does not send an estimated price when creating a request', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response('{}', {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await purchaseRequestService.create({
+      requiredDate: '2030-12-31',
+      justification: 'New equipment',
+      items: [{ productId: 1, quantity: 2 }],
+    })
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+      items: Record<string, unknown>[]
+    }
+    expect(body.items[0]).toEqual({ productId: 1, quantity: 2 })
+    expect(body.items[0]).not.toHaveProperty('estimatedUnitPrice')
+  })
+
   it('sends only the comment when executing an action', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response('{}', {

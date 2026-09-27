@@ -23,7 +23,17 @@ const emit = defineEmits<{
   save: [values: PurchaseRequestFormValues, submitAfterSave: boolean]
 }>()
 
-const form = reactive<PurchaseRequestFormValues>({
+interface PurchaseRequestFormItem extends PurchaseRequestItemInput {
+  estimatedUnitPrice: number | null
+}
+
+interface PurchaseRequestFormState {
+  requiredDate: string | null
+  justification: string | null
+  items: PurchaseRequestFormItem[]
+}
+
+const form = reactive<PurchaseRequestFormState>({
   requiredDate: null,
   justification: null,
   items: [],
@@ -123,12 +133,10 @@ function validate(submitAfterSave: boolean) {
     form.items.some(
       (item) =>
         !Number.isFinite(item.quantity) ||
-        (submitAfterSave ? item.quantity <= 0 : item.quantity < 0) ||
-        (item.estimatedUnitPrice !== null &&
-          (!Number.isFinite(item.estimatedUnitPrice) || item.estimatedUnitPrice < 0)),
+        (submitAfterSave ? item.quantity <= 0 : item.quantity < 0),
     )
   ) {
-    errors.items = 'Quantity and estimated price must be zero or greater.'
+    errors.items = 'Quantity must be zero or greater.'
   }
 
   return !Object.values(errors).some(Boolean)
@@ -145,9 +153,6 @@ function submitForm(submitAfterSave: boolean) {
       items: form.items.map<PurchaseRequestItemInput>((item) => ({
         productId: item.productId,
         quantity: item.quantity,
-        estimatedUnitPrice: Number.isFinite(item.estimatedUnitPrice)
-          ? item.estimatedUnitPrice
-          : null,
       })),
     },
     submitAfterSave,
@@ -274,11 +279,13 @@ function formatCurrency(value: number) {
               <label :for="`purchase-price-${index}`">Unit price (MYR)</label>
               <input
                 :id="`purchase-price-${index}`"
-                v-model.number="item.estimatedUnitPrice"
+                :value="item.estimatedUnitPrice ?? ''"
                 type="number"
                 min="0"
                 step="0.01"
+                readonly
               />
+              
             </div>
 
             <button

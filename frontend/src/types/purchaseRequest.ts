@@ -72,7 +72,6 @@ export interface PurchaseRequest {
 export interface PurchaseRequestItemInput {
   productId: number
   quantity: number
-  estimatedUnitPrice: number | null
 }
 
 export interface PurchaseRequestFormValues {

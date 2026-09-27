@@ -171,10 +171,17 @@ public sealed class PurchaseRequestService(
             return productResult.Error;
         }
 
+        var existingPriceSnapshots = purchaseRequest.Items.ToDictionary(
+            item => item.ProductId,
+            item => item.EstimatedUnitPrice);
+
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         dbContext.PurchaseRequestItems.RemoveRange(purchaseRequest.Items);
-        purchaseRequest.Items = CreateItems(request.Items, productResult.Products!);
+        purchaseRequest.Items = CreateItems(
+            request.Items,
+            productResult.Products!,
+            existingPriceSnapshots);
         purchaseRequest.RequiredDate = request.RequiredDate;
         purchaseRequest.Justification = NormalizeOptionalText(request.Justification);
         purchaseRequest.UpdatedAtUtc = DateTimeOffset.UtcNow;
@@ -335,7 +342,7 @@ public sealed class PurchaseRequestService(
             return ValidationFailed("A product can only appear once in a purchase request.");
         }
 
-        if (items.Any(item => item.ProductId < 1 || item.Quantity < 0 || item.EstimatedUnitPrice < 0))
+        if (items.Any(item => item.ProductId < 1 || item.Quantity < 0))
         {
             return ValidationFailed("Purchase request item values are invalid.");
         }
@@ -389,13 +396,19 @@ public sealed class PurchaseRequestService(
 
     private static List<PurchaseRequestItem> CreateItems(
         IReadOnlyList<PurchaseRequestItemRequest> requests,
-        IReadOnlyDictionary<int, Product> products)
+        IReadOnlyDictionary<int, Product> products,
+        IReadOnlyDictionary<int, decimal>? existingPriceSnapshots = null)
     {
         return requests.Select(request => new PurchaseRequestItem
         {
             ProductId = request.ProductId,
             Quantity = request.Quantity,
-            EstimatedUnitPrice = request.EstimatedUnitPrice ?? products[request.ProductId].DefaultUnitPrice
+            EstimatedUnitPrice = existingPriceSnapshots is not null &&
+                                 existingPriceSnapshots.TryGetValue(
+                                     request.ProductId,
+                                     out var existingPrice)
+                ? existingPrice
+                : products[request.ProductId].DefaultUnitPrice
         }).ToList();
     }
 

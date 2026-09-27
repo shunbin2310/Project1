@@ -31,6 +31,74 @@ public sealed class PurchaseRequestServiceTests
         Assert.Equal("START", Assert.Single(result.PurchaseRequest.Workflow.History).ActionCode);
         Assert.Equal("Alex Tan", result.PurchaseRequest.RequesterName);
         Assert.Equal(fixture.DepartmentId, result.PurchaseRequest.DepartmentId);
+        Assert.Equal(25m, Assert.Single(result.PurchaseRequest.Items).EstimatedUnitPrice);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_PreservesExistingPriceSnapshotAndUsesDefaultForNewProduct()
+    {
+        await using var fixture = await PurchaseRequestFixture.CreateAsync();
+        var created = await fixture.Service.CreateAsync(
+            fixture.ValidRequest(),
+            CancellationToken.None);
+        var existingProduct = await fixture.DbContext.Products
+            .SingleAsync(product => product.Id == fixture.ProductId);
+        existingProduct.DefaultUnitPrice = 99m;
+        var newProduct = new Product
+        {
+            Code = "ITEM-NEW",
+            Name = "New Product",
+            ProductCategoryId = existingProduct.ProductCategoryId,
+            UnitOfMeasureId = existingProduct.UnitOfMeasureId,
+            DefaultUnitPrice = 40m
+        };
+        fixture.DbContext.Products.Add(newProduct);
+        await fixture.DbContext.SaveChangesAsync();
+
+        var result = await fixture.Service.UpdateAsync(
+            created.PurchaseRequest!.Id,
+            new UpdatePurchaseRequestRequest
+            {
+                RequiredDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)),
+                Items =
+                [
+                    new PurchaseRequestItemRequest
+                    {
+                        ProductId = fixture.ProductId,
+                        Quantity = 3
+                    },
+                    new PurchaseRequestItemRequest
+                    {
+                        ProductId = newProduct.Id,
+                        Quantity = 1
+                    }
+                ]
+            },
+            CancellationToken.None);
+
+        Assert.Equal(PurchaseRequestOperationStatus.Success, result.Status);
+        var items = result.PurchaseRequest!.Items.ToDictionary(item => item.ProductId);
+        Assert.Equal(25m, items[fixture.ProductId].EstimatedUnitPrice);
+        Assert.Equal(40m, items[newProduct.Id].EstimatedUnitPrice);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_DoesNotChangeSnapshotWhenProductDefaultPriceChanges()
+    {
+        await using var fixture = await PurchaseRequestFixture.CreateAsync();
+        var created = await fixture.Service.CreateAsync(
+            fixture.ValidRequest(),
+            CancellationToken.None);
+        var product = await fixture.DbContext.Products
+            .SingleAsync(item => item.Id == fixture.ProductId);
+        product.DefaultUnitPrice = 99m;
+        await fixture.DbContext.SaveChangesAsync();
+
+        var result = await fixture.Service.GetByIdAsync(
+            created.PurchaseRequest!.Id,
+            CancellationToken.None);
+
+        Assert.Equal(25m, Assert.Single(result!.Items).EstimatedUnitPrice);
     }
 
     [Fact]
