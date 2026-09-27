@@ -50,6 +50,7 @@ describe('QuotationDetails', () => {
     expect(wrapper.get('.quotation-status').text()).toBe('Submitted')
     expect(wrapper.get('.quotation-summary-supplier').text()).toBe('Example Supplies')
     expect(wrapper.get('.quotation-summary-request').text()).toContain('PR-0007')
+    expect(wrapper.text()).toContain('Supplier quotation reference')
     expect(wrapper.text()).toContain('SUP-Q-003')
     expect(wrapper.text().replace(/\s/g, '')).toContain('RM2,200.00')
   })

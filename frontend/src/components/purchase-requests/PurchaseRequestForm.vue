@@ -285,7 +285,7 @@ function formatCurrency(value: number) {
                 step="0.01"
                 readonly
               />
-              
+              <p class="field-hint">From the Product master record. Requesters cannot change it.</p>
             </div>
 
             <button

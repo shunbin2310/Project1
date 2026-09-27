@@ -80,7 +80,7 @@ function statusLabel(status: PurchaseOrderStatus) {
               <span>Selected quotation</span>
               <strong>{{ purchaseOrder.quotationNumber }}</strong>
               <small>{{
-                purchaseOrder.supplierQuotationReference || 'No supplier reference'
+                purchaseOrder.supplierQuotationReference || 'No supplier quotation reference'
               }}</small>
             </div>
           </div>

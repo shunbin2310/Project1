@@ -72,7 +72,7 @@ function formatQuantity(value: number) {
 
           <div class="quotation-summary-meta">
             <div>
-              <span class="quotation-summary-label">Supplier reference</span>
+              <span class="quotation-summary-label">Supplier quotation reference</span>
               <strong>{{ quotation.supplierQuotationReference || 'Not provided' }}</strong>
             </div>
             <div>
