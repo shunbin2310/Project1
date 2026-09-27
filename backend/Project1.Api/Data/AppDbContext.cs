@@ -34,6 +34,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<PurchaseOrderItem> PurchaseOrderItems => Set<PurchaseOrderItem>();
 
+    public DbSet<EmailOutbox> EmailOutboxes => Set<EmailOutbox>();
+
     public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
 
     public DbSet<GoodsReceiptItem> GoodsReceiptItems => Set<GoodsReceiptItem>();
@@ -527,6 +529,41 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
                 .WithMany()
                 .HasForeignKey(item => item.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EmailOutbox>(entity =>
+        {
+            entity.ToTable("EmailOutboxes");
+
+            entity.HasKey(email => email.Id);
+
+            entity.HasIndex(email => email.PurchaseOrderId)
+                .IsUnique();
+
+            entity.HasIndex(email => new { email.Status, email.Id });
+
+            entity.Property(email => email.RecipientEmail)
+                .HasMaxLength(254)
+                .IsRequired();
+
+            entity.Property(email => email.Subject)
+                .HasMaxLength(300)
+                .IsRequired();
+
+            entity.Property(email => email.HtmlBody)
+                .IsRequired();
+
+            entity.Property(email => email.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            entity.Property(email => email.LastError)
+                .HasMaxLength(2000);
+
+            entity.HasOne(email => email.PurchaseOrder)
+                .WithOne(order => order.EmailOutbox)
+                .HasForeignKey<EmailOutbox>(email => email.PurchaseOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<GoodsReceipt>(entity =>

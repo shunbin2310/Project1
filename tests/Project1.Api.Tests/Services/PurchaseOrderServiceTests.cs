@@ -1,9 +1,11 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Project1.Api.Authentication;
 using Project1.Api.Data;
 using Project1.Api.DTOs.PurchaseOrders;
 using Project1.Api.Entities;
+using Project1.Api.Email;
 using Project1.Api.Services.Authentication;
 using Project1.Api.Services.PurchaseOrders;
 
@@ -136,6 +138,97 @@ public sealed class PurchaseOrderServiceTests
         Assert.Equal(4, issued.PurchaseOrder.IssuedByUserId);
         Assert.Equal("Demo Admin", issued.PurchaseOrder.IssuedByName);
         Assert.NotNull(issued.PurchaseOrder.IssuedAtUtc);
+        Assert.NotNull(issued.PurchaseOrder.EmailDelivery);
+        Assert.Equal(EmailDeliveryStatus.Pending, issued.PurchaseOrder.EmailDelivery.Status);
+        Assert.Equal("orders@supplier.test", issued.PurchaseOrder.EmailDelivery.RecipientEmail);
+
+        var email = await fixture.DbContext.EmailOutboxes.SingleAsync();
+        Assert.Contains("PO-", email.Subject);
+        Assert.Contains("Monitor", email.HtmlBody);
+        Assert.Contains("Main warehouse", email.HtmlBody);
+    }
+
+    [Fact]
+    public async Task IssueAsync_RequiresAValidSupplierEmail()
+    {
+        await using var fixture = await PurchaseOrderFixture.CreateAsync();
+        fixture.Supplier.Email = null;
+        await fixture.DbContext.SaveChangesAsync();
+        var created = await fixture.Service.CreateAsync(
+            fixture.ValidRequest(),
+            CancellationToken.None);
+
+        var result = await fixture.Service.IssueAsync(
+            created.PurchaseOrder!.Id,
+            CancellationToken.None);
+
+        Assert.Equal(PurchaseOrderOperationStatus.ValidationFailed, result.Status);
+        Assert.Contains("valid email", result.ErrorMessage);
+        Assert.Empty(fixture.DbContext.EmailOutboxes);
+    }
+
+    [Fact]
+    public async Task EmailOutboxProcessor_MarksSuccessfulDeliveryAsSent()
+    {
+        await using var fixture = await PurchaseOrderFixture.CreateAsync();
+        var created = await fixture.Service.CreateAsync(
+            fixture.ValidRequest(),
+            CancellationToken.None);
+        await fixture.Service.IssueAsync(created.PurchaseOrder!.Id, CancellationToken.None);
+        var sender = new FakeEmailSender();
+        var processor = new EmailOutboxProcessor(
+            fixture.DbContext,
+            sender,
+            NullLogger<EmailOutboxProcessor>.Instance);
+
+        var processed = await processor.ProcessNextAsync(CancellationToken.None);
+
+        Assert.True(processed);
+        var email = await fixture.DbContext.EmailOutboxes.SingleAsync();
+        Assert.Equal(EmailDeliveryStatus.Sent, email.Status);
+        Assert.Equal(1, email.AttemptCount);
+        Assert.NotNull(email.SentAtUtc);
+        Assert.Equal("orders@supplier.test", Assert.Single(sender.Messages).RecipientEmail);
+    }
+
+    [Fact]
+    public async Task FailedEmail_CanBeQueuedAndSentAgain()
+    {
+        await using var fixture = await PurchaseOrderFixture.CreateAsync();
+        var created = await fixture.Service.CreateAsync(
+            fixture.ValidRequest(),
+            CancellationToken.None);
+        await fixture.Service.IssueAsync(created.PurchaseOrder!.Id, CancellationToken.None);
+        var failingSender = new FakeEmailSender(new InvalidOperationException("SMTP unavailable"));
+        var failingProcessor = new EmailOutboxProcessor(
+            fixture.DbContext,
+            failingSender,
+            NullLogger<EmailOutboxProcessor>.Instance);
+        await failingProcessor.ProcessNextAsync(CancellationToken.None);
+
+        var failed = await fixture.Service.GetByIdAsync(
+            created.PurchaseOrder.Id,
+            CancellationToken.None);
+        Assert.Equal(EmailDeliveryStatus.Failed, failed!.EmailDelivery!.Status);
+        Assert.Contains("SMTP unavailable", failed.EmailDelivery.LastError);
+
+        var retried = await fixture.Service.RetryEmailAsync(
+            created.PurchaseOrder.Id,
+            CancellationToken.None);
+        Assert.Equal(EmailDeliveryStatus.Pending, retried.PurchaseOrder!.EmailDelivery!.Status);
+
+        var successfulSender = new FakeEmailSender();
+        var successfulProcessor = new EmailOutboxProcessor(
+            fixture.DbContext,
+            successfulSender,
+            NullLogger<EmailOutboxProcessor>.Instance);
+        await successfulProcessor.ProcessNextAsync(CancellationToken.None);
+
+        var sent = await fixture.Service.GetByIdAsync(
+            created.PurchaseOrder.Id,
+            CancellationToken.None);
+        Assert.Equal(EmailDeliveryStatus.Sent, sent!.EmailDelivery!.Status);
+        Assert.Equal(2, sent.EmailDelivery.AttemptCount);
     }
 
     [Fact]
@@ -209,7 +302,10 @@ public sealed class PurchaseOrderServiceTests
             Supplier = supplier;
             Product = product;
             Quotation = quotation;
-            Service = new PurchaseOrderService(dbContext, new FakeCurrentUserContext());
+            Service = new PurchaseOrderService(
+                dbContext,
+                new FakeCurrentUserContext(),
+                new PurchaseOrderEmailRenderer());
         }
 
         public AppDbContext DbContext { get; }
@@ -244,7 +340,12 @@ public sealed class PurchaseOrderServiceTests
                 UnitOfMeasure = unit,
                 DefaultUnitPrice = 120m
             };
-            var supplier = new Supplier { Code = "SUP-0001", Name = "Supplier One" };
+            var supplier = new Supplier
+            {
+                Code = "SUP-0001",
+                Name = "Supplier One",
+                Email = "orders@supplier.test"
+            };
             var purchaseRequestItem = new PurchaseRequestItem
             {
                 Product = product,
@@ -323,5 +424,21 @@ public sealed class PurchaseOrderServiceTests
 
         public bool IsInRole(string role) =>
             string.Equals(role, ApplicationRoles.Admin, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class FakeEmailSender(Exception? exception = null) : IEmailSender
+    {
+        public List<EmailMessage> Messages { get; } = [];
+
+        public Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
+        {
+            if (exception is not null)
+            {
+                throw exception;
+            }
+
+            Messages.Add(message);
+            return Task.CompletedTask;
+        }
     }
 }

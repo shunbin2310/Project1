@@ -33,6 +33,7 @@ function purchaseOrder(overrides: Partial<PurchaseOrder> = {}): PurchaseOrder {
     cancelledByUserId: null,
     cancelledByName: null,
     cancellationReason: null,
+    emailDelivery: null,
     items: [
       {
         id: 2,

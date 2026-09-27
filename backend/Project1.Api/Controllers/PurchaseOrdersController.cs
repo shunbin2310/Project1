@@ -91,6 +91,32 @@ public sealed class PurchaseOrdersController(
             : OperationProblem(result);
     }
 
+    [HttpGet("{id:int}/email-preview")]
+    [ProducesResponseType<PurchaseOrderEmailPreviewResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PurchaseOrderEmailPreviewResponse>> GetEmailPreview(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var preview = await purchaseOrderService.GetEmailPreviewAsync(id, cancellationToken);
+        return preview is null ? NotFound() : Ok(preview);
+    }
+
+    [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
+    [HttpPost("{id:int}/email-retry")]
+    [ProducesResponseType<PurchaseOrderResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PurchaseOrderResponse>> RetryEmail(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var result = await purchaseOrderService.RetryEmailAsync(id, cancellationToken);
+        return result.Status == PurchaseOrderOperationStatus.Success
+            ? Ok(result.PurchaseOrder)
+            : OperationProblem(result);
+    }
+
     [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
     [HttpPost("{id:int}/cancel")]
     [ProducesResponseType<PurchaseOrderResponse>(StatusCodes.Status200OK)]

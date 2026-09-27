@@ -81,6 +81,13 @@ The main goals are:
 - Playwright end-to-end tests
 - ESLint, Oxlint, and Oxfmt
 
+### Email delivery
+
+- Database-backed email outbox
+- ASP.NET Core background worker
+- SMTP delivery through Mailpit during local development
+- HTML Purchase Order email preview and failed-delivery retry
+
 ## System architecture
 
 ```text
@@ -342,7 +349,8 @@ Draft → Submitted → Selected
                     └─ Other submitted quotations become Not Selected
 ```
 
-Admin can compare submitted quotations and choose one winner. The selected supplier price becomes the commercial price used by the purchase order.
+Admin or Procurement can compare submitted quotations and choose one winner. The selected supplier
+price becomes the commercial price used by the purchase order.
 
 ### Purchase Orders
 
@@ -358,7 +366,9 @@ Draft → Issued → Partially Received → Received
 ```
 
 - Draft can be edited or deleted.
-- Issue confirms that the order was sent to the supplier.
+- Issue saves the order and queues one supplier email in the same database transaction.
+- The background worker changes the email from Pending to Sent or Failed.
+- Admin or Procurement can preview the generated email and retry a Failed delivery.
 - Only Issued or Partially Received orders can receive goods.
 - A fully received order becomes Received.
 - An eligible Issued order may be Cancelled with a reason.
@@ -688,9 +698,51 @@ dotnet tool run dotnet-ef database update --project backend/Project1.Api --start
 ```
 
 This creates or updates `Project1Db`, including Identity, workflow, purchasing, quotation, purchase
-order, goods receipt, and inventory ledger tables.
+order, email outbox, goods receipt, and inventory ledger tables.
 
-### 4. Start the backend
+### 4. Start Mailpit for local email testing
+
+Mailpit is a local email catcher. It does not require an SMTP account and does not deliver mail to a
+real inbox. With Docker installed, run:
+
+```powershell
+docker run -d `
+  --name project1-mailpit `
+  -p 1025:1025 `
+  -p 8025:8025 `
+  axllent/mailpit
+```
+
+Open `http://localhost:8025` to view Purchase Order emails. If the container already exists, start it
+with `docker start project1-mailpit`.
+
+If Docker is not installed, download the Windows Mailpit executable from the official Mailpit release
+page, run `mailpit.exe`, and use the same SMTP port `1025` and web inbox port `8025`.
+
+To send to a real inbox with Gmail during development, keep the account details outside Git by using
+.NET User Secrets. Use `smtp.gmail.com`, port `587`, STARTTLS, the complete Gmail address, and a
+Google App Password. Do not use port `465` with the current `System.Net.Mail.SmtpClient`, and never
+commit an App Password to `appsettings.json`.
+
+After running `dotnet user-secrets init --project backend/Project1.Api` once, open **Manage User
+Secrets** for the API project and store the settings in this shape:
+
+```json
+{
+  "Email:Smtp:Host": "smtp.gmail.com",
+  "Email:Smtp:Port": "587",
+  "Email:Smtp:UseSsl": "true",
+  "Email:Smtp:Username": "your-account@gmail.com",
+  "Email:Smtp:Password": "your-new-app-password",
+  "Email:Smtp:FromAddress": "your-account@gmail.com",
+  "Email:Smtp:FromName": "Project1 Purchasing"
+}
+```
+
+Revoke an App Password immediately if it appears in a screenshot, terminal history, committed file,
+or third-party testing website.
+
+### 5. Start the backend
 
 Open terminal 1 at the repository root:
 
@@ -711,7 +763,7 @@ GET http://localhost:5165/api/health
 GET http://localhost:5165/openapi/v1.json
 ```
 
-### 5. Install frontend dependencies
+### 6. Install frontend dependencies
 
 Open terminal 2:
 
@@ -726,7 +778,7 @@ Create a local `.env` only if the backend URL is different. The example setting 
 VITE_API_BASE_URL=http://localhost:5165
 ```
 
-### 6. Start the frontend
+### 7. Start the frontend
 
 From the `frontend` directory:
 
@@ -742,7 +794,12 @@ http://localhost:5173
 
 ### Starting the project on later days
 
-After the first setup, normally only two commands are required:
+After the first setup, start the backend and frontend as usual. Start Mailpit as well when testing
+Purchase Order email delivery:
+
+```powershell
+docker start project1-mailpit
+```
 
 Terminal 1:
 
@@ -785,6 +842,12 @@ Example Bash variables:
 export Jwt__SigningKey="replace-with-a-long-random-secret"
 export DemoUsers__Enabled="false"
 export ConnectionStrings__DefaultConnection="replace-with-production-connection-string"
+export Email__Smtp__Host="replace-with-production-smtp-host"
+export Email__Smtp__Port="587"
+export Email__Smtp__UseSsl="true"
+export Email__Smtp__Username="replace-with-smtp-username"
+export Email__Smtp__Password="replace-with-smtp-password"
+export Email__Smtp__FromAddress="purchasing@example.com"
 ```
 
 If a public portfolio deployment intentionally enables demo users, configure their password through a protected environment variable instead of committing it:
@@ -980,8 +1043,12 @@ Expected result: Beta becomes `Selected`, while Alpha becomes `Not selected`.
 6. Find the new Draft order and click Issue.
 7. Confirm the warning.
 
-Expected result: the Purchase Order status becomes `Issued` and it can no longer be edited or
-deleted.
+Expected result:
+
+- The Purchase Order status becomes `Issued` and it can no longer be edited or deleted.
+- The Email column starts as `Pending` and changes to `Sent` after the background worker runs.
+- `Email preview` displays the exact HTML sent to the Supplier email address.
+- `http://localhost:8025` contains the same message in the Mailpit inbox.
 
 ##### 8. Test partial Goods Receiving
 
@@ -1344,37 +1411,67 @@ Confirm SQL Server is running, the server name is correct, and the current Windo
 The following tasks are arranged in the planned development order. Complete and verify one task
 before starting the next one.
 
-### 1. Send Purchase Orders to suppliers by email
+### 1. Email administration, templates, and attachments
 
 Status: Pending
 
-Current behavior: Issue validates the Purchase Order and changes it from Draft to Issued, but does not
-currently send an email.
+The Purchase Order email outbox and SMTP delivery provide the sending foundation. The next task is
+to move email monitoring and maintenance into a dedicated module instead of managing email details
+inside the Purchase Order page.
 
-Planned behavior:
+#### Phase A: Email Records page
 
-```text
-Issue Purchase Order
-        -> save Issued status and audit information
-        -> create an email outbox record
-        -> background worker sends the email
-        -> record Pending, Sent, or Failed delivery status
-```
+- Add a dedicated `Email Records` page for `ADMIN` and `PROCUREMENT` users.
+- Display the source module and reference, sender, recipients (`To`, `CC`, and `BCC`), subject,
+  rendered HTML content, delivery status, attempt count, timestamps, and the latest error.
+- Support searching and filtering by status, date, source, reference, and recipient.
+- Allow users to open an email record and view its content and attachments.
+- Allow a failed email to be retried using the same saved email snapshot.
+- Allow a sent email to be resent by creating a new Email Record so the audit history remains clear.
+- Remove email preview, status, and retry responsibilities from the Purchase Order list after the
+  centralized page is ready. Purchase Order actions should only show a toast and email reference.
 
-Implementation scope:
+#### Phase B: Email Template administration
 
-- Create a Purchase Order email template with placeholders for supplier, PO number, dates, delivery
-  address, items, and total amount.
-- Replace template placeholders using the Purchase Order snapshot data.
-- Send to the Supplier email address.
-- Use an outbox/queue so a temporary email failure does not undo a successfully Issued PO.
-- Store recipient, attempt count, last error, sent time, and delivery status.
-- Allow Admin or Procurement to retry a Failed email.
-- Use a local email catcher during development instead of sending real email.
-- Add email preview, service, queue, retry, and integration tests.
+- Add versioned Email Templates with a code, name, subject template, HTML body template, recipient
+  rules, default `CC` and `BCC`, attachment rules, status, and version number.
+- Allow only `ADMIN` users to create, edit, activate, and supersede templates.
+- Provide a placeholder list, validation, and preview before a template is activated.
+- Start with a Purchase Order template that supports values such as purchase order number, supplier
+  name, expected delivery date, delivery address, ordered items, and total amount.
+- Resolve the supplier email dynamically for `To`; keep optional default `CC` and `BCC` values in
+  the template.
+- Replace the current hard-coded Purchase Order email rendering with the active template version.
+- Editing an active template must create a new version. Existing Email Records must keep the old
+  template version and fully rendered subject/body snapshot.
 
-Completion check: issuing a PO queues one email, successful delivery is recorded as Sent, and a failed
-delivery can be retried without issuing the PO again.
+#### Phase C: Email attachments
+
+- Add attachment metadata including file name, content type, file size, and storage reference.
+- Generate a Purchase Order PDF when its email is queued and attach that saved snapshot.
+- Allow attachments to be viewed or downloaded from Email Records.
+- Retrying an email must reuse its saved attachment; later Purchase Order or template changes must
+  not silently change an existing email record.
+
+#### Permissions and audit rules
+
+- `ADMIN`: view all email records, manage templates, preview emails, retry failed emails, and resend
+  sent emails.
+- `PROCUREMENT`: view Purchase Order email records, preview them, retry failures, and resend them.
+- Other roles have no Email Administration access by default.
+- Email Records are immutable audit snapshots of recipients, subject, rendered content, template
+  version, and attachments.
+- SMTP credentials remain in User Secrets or production environment variables and are never stored
+  in Email Templates or the database.
+
+Planned flow:
+
+`Issue Purchase Order -> Resolve active template version -> Replace placeholders -> Create Email
+Record and attachment snapshot -> Background worker sends through SMTP -> Pending / Sent / Failed`
+
+Completion check: administrators can version and preview templates; future emails use the new active
+version; historical emails remain unchanged; failed delivery can be retried; resending creates a new
+auditable record; and the Purchase Order PDF is available as an attachment.
 
 ### 2. Connect additional business modules to the Workflow Engine
 
@@ -1441,6 +1538,7 @@ Status: Pending
 Status: Pending
 
 - Production configuration and secrets.
+- Replace local Mailpit settings with protected production SMTP environment variables.
 - Database and container deployment.
 - HTTPS and reverse proxy.
 - Backup, logging, and deployment instructions.

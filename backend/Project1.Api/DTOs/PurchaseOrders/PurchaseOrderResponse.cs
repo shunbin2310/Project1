@@ -30,4 +30,5 @@ public sealed record PurchaseOrderResponse(
     int? CancelledByUserId,
     string? CancelledByName,
     string? CancellationReason,
+    PurchaseOrderEmailDeliveryResponse? EmailDelivery,
     IReadOnlyList<PurchaseOrderItemResponse> Items);
