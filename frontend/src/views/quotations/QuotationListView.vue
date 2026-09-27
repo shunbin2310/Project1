@@ -413,7 +413,7 @@ function formatDate(value: string | null) {
                   <span>
                     <strong>{{ quotation.quotationNumber }}</strong>
                     <small>{{
-                      quotation.supplierQuotationReference || 'No supplier reference'
+                      quotation.supplierQuotationReference || 'No supplier quotation reference'
                     }}</small>
                   </span>
                 </div>

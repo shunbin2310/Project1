@@ -180,11 +180,29 @@ describe('QuotationForm', () => {
     expect(emitted?.[0]).toMatchObject({
       purchaseRequestId: 7,
       supplierId: 1,
+      supplierQuotationReference: null,
       items: [
         { purchaseRequestItemId: 11, unitPrice: 0 },
         { purchaseRequestItemId: 12, unitPrice: 0 },
       ],
     })
+  })
+
+  it('explains the optional external supplier reference', () => {
+    const wrapper = mountForm()
+
+    expect(wrapper.get('label[for="quotation-reference"]').text()).toBe(
+      'Supplier quotation reference (optional)',
+    )
+    expect(wrapper.get('#quotation-reference-hint').text()).toContain(
+      'quotation document received from the supplier',
+    )
+    expect(wrapper.get('#quotation-reference-hint').text()).toContain(
+      'QT-xxxx) is generated automatically',
+    )
+    expect(wrapper.get('#quotation-reference').attributes('aria-describedby')).toBe(
+      'quotation-reference-hint',
+    )
   })
 
   it('requires a positive price for every item before submission', async () => {

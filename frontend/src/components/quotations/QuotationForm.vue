@@ -161,7 +161,7 @@ function validate(submitAfterSave: boolean) {
     errors.validUntil = 'Valid until must be on or after the quotation date.'
   }
   if ((form.supplierQuotationReference?.length ?? 0) > 100) {
-    errors.supplierQuotationReference = 'Supplier reference cannot exceed 100 characters.'
+    errors.supplierQuotationReference = 'Supplier quotation reference cannot exceed 100 characters.'
   }
   if ((form.notes?.length ?? 0) > 1000) {
     errors.notes = 'Notes cannot exceed 1000 characters.'
@@ -295,14 +295,19 @@ function formatQuantity(value: number) {
         </div>
 
         <div class="form-field">
-          <label for="quotation-reference">Supplier reference</label>
+          <label for="quotation-reference">Supplier quotation reference (optional)</label>
           <input
             id="quotation-reference"
             v-model="form.supplierQuotationReference"
             maxlength="100"
             placeholder="e.g. SUP-Q-2026-001"
+            aria-describedby="quotation-reference-hint"
             :aria-invalid="Boolean(errors.supplierQuotationReference)"
           />
+          <p id="quotation-reference-hint" class="field-hint">
+            Enter the reference printed on the quotation document received from the supplier. The
+            Project1 quotation number (QT-xxxx) is generated automatically.
+          </p>
           <p v-if="errors.supplierQuotationReference" class="field-error">
             {{ errors.supplierQuotationReference }}
           </p>
