@@ -73,6 +73,27 @@ public sealed class PurchaseOrdersControllerTests
         Assert.IsType<NoContentResult>(response);
     }
 
+    [Fact]
+    public async Task GetEmailPreview_ReturnsPreview_WhenEmailExists()
+    {
+        var service = new FakePurchaseOrderService
+        {
+            EmailPreview = new PurchaseOrderEmailPreviewResponse(
+                3,
+                "orders@supplier.test",
+                "Purchase Order PO-0001",
+                "<h1>PO-0001</h1>",
+                EmailDeliveryStatus.Pending)
+        };
+        var controller = new PurchaseOrdersController(service);
+
+        var response = await controller.GetEmailPreview(1, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(response.Result);
+        var preview = Assert.IsType<PurchaseOrderEmailPreviewResponse>(ok.Value);
+        Assert.Equal("orders@supplier.test", preview.RecipientEmail);
+    }
+
     private static PurchaseOrderResponse CreateResponse() => new(
         1,
         "PO-0001",
@@ -101,10 +122,13 @@ public sealed class PurchaseOrdersControllerTests
         null,
         null,
         null,
+        null,
         []);
 
     private sealed class FakePurchaseOrderService : IPurchaseOrderService
     {
+        public PurchaseOrderEmailPreviewResponse? EmailPreview { get; init; }
+
         public PurchaseOrderOperationResult CreateResult { get; init; } =
             new(PurchaseOrderOperationStatus.Success, CreateResponse());
 
@@ -141,6 +165,15 @@ public sealed class PurchaseOrdersControllerTests
             CancellationToken cancellationToken) => Task.FromResult(UpdateResult);
 
         public Task<PurchaseOrderOperationResult> IssueAsync(
+            int id,
+            CancellationToken cancellationToken) => Task.FromResult(IssueResult);
+
+        public Task<PurchaseOrderEmailPreviewResponse?> GetEmailPreviewAsync(
+            int id,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(EmailPreview);
+
+        public Task<PurchaseOrderOperationResult> RetryEmailAsync(
             int id,
             CancellationToken cancellationToken) => Task.FromResult(IssueResult);
 

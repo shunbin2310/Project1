@@ -5,6 +5,28 @@ export type PurchaseOrderStatus =
   | 'Received'
   | 'Cancelled'
 
+export type EmailDeliveryStatus = 'Pending' | 'Sent' | 'Failed'
+
+export interface PurchaseOrderEmailDelivery {
+  id: number
+  recipientEmail: string
+  subject: string
+  status: EmailDeliveryStatus
+  attemptCount: number
+  createdAtUtc: string
+  lastAttemptAtUtc: string | null
+  sentAtUtc: string | null
+  lastError: string | null
+}
+
+export interface PurchaseOrderEmailPreview {
+  id: number
+  recipientEmail: string
+  subject: string
+  htmlBody: string
+  status: EmailDeliveryStatus
+}
+
 export interface PurchaseOrderItem {
   id: number
   quotationItemId: number
@@ -45,6 +67,7 @@ export interface PurchaseOrder {
   cancelledByUserId: number | null
   cancelledByName: string | null
   cancellationReason: string | null
+  emailDelivery: PurchaseOrderEmailDelivery | null
   items: PurchaseOrderItem[]
 }
 

@@ -307,6 +307,20 @@ $purchaseOrder = Invoke-ProjectApi -Method POST `
     -Path "/api/purchase-orders/$($purchaseOrder.id)/issue" `
     -Token $procurementToken
 Assert-Equal -Actual $purchaseOrder.status -Expected "Issued" -Message "The Purchase Order is Issued."
+Assert-Equal -Actual $purchaseOrder.emailDelivery.recipientEmail -Expected $supplierB.email `
+    -Message "Issuing the Purchase Order queues an email for the selected supplier."
+
+$emailWaitAttempts = 0
+do {
+    Start-Sleep -Seconds 1
+    $purchaseOrder = Invoke-ProjectApi -Method GET `
+        -Path "/api/purchase-orders/$($purchaseOrder.id)" `
+        -Token $procurementToken
+    $emailWaitAttempts++
+} while ($purchaseOrder.emailDelivery.status -eq "Pending" -and $emailWaitAttempts -lt 10)
+
+Assert-Equal -Actual $purchaseOrder.emailDelivery.status -Expected "Sent" `
+    -Message "Mailpit accepts the queued Purchase Order email."
 
 $purchaseOrderItemId = $purchaseOrder.items[0].id
 $initialInventory = Invoke-ProjectApi -Method GET -Path "/api/inventory/$($product.id)" -Token $warehouseToken

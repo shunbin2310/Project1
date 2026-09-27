@@ -2756,6 +2756,46 @@ tbody tr:hover {
   width: min(1080px, 100%);
 }
 
+.purchase-order-email-preview-modal {
+  width: min(940px, calc(100vw - 2rem));
+}
+
+.purchase-order-email-preview {
+  padding: 1.5rem;
+}
+
+.purchase-order-email-preview iframe {
+  width: 100%;
+  min-height: 560px;
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.purchase-order-email-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.email-pending {
+  background: #fff2cf;
+  color: #8a5a00;
+}
+
+.email-sent {
+  background: #e0f3ec;
+  color: #176b59;
+}
+
+.email-failed {
+  background: #fde8e8;
+  color: #a52a2a;
+}
+
 .purchase-order-cancel-modal {
   width: min(540px, 100%);
 }

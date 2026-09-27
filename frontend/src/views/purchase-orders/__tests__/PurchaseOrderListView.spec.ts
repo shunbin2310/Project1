@@ -7,6 +7,7 @@ import { applicationRoles, type ApplicationRole } from '@/types/auth'
 import type {
   CreatePurchaseOrderRequest,
   PurchaseOrder,
+  PurchaseOrderEmailPreview,
   PurchaseOrderStatus,
   UpdatePurchaseOrderRequest,
 } from '@/types/purchaseOrder'
@@ -21,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn<(payload: CreatePurchaseOrderRequest) => Promise<PurchaseOrder>>(),
   update: vi.fn<(id: number, payload: UpdatePurchaseOrderRequest) => Promise<PurchaseOrder>>(),
   issue: vi.fn<(id: number) => Promise<PurchaseOrder>>(),
+  getEmailPreview: vi.fn<(id: number) => Promise<PurchaseOrderEmailPreview>>(),
+  retryEmail: vi.fn<(id: number) => Promise<PurchaseOrder>>(),
   cancel: vi.fn<(id: number, reason: string) => Promise<PurchaseOrder>>(),
   delete: vi.fn<(id: number) => Promise<void>>(),
   getQuotations: vi.fn<(filters?: { status?: Quotation['status'] }) => Promise<Quotation[]>>(),
@@ -32,6 +35,8 @@ vi.mock('@/services/purchaseOrderService', () => ({
     create: mocks.create,
     update: mocks.update,
     issue: mocks.issue,
+    getEmailPreview: mocks.getEmailPreview,
+    retryEmail: mocks.retryEmail,
     cancel: mocks.cancel,
     delete: mocks.delete,
   },
@@ -107,6 +112,7 @@ function purchaseOrder(status: PurchaseOrderStatus = 'Draft'): PurchaseOrder {
     cancelledByUserId: status === 'Cancelled' ? 4 : null,
     cancelledByName: status === 'Cancelled' ? 'Demo Admin' : null,
     cancellationReason: status === 'Cancelled' ? 'Supplier unavailable' : null,
+    emailDelivery: null,
     items: [
       {
         id: 2,
@@ -153,6 +159,14 @@ describe('PurchaseOrderListView', () => {
     mocks.create.mockResolvedValue(purchaseOrder())
     mocks.update.mockResolvedValue({ ...purchaseOrder(), updatedAtUtc: '2026-09-16T02:00:00Z' })
     mocks.issue.mockResolvedValue(purchaseOrder('Issued'))
+    mocks.getEmailPreview.mockResolvedValue({
+      id: 1,
+      recipientEmail: 'orders@supplier.test',
+      subject: 'Purchase Order PO-0005',
+      htmlBody: '<h1>PO-0005</h1>',
+      status: 'Sent',
+    })
+    mocks.retryEmail.mockResolvedValue(purchaseOrder('Issued'))
     mocks.cancel.mockResolvedValue(purchaseOrder('Cancelled'))
     mocks.delete.mockResolvedValue(undefined)
     vi.stubGlobal(
@@ -225,5 +239,42 @@ describe('PurchaseOrderListView', () => {
     expect(wrapper.get('tbody').text()).not.toContain('Issue')
     expect(wrapper.get('tbody').text()).not.toContain('Delete')
     expect(wrapper.find('.page-heading .button').exists()).toBe(false)
+  })
+
+  it('previews and retries a failed supplier email', async () => {
+    mocks.getPurchaseOrders.mockResolvedValue([
+      {
+        ...purchaseOrder('Issued'),
+        emailDelivery: {
+          id: 1,
+          recipientEmail: 'orders@supplier.test',
+          subject: 'Purchase Order PO-0005',
+          status: 'Failed',
+          attemptCount: 1,
+          createdAtUtc: '2026-09-16T01:00:00Z',
+          lastAttemptAtUtc: '2026-09-16T01:01:00Z',
+          sentAtUtc: null,
+          lastError: 'SMTP unavailable',
+        },
+      },
+    ])
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Email preview')
+      ?.trigger('click')
+    await flushPromises()
+    expect(mocks.getEmailPreview).toHaveBeenCalledWith(5)
+    expect(wrapper.get('#purchase-order-email-preview-title').text()).toContain('PO-0005')
+
+    await wrapper.get('[aria-label="Close preview"]').trigger('click')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Retry email')
+      ?.trigger('click')
+    await flushPromises()
+    expect(mocks.retryEmail).toHaveBeenCalledWith(5)
   })
 })

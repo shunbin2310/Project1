@@ -444,6 +444,7 @@ test.describe('authenticated administration workspace', () => {
             cancelledByUserId: null,
             cancelledByName: null,
             cancellationReason: null,
+            emailDelivery: null,
             items: [
               {
                 id: 2,

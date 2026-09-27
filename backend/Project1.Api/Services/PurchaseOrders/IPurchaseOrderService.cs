@@ -23,6 +23,14 @@ public interface IPurchaseOrderService
 
     Task<PurchaseOrderOperationResult> IssueAsync(int id, CancellationToken cancellationToken);
 
+    Task<PurchaseOrderEmailPreviewResponse?> GetEmailPreviewAsync(
+        int id,
+        CancellationToken cancellationToken);
+
+    Task<PurchaseOrderOperationResult> RetryEmailAsync(
+        int id,
+        CancellationToken cancellationToken);
+
     Task<PurchaseOrderOperationResult> CancelAsync(
         int id,
         CancelPurchaseOrderRequest request,

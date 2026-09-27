@@ -835,6 +835,18 @@ Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 ###
 
+GET {{Project1.Api_HostAddress}}/api/purchase-orders/{{createPurchaseOrder.response.body.$.id}}/email-preview
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+# Use only after stopping Mailpit long enough for the email delivery to become Failed.
+POST {{Project1.Api_HostAddress}}/api/purchase-orders/{{createPurchaseOrder.response.body.$.id}}/email-retry
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
 # Goods Receiving prerequisites:
 # 1. Run the Purchase Order flow above through Issue.
 # 2. Do not cancel the purchase order.
