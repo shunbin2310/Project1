@@ -25,4 +25,6 @@ public sealed class GoodsReceiptItem
     public decimal OrderedQuantity { get; set; }
 
     public decimal QuantityReceived { get; set; }
+
+    public InventoryTransaction? InventoryTransaction { get; set; }
 }

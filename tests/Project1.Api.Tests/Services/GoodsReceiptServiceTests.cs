@@ -118,6 +118,24 @@ public sealed class GoodsReceiptServiceTests
         Assert.Equal("Demo Admin", posted.GoodsReceipt.PostedByName);
         Assert.NotNull(posted.GoodsReceipt.PostedAtUtc);
         Assert.Equal(PurchaseOrderStatus.PartiallyReceived, fixture.PurchaseOrder.Status);
+
+        var balances = await fixture.DbContext.InventoryBalances
+            .OrderBy(balance => balance.ProductId)
+            .ToListAsync();
+        Assert.Equal(2, balances.Count);
+        Assert.Equal(6m, balances[0].QuantityOnHand);
+        Assert.Equal(5m, balances[1].QuantityOnHand);
+
+        var transactions = await fixture.DbContext.InventoryTransactions
+            .OrderBy(transaction => transaction.ProductId)
+            .ToListAsync();
+        Assert.Equal(2, transactions.Count);
+        Assert.All(transactions, transaction =>
+            Assert.Equal(InventoryTransactionType.GoodsReceipt, transaction.Type));
+        Assert.Equal(0m, transactions[0].QuantityBefore);
+        Assert.Equal(6m, transactions[0].QuantityAfter);
+        Assert.Equal("GRN-0001", transactions[0].ReferenceNumber);
+        Assert.Equal("Demo Admin", transactions[0].PerformedByName);
     }
 
     [Fact]
@@ -150,6 +168,12 @@ public sealed class GoodsReceiptServiceTests
 
         Assert.Equal(GoodsReceiptOperationStatus.Success, completed.Status);
         Assert.Equal(PurchaseOrderStatus.Received, fixture.PurchaseOrder.Status);
+        Assert.Equal(
+            10m,
+            (await fixture.DbContext.InventoryBalances
+                .SingleAsync(balance => balance.ProductId == fixture.FirstOrderItem.ProductId))
+            .QuantityOnHand);
+        Assert.Equal(3, await fixture.DbContext.InventoryTransactions.CountAsync());
 
         var afterCompletion = await fixture.Service.CreateAsync(
             fixture.RequestWithDeliveryNote(
@@ -157,6 +181,29 @@ public sealed class GoodsReceiptServiceTests
                 (fixture.FirstOrderItem.Id, 1m)),
             CancellationToken.None);
         Assert.Equal(GoodsReceiptOperationStatus.InvalidState, afterCompletion.Status);
+    }
+
+    [Fact]
+    public async Task PostAsync_DoesNotRecordInventoryTwiceForSameReceiptItems()
+    {
+        await using var fixture = await GoodsReceiptFixture.CreateAsync();
+        var created = await fixture.Service.CreateAsync(
+            fixture.Request((fixture.FirstOrderItem.Id, 2m)),
+            CancellationToken.None);
+        await fixture.Service.PostAsync(created.GoodsReceipt!.Id, CancellationToken.None);
+
+        var trackedReceipt = await fixture.DbContext.GoodsReceipts
+            .SingleAsync(receipt => receipt.Id == created.GoodsReceipt.Id);
+        trackedReceipt.Status = GoodsReceiptStatus.Draft;
+        await fixture.DbContext.SaveChangesAsync();
+
+        var duplicate = await fixture.Service.PostAsync(
+            created.GoodsReceipt.Id,
+            CancellationToken.None);
+
+        Assert.Equal(GoodsReceiptOperationStatus.InvalidState, duplicate.Status);
+        Assert.Equal(2m, (await fixture.DbContext.InventoryBalances.SingleAsync()).QuantityOnHand);
+        Assert.Single(fixture.DbContext.InventoryTransactions);
     }
 
     [Fact]
