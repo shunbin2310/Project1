@@ -109,6 +109,12 @@ const router = createRouter({
       component: () => import('@/views/goods-receipts/GoodsReceiptListView.vue'),
       meta: { title: 'Goods Receiving', requiresAuth: true, roles: adminRoutes },
     },
+    {
+      path: '/inventory',
+      name: 'inventory',
+      component: () => import('@/views/inventory/InventoryListView.vue'),
+      meta: { title: 'Inventory', requiresAuth: true, roles: adminRoutes },
+    },
   ],
 })
 

@@ -527,4 +527,66 @@ test.describe('authenticated administration workspace', () => {
     await expect(page.getByRole('link', { name: 'My Tasks' })).toBeVisible()
     await expect(page.getByText("You're all caught up")).toBeVisible()
   })
+
+  test('opens inventory and reviews a product stock ledger', async ({ page }) => {
+    await page.route('http://localhost:5165/api/inventory?includeInactive=true', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            productId: 3,
+            productCode: 'ITEM-0003',
+            productName: 'Office Chair',
+            productCategoryId: 2,
+            productCategoryCode: 'FURNITURE',
+            productCategoryName: 'Furniture',
+            unitOfMeasureCode: 'UNIT',
+            unitOfMeasureName: 'Unit',
+            quantityOnHand: 4,
+            reorderLevel: 2,
+            isLowStock: false,
+            isProductActive: true,
+            lastUpdatedAtUtc: '2026-09-20T10:30:00Z',
+          },
+        ]),
+      })
+    })
+    await page.route('http://localhost:5165/api/inventory/3/transactions', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: 11,
+            productId: 3,
+            productCode: 'ITEM-0003',
+            productName: 'Office Chair',
+            unitOfMeasureCode: 'UNIT',
+            type: 'GoodsReceipt',
+            quantityChange: 4,
+            quantityBefore: 0,
+            quantityAfter: 4,
+            referenceType: 'GoodsReceipt',
+            referenceId: 9,
+            referenceNumber: 'GR-0009',
+            goodsReceiptItemId: 14,
+            performedByUserId: 4,
+            performedByName: 'Demo Admin',
+            occurredAtUtc: '2026-09-20T10:30:00Z',
+          },
+        ]),
+      })
+    })
+
+    await page.goto('/inventory')
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Inventory')
+    await expect(page.getByRole('link', { name: 'Inventory' })).toBeVisible()
+    await expect(page.getByText('Office Chair', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'View history' }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await expect(page.getByRole('dialog').getByText('GR-0009')).toBeVisible()
+    await expect(page.getByRole('dialog').getByText('+4')).toBeVisible()
+  })
 })

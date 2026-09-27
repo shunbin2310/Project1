@@ -110,11 +110,13 @@ async function logout() {
           <span>Goods Receiving</span>
         </RouterLink>
 
-        <p>Coming next</p>
-        <span class="nav-placeholder">
-          <span class="nav-icon" aria-hidden="true">IN</span>
-          Inventory
-        </span>
+        <template v-if="isAdmin">
+          <p>Stock</p>
+          <RouterLink to="/inventory">
+            <span class="nav-icon" aria-hidden="true">IN</span>
+            <span>Inventory</span>
+          </RouterLink>
+        </template>
       </nav>
 
       <div class="sidebar-footer">
