@@ -275,6 +275,11 @@ public sealed class GoodsReceiptService(
             item => postedQuantities.GetValueOrDefault(item.Id) >= item.Quantity);
         var now = DateTimeOffset.UtcNow;
 
+        if (!await RecordInventoryTransactionsAsync(receipt, now, cancellationToken))
+        {
+            return InvalidState("Inventory has already been recorded for this goods receipt.");
+        }
+
         receipt.Status = GoodsReceiptStatus.Posted;
         receipt.PostedAtUtc = now;
         receipt.PostedByUserId = currentUser.UserId;
@@ -289,6 +294,71 @@ public sealed class GoodsReceiptService(
         await transaction.CommitAsync(cancellationToken);
 
         return await SuccessResultAsync(id, cancellationToken);
+    }
+
+    private async Task<bool> RecordInventoryTransactionsAsync(
+        GoodsReceipt receipt,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var receiptItemIds = receipt.Items.Select(item => item.Id).ToList();
+        var alreadyRecorded = await dbContext.InventoryTransactions.AnyAsync(
+            transaction =>
+                transaction.GoodsReceiptItemId.HasValue &&
+                receiptItemIds.Contains(transaction.GoodsReceiptItemId.Value),
+            cancellationToken);
+        if (alreadyRecorded)
+        {
+            return false;
+        }
+
+        var productIds = receipt.Items.Select(item => item.ProductId).Distinct().ToList();
+        var balances = await dbContext.InventoryBalances
+            .Where(balance => productIds.Contains(balance.ProductId))
+            .ToDictionaryAsync(balance => balance.ProductId, cancellationToken);
+
+        foreach (var item in receipt.Items.OrderBy(item => item.Id))
+        {
+            if (!balances.TryGetValue(item.ProductId, out var balance))
+            {
+                balance = new InventoryBalance
+                {
+                    ProductId = item.ProductId,
+                    QuantityOnHand = 0m,
+                    LastUpdatedAtUtc = occurredAtUtc
+                };
+                balances.Add(item.ProductId, balance);
+                dbContext.InventoryBalances.Add(balance);
+            }
+
+            var quantityBefore = balance.QuantityOnHand;
+            var quantityAfter = quantityBefore + item.QuantityReceived;
+
+            balance.QuantityOnHand = quantityAfter;
+            balance.LastUpdatedAtUtc = occurredAtUtc;
+
+            dbContext.InventoryTransactions.Add(new InventoryTransaction
+            {
+                ProductId = item.ProductId,
+                Type = InventoryTransactionType.GoodsReceipt,
+                QuantityChange = item.QuantityReceived,
+                QuantityBefore = quantityBefore,
+                QuantityAfter = quantityAfter,
+                ProductCode = item.ProductCode,
+                ProductName = item.ProductName,
+                UnitOfMeasureCode = item.UnitOfMeasureCode,
+                ReferenceType = nameof(GoodsReceipt),
+                ReferenceId = receipt.Id,
+                ReferenceNumber = receipt.GoodsReceiptNumber,
+                GoodsReceiptItemId = item.Id,
+                PerformedByUserId = currentUser.UserId,
+                PerformedByName = CurrentUserName(),
+                OccurredDate = DateOnly.FromDateTime(occurredAtUtc.UtcDateTime),
+                OccurredAtUtc = occurredAtUtc
+            });
+        }
+
+        return true;
     }
 
     public async Task<GoodsReceiptOperationResult> DeleteAsync(

@@ -38,6 +38,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<GoodsReceiptItem> GoodsReceiptItems => Set<GoodsReceiptItem>();
 
+    public DbSet<InventoryBalance> InventoryBalances => Set<InventoryBalance>();
+
+    public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
+
     public DbSet<WorkflowProcessTemplate> WorkflowProcessTemplates => Set<WorkflowProcessTemplate>();
 
     public DbSet<WorkflowStepTemplate> WorkflowStepTemplates => Set<WorkflowStepTemplate>();
@@ -642,6 +646,89 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasOne(item => item.Product)
                 .WithMany()
                 .HasForeignKey(item => item.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<InventoryBalance>(entity =>
+        {
+            entity.ToTable("InventoryBalances");
+
+            entity.HasKey(balance => balance.Id);
+
+            entity.Property(balance => balance.QuantityOnHand)
+                .HasPrecision(18, 3);
+
+            entity.HasIndex(balance => balance.ProductId)
+                .IsUnique();
+
+            entity.HasOne(balance => balance.Product)
+                .WithOne(product => product.InventoryBalance)
+                .HasForeignKey<InventoryBalance>(balance => balance.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<InventoryTransaction>(entity =>
+        {
+            entity.ToTable("InventoryTransactions");
+
+            entity.HasKey(transaction => transaction.Id);
+
+            entity.Property(transaction => transaction.Type)
+                .HasConversion<string>()
+                .HasMaxLength(30);
+
+            entity.Property(transaction => transaction.QuantityChange)
+                .HasPrecision(18, 3);
+
+            entity.Property(transaction => transaction.QuantityBefore)
+                .HasPrecision(18, 3);
+
+            entity.Property(transaction => transaction.QuantityAfter)
+                .HasPrecision(18, 3);
+
+            entity.Property(transaction => transaction.ProductCode)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(transaction => transaction.ProductName)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(transaction => transaction.UnitOfMeasureCode)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(transaction => transaction.ReferenceType)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.Property(transaction => transaction.ReferenceNumber)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(transaction => transaction.PerformedByName)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.HasIndex(transaction => new
+            {
+                transaction.ProductId,
+                transaction.OccurredDate,
+                transaction.Id
+            });
+
+            entity.HasIndex(transaction => transaction.GoodsReceiptItemId)
+                .IsUnique()
+                .HasFilter("[GoodsReceiptItemId] IS NOT NULL");
+
+            entity.HasOne(transaction => transaction.Product)
+                .WithMany(product => product.InventoryTransactions)
+                .HasForeignKey(transaction => transaction.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(transaction => transaction.GoodsReceiptItem)
+                .WithOne(item => item.InventoryTransaction)
+                .HasForeignKey<InventoryTransaction>(transaction => transaction.GoodsReceiptItemId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

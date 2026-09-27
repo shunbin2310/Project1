@@ -29,4 +29,8 @@ public sealed class Product
     public DateTimeOffset? UpdatedAtUtc { get; set; }
 
     public ICollection<SupplierProduct> SupplierProducts { get; set; } = [];
+
+    public InventoryBalance? InventoryBalance { get; set; }
+
+    public ICollection<InventoryTransaction> InventoryTransactions { get; set; } = [];
 }

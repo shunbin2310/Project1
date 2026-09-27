@@ -978,7 +978,7 @@ Confirm SQL Server is running, the server name is correct, and the current Windo
 
 ## Pending work
 
-1. Inventory stock ledger and stock balance
+1. Inventory UI (backend stock ledger and balance APIs completed)
 2. Dashboard and notifications
 3. Docker configuration
 4. GitHub Actions automated build and test

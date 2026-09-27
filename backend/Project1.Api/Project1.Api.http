@@ -895,6 +895,38 @@ Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 ###
 
+# Inventory balances include active products that have not received stock yet as quantity 0.
+GET {{Project1.Api_HostAddress}}/api/inventory
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/inventory?lowStock=true
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/inventory?productCategoryId={{productCategoryId}}&search=monitor
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+GET {{Project1.Api_HostAddress}}/api/inventory/{{productId}}
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+# The transaction should reference the Posted GRN and show quantity before and after.
+GET {{Project1.Api_HostAddress}}/api/inventory/{{productId}}/transactions?type=GoodsReceipt
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
 # After the final post, the purchase order status should be Received.
 GET {{Project1.Api_HostAddress}}/api/purchase-orders/{{createPurchaseOrder.response.body.$.id}}
 Accept: application/json
