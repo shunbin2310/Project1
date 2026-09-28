@@ -87,6 +87,14 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('access-denied')
   })
 
+  it('redirects a requester away from email records', async () => {
+    authenticate('REQUESTER')
+
+    await router.push('/email-records')
+
+    expect(router.currentRoute.value.name).toBe('access-denied')
+  })
+
   it('redirects a requester away from goods receiving', async () => {
     authenticate('REQUESTER')
 
@@ -159,6 +167,14 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('purchase-orders')
   })
 
+  it('allows an administrator to open email records', async () => {
+    authenticate('ADMIN')
+
+    await router.push('/email-records')
+
+    expect(router.currentRoute.value.name).toBe('email-records')
+  })
+
   it('allows an administrator to open goods receiving', async () => {
     authenticate('ADMIN')
 
@@ -194,6 +210,9 @@ describe('router authentication guards', () => {
 
     await router.push('/inventory')
     expect(router.currentRoute.value.name).toBe('inventory')
+
+    await router.push('/email-records')
+    expect(router.currentRoute.value.name).toBe('email-records')
   })
 
   it('blocks procurement officers from administration and catalog maintenance', async () => {
@@ -224,6 +243,9 @@ describe('router authentication guards', () => {
 
     await router.push('/quotations')
 
+    expect(router.currentRoute.value.name).toBe('access-denied')
+
+    await router.push('/email-records')
     expect(router.currentRoute.value.name).toBe('access-denied')
   })
 

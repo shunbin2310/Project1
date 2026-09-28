@@ -2756,23 +2756,7 @@ tbody tr:hover {
   width: min(1080px, 100%);
 }
 
-.purchase-order-email-preview-modal {
-  width: min(940px, calc(100vw - 2rem));
-}
-
-.purchase-order-email-preview {
-  padding: 1.5rem;
-}
-
-.purchase-order-email-preview iframe {
-  width: 100%;
-  min-height: 560px;
-  border: 1px solid var(--border-color);
-  border-radius: 0.75rem;
-  background: #fff;
-}
-
-.purchase-order-email-status {
+.email-record-status {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
@@ -2794,6 +2778,199 @@ tbody tr:hover {
 .email-failed {
   background: #fde8e8;
   color: #a52a2a;
+}
+
+.email-record-toolbar {
+  align-items: flex-start;
+}
+
+.email-record-filters {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.email-record-filters .search-control {
+  width: min(320px, 30vw);
+}
+
+.email-record-date-filter {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  padding: 0 9px;
+  color: #60706e;
+  font-size: 9px;
+  font-weight: 750;
+  background: #f7faf9;
+  border: 1px solid #d3dfdc;
+  border-radius: 9px;
+}
+
+.email-record-date-filter input {
+  width: 112px;
+  margin-left: 6px;
+  color: #213b38;
+  font: inherit;
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.email-record-identity {
+  display: flex;
+  min-width: 150px;
+  gap: 11px;
+  align-items: center;
+}
+
+.email-record-identity strong,
+.email-record-identity small,
+.email-record-addresses strong,
+.email-record-addresses small {
+  display: block;
+}
+
+.email-record-identity strong {
+  color: #203331;
+  font-size: 12px;
+}
+
+.email-record-identity small {
+  margin-top: 4px;
+  color: #83908e;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.email-record-subject {
+  min-width: 210px;
+  max-width: 320px;
+  color: #314744;
+  line-height: 1.45;
+}
+
+.email-record-row-actions {
+  min-width: 48px;
+}
+
+.email-record-details-modal {
+  width: min(1000px, calc(100vw - 2rem));
+}
+
+.email-record-details-header p:last-child {
+  margin: 7px 0 0;
+  color: #81908e;
+  font-size: 10px;
+}
+
+.email-record-details {
+  display: grid;
+  gap: 18px;
+  padding: 22px 25px 25px;
+}
+
+.email-record-overview,
+.email-record-addresses {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  background: #f7faf9;
+  border: 1px solid #dce6e3;
+  border-radius: 12px;
+}
+
+.email-record-overview > div,
+.email-record-addresses > div {
+  min-width: 0;
+  padding: 14px 16px;
+  border-left: 1px solid #dce6e3;
+}
+
+.email-record-overview > div:first-child,
+.email-record-addresses > div:first-child {
+  border-left: 0;
+}
+
+.email-record-overview span,
+.email-record-addresses span {
+  display: block;
+  margin-bottom: 6px;
+  color: #7c8987;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.email-record-overview strong,
+.email-record-addresses strong {
+  overflow-wrap: anywhere;
+  color: #203331;
+  font-size: 11px;
+}
+
+.email-record-addresses small {
+  margin-top: 4px;
+  color: #7c8987;
+  font-size: 9px;
+  overflow-wrap: anywhere;
+}
+
+.email-record-notice,
+.email-record-error {
+  padding: 13px 15px;
+  font-size: 10px;
+  line-height: 1.5;
+  border-radius: 10px;
+}
+
+.email-record-notice {
+  color: #31695f;
+  background: #ebf6f2;
+  border: 1px solid #cce5dc;
+}
+
+.email-record-error {
+  color: #8e2f2f;
+  background: #fff0f0;
+  border: 1px solid #f0cccc;
+}
+
+.email-record-error p {
+  margin: 5px 0 0;
+}
+
+.email-record-content {
+  overflow: hidden;
+  border: 1px solid #dce6e3;
+  border-radius: 12px;
+}
+
+.email-record-content > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 15px;
+  background: #f7faf9;
+  border-bottom: 1px solid #dce6e3;
+}
+
+.email-record-content > div strong {
+  color: #203331;
+  font-size: 11px;
+}
+
+.email-record-content > div span {
+  color: #84918f;
+  font-size: 9px;
+}
+
+.email-record-content iframe {
+  display: block;
+  width: 100%;
+  min-height: 480px;
+  background: #fff;
+  border: 0;
 }
 
 .purchase-order-cancel-modal {
@@ -3392,9 +3569,12 @@ tbody tr:hover {
   .supplier-product-filters,
   .quotation-filters,
   .goods-receipt-filters,
+  .email-record-filters,
   .goods-receipt-filters .search-control,
   .quotation-filters .search-control,
   .supplier-product-filters .search-control,
+  .email-record-filters .search-control,
+  .email-record-date-filter,
   .relationship-filter-control,
   .relationship-filter-control select {
     width: 100%;
@@ -3428,6 +3608,24 @@ tbody tr:hover {
   .purchase-order-copy-grid,
   .purchase-order-audit {
     grid-template-columns: 1fr;
+  }
+
+  .email-record-overview,
+  .email-record-addresses {
+    grid-template-columns: 1fr;
+  }
+
+  .email-record-overview > div,
+  .email-record-overview > div:first-child,
+  .email-record-addresses > div,
+  .email-record-addresses > div:first-child {
+    border-top: 1px solid #dce6e3;
+    border-left: 0;
+  }
+
+  .email-record-overview > div:first-child,
+  .email-record-addresses > div:first-child {
+    border-top: 0;
   }
 
   .goods-receipt-summary-primary,

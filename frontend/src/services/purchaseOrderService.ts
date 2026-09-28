@@ -2,7 +2,6 @@ import { apiRequest, ApiError } from '@/services/apiClient'
 import type {
   CreatePurchaseOrderRequest,
   PurchaseOrder,
-  PurchaseOrderEmailPreview,
   PurchaseOrderStatus,
   UpdatePurchaseOrderRequest,
 } from '@/types/purchaseOrder'
@@ -49,14 +48,6 @@ export const purchaseOrderService = {
 
   issue(id: number) {
     return request<PurchaseOrder>(`/api/purchase-orders/${id}/issue`, { method: 'POST' })
-  },
-
-  getEmailPreview(id: number) {
-    return request<PurchaseOrderEmailPreview>(`/api/purchase-orders/${id}/email-preview`)
-  },
-
-  retryEmail(id: number) {
-    return request<PurchaseOrder>(`/api/purchase-orders/${id}/email-retry`, { method: 'POST' })
   },
 
   cancel(id: number, reason: string) {

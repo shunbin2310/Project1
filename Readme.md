@@ -86,7 +86,7 @@ The main goals are:
 - Database-backed email outbox
 - ASP.NET Core background worker
 - SMTP delivery through Mailpit during local development
-- HTML Purchase Order email preview and failed-delivery retry
+- Central Email Records page with HTML preview, failed-delivery retry, and auditable resend
 
 ## System architecture
 
@@ -121,7 +121,7 @@ This separation prevents the UI, API contract, and database structure from becom
 | `REQUESTER` | Creates and submits purchase requests | My Tasks, Purchase Requests |
 | `DEPARTMENT_APPROVER` | Checks whether the request is required by the department | My Tasks, Purchase Requests, department approve/reject actions |
 | `FINANCE_APPROVER` | Checks budget and financial approval | My Tasks, Purchase Requests, finance approve/reject actions |
-| `PROCUREMENT_OFFICER` | Performs daily purchasing work | Suppliers, Supplier Products, Supplier Quotations, Purchase Orders; read-only Goods Receiving and Inventory |
+| `PROCUREMENT_OFFICER` | Performs daily purchasing work | Suppliers, Supplier Products, Supplier Quotations, Purchase Orders, Email Records; read-only Goods Receiving and Inventory |
 | `WAREHOUSE_OFFICER` | Receives deliveries and monitors stock | Read-only Purchase Orders, Goods Receiving, Inventory |
 | `CATALOG_MANAGER` | Maintains purchasing master data | Product Categories, Units of Measure, Products |
 | `ADMIN` | Configures, supports, and recovers the system | All pages and all operations |
@@ -1046,8 +1046,9 @@ Expected result: Beta becomes `Selected`, while Alpha becomes `Not selected`.
 Expected result:
 
 - The Purchase Order status becomes `Issued` and it can no longer be edited or deleted.
-- The Email column starts as `Pending` and changes to `Sent` after the background worker runs.
-- `Email preview` displays the exact HTML sent to the Supplier email address.
+- Open Email Records and find the new record using the Purchase Order number.
+- Its status starts as `Pending` and changes to `Sent` after the background worker runs.
+- `View` displays the saved From, To, CC, BCC, delivery information, and exact HTML content.
 - `http://localhost:8025` contains the same message in the Mailpit inbox.
 
 ##### 8. Test partial Goods Receiving
@@ -1413,7 +1414,7 @@ before starting the next one.
 
 ### 1. Email administration, templates, and attachments
 
-Status: Pending
+Status: In progress (`Email Records` completed; Templates and Attachments pending)
 
 The Purchase Order email outbox and SMTP delivery provide the sending foundation. The next task is
 to move email monitoring and maintenance into a dedicated module instead of managing email details
@@ -1421,17 +1422,25 @@ inside the Purchase Order page.
 
 #### Phase A: Email Records page
 
-- Add a dedicated `Email Records` page for `ADMIN` and `PROCUREMENT` users.
+Status: Completed on 28 September 2026
+
+- Add a dedicated `Email Records` page for `ADMIN` and `PROCUREMENT_OFFICER` users.
 - Display the source module and reference, sender, recipients (`To`, `CC`, and `BCC`), subject,
   rendered HTML content, delivery status, attempt count, timestamps, and the latest error.
 - Support searching and filtering by status, date, source, reference, and recipient.
-- Allow users to open an email record and view its content and attachments.
+- Allow users to open an email record and view its saved content.
 - Allow a failed email to be retried using the same saved email snapshot.
 - Allow a sent email to be resent by creating a new Email Record so the audit history remains clear.
-- Remove email preview, status, and retry responsibilities from the Purchase Order list after the
-  centralized page is ready. Purchase Order actions should only show a toast and email reference.
+- Remove email preview, status, and retry responsibilities from the Purchase Order list. Purchase
+  Order issue shows a toast, while delivery management is handled by Email Records.
+
+Phase A completion check: one Purchase Order can retain multiple email attempts; `ADMIN` and
+`PROCUREMENT_OFFICER` can search, filter, view, retry, and resend records; other roles are denied;
+and resending creates a new audit record instead of overwriting the sent email.
 
 #### Phase B: Email Template administration
+
+Status: Pending
 
 - Add versioned Email Templates with a code, name, subject template, HTML body template, recipient
   rules, default `CC` and `BCC`, attachment rules, status, and version number.
@@ -1447,6 +1456,8 @@ inside the Purchase Order page.
 
 #### Phase C: Email attachments
 
+Status: Pending
+
 - Add attachment metadata including file name, content type, file size, and storage reference.
 - Generate a Purchase Order PDF when its email is queued and attach that saved snapshot.
 - Allow attachments to be viewed or downloaded from Email Records.
@@ -1457,7 +1468,8 @@ inside the Purchase Order page.
 
 - `ADMIN`: view all email records, manage templates, preview emails, retry failed emails, and resend
   sent emails.
-- `PROCUREMENT`: view Purchase Order email records, preview them, retry failures, and resend them.
+- `PROCUREMENT_OFFICER`: view Purchase Order email records, preview them, retry failures, and resend
+  them.
 - Other roles have no Email Administration access by default.
 - Email Records are immutable audit snapshots of recipients, subject, rendered content, template
   version, and attachments.

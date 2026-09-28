@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from 'vue'
 
 import PurchaseOrderCancelDialog from '@/components/purchase-orders/PurchaseOrderCancelDialog.vue'
 import PurchaseOrderDetails from '@/components/purchase-orders/PurchaseOrderDetails.vue'
-import PurchaseOrderEmailPreview from '@/components/purchase-orders/PurchaseOrderEmailPreview.vue'
 import PurchaseOrderForm from '@/components/purchase-orders/PurchaseOrderForm.vue'
 import AppToast from '@/components/ui/AppToast.vue'
 import { useToast } from '@/composables/useToast'
@@ -13,7 +12,6 @@ import { useAuthStore } from '@/stores/auth'
 import { applicationRoles } from '@/types/auth'
 import type {
   PurchaseOrder,
-  PurchaseOrderEmailPreview as PurchaseOrderEmailPreviewModel,
   PurchaseOrderFormValues,
   PurchaseOrderStatus,
 } from '@/types/purchaseOrder'
@@ -50,7 +48,6 @@ const formOpen = ref(false)
 const editingPurchaseOrder = ref<PurchaseOrder | null>(null)
 const detailsPurchaseOrder = ref<PurchaseOrder | null>(null)
 const cancellingPurchaseOrder = ref<PurchaseOrder | null>(null)
-const emailPreview = ref<PurchaseOrderEmailPreviewModel | null>(null)
 const { toast, showSuccess, dismissToast } = useToast()
 
 const draftCount = computed(
@@ -191,32 +188,6 @@ async function issuePurchaseOrder(order: PurchaseOrder) {
     await loadData()
   } catch (error) {
     operationError.value = getErrorMessage(error, 'Unable to issue the purchase order.')
-  } finally {
-    busyPurchaseOrderId.value = null
-  }
-}
-
-async function openEmailPreview(order: PurchaseOrder) {
-  busyPurchaseOrderId.value = order.id
-  operationError.value = ''
-  try {
-    emailPreview.value = await purchaseOrderService.getEmailPreview(order.id)
-  } catch (error) {
-    operationError.value = getErrorMessage(error, 'Unable to load the email preview.')
-  } finally {
-    busyPurchaseOrderId.value = null
-  }
-}
-
-async function retryEmail(order: PurchaseOrder) {
-  busyPurchaseOrderId.value = order.id
-  operationError.value = ''
-  try {
-    await purchaseOrderService.retryEmail(order.id)
-    showSuccess(`Email delivery for ${order.purchaseOrderNumber} was queued again.`)
-    await loadData()
-  } catch (error) {
-    operationError.value = getErrorMessage(error, 'Unable to retry the email.')
   } finally {
     busyPurchaseOrderId.value = null
   }
@@ -414,7 +385,6 @@ function statusLabel(status: PurchaseOrderStatus) {
               <th>Expected delivery</th>
               <th>Total</th>
               <th>Status</th>
-              <th>Email</th>
               <th><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
@@ -445,37 +415,9 @@ function statusLabel(status: PurchaseOrderStatus) {
                 </span>
               </td>
               <td>
-                <span
-                  v-if="order.emailDelivery"
-                  class="purchase-order-email-status"
-                  :class="`email-${order.emailDelivery.status.toLowerCase()}`"
-                >
-                  {{ order.emailDelivery.status }}
-                </span>
-                <span v-else class="table-secondary">Not queued</span>
-              </td>
-              <td>
                 <div class="row-actions purchase-order-row-actions">
                   <button class="text-button" type="button" @click="detailsPurchaseOrder = order">
                     View
-                  </button>
-                  <button
-                    v-if="order.emailDelivery"
-                    class="text-button"
-                    type="button"
-                    :disabled="busyPurchaseOrderId === order.id"
-                    @click="openEmailPreview(order)"
-                  >
-                    Email preview
-                  </button>
-                  <button
-                    v-if="canManagePurchaseOrders && order.emailDelivery?.status === 'Failed'"
-                    class="text-button text-button-positive"
-                    type="button"
-                    :disabled="busyPurchaseOrderId === order.id"
-                    @click="retryEmail(order)"
-                  >
-                    Retry email
                   </button>
                   <button
                     v-if="canManagePurchaseOrders && order.status === 'Draft'"
@@ -543,12 +485,6 @@ function statusLabel(status: PurchaseOrderStatus) {
       :error-message="cancelError"
       @close="closeCancelDialog"
       @confirm="cancelPurchaseOrder"
-    />
-
-    <PurchaseOrderEmailPreview
-      v-if="emailPreview"
-      :preview="emailPreview"
-      @close="emailPreview = null"
     />
   </section>
 </template>

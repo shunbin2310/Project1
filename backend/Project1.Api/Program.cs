@@ -12,6 +12,7 @@ using Project1.Api.Email;
 using Project1.Api.Entities.Identity;
 using Project1.Api.Services.Authentication;
 using Project1.Api.Services.Departments;
+using Project1.Api.Services.EmailRecords;
 using Project1.Api.Services.ProductCategories;
 using Project1.Api.Services.Products;
 using Project1.Api.Services.PurchaseOrders;
@@ -143,6 +144,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddScoped<IDepartmentService, DepartmentService>();
+builder.Services.AddScoped<IEmailRecordService, EmailRecordService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();

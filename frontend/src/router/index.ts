@@ -9,6 +9,10 @@ const procurementRoutes: readonly ApplicationRole[] = [
   applicationRoles.admin,
   applicationRoles.procurementOfficer,
 ]
+const emailRecordRoutes: readonly ApplicationRole[] = [
+  applicationRoles.admin,
+  applicationRoles.procurementOfficer,
+]
 const catalogRoutes: readonly ApplicationRole[] = [
   applicationRoles.admin,
   applicationRoles.catalogManager,
@@ -129,6 +133,12 @@ const router = createRouter({
       name: 'purchase-orders',
       component: () => import('@/views/purchase-orders/PurchaseOrderListView.vue'),
       meta: { title: 'Purchase Orders', requiresAuth: true, roles: purchaseOrderRoutes },
+    },
+    {
+      path: '/email-records',
+      name: 'email-records',
+      component: () => import('@/views/email-records/EmailRecordListView.vue'),
+      meta: { title: 'Email Records', requiresAuth: true, roles: emailRecordRoutes },
     },
     {
       path: '/goods-receipts',

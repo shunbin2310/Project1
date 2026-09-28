@@ -285,7 +285,7 @@ function formatCurrency(value: number) {
                 step="0.01"
                 readonly
               />
-              
+              <small>Uses the product default price. Requesters cannot change it.</small>
             </div>
 
             <button
