@@ -30,14 +30,21 @@ public sealed class EmailOutboxProcessor(
         try
         {
             await emailSender.SendAsync(
-                new EmailMessage(outbox.RecipientEmail, outbox.Subject, outbox.HtmlBody),
+                new EmailMessage(
+                    outbox.RecipientEmail,
+                    outbox.Subject,
+                    outbox.HtmlBody,
+                    outbox.FromAddress,
+                    outbox.FromName,
+                    outbox.CcRecipients,
+                    outbox.BccRecipients),
                 cancellationToken);
 
             outbox.Status = EmailDeliveryStatus.Sent;
             outbox.SentAtUtc = DateTimeOffset.UtcNow;
             outbox.LastError = null;
             logger.LogInformation(
-                "Purchase Order email {EmailOutboxId} was sent to {RecipientEmail}.",
+                "Email record {EmailOutboxId} was sent to {RecipientEmail}.",
                 outbox.Id,
                 outbox.RecipientEmail);
         }
@@ -51,7 +58,7 @@ public sealed class EmailOutboxProcessor(
             outbox.LastError = Truncate(exception.Message, 2000);
             logger.LogWarning(
                 exception,
-                "Purchase Order email {EmailOutboxId} failed for {RecipientEmail}.",
+                "Email record {EmailOutboxId} failed for {RecipientEmail}.",
                 outbox.Id,
                 outbox.RecipientEmail);
         }

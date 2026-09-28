@@ -49,7 +49,7 @@ describe('purchaseOrderService', () => {
     })
   })
 
-  it('calls the issue, email, cancel, and delete endpoints', async () => {
+  it('calls the issue, cancel, and delete endpoints', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockImplementation(
       async () =>
         new Response('{}', {
@@ -60,8 +60,6 @@ describe('purchaseOrderService', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await purchaseOrderService.issue(5)
-    await purchaseOrderService.getEmailPreview(5)
-    await purchaseOrderService.retryEmail(5)
     await purchaseOrderService.cancel(5, 'Supplier unavailable')
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
     await purchaseOrderService.delete(5)
@@ -73,16 +71,6 @@ describe('purchaseOrderService', () => {
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      'http://localhost:5165/api/purchase-orders/5/email-preview',
-      expect.any(Object),
-    )
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
-      'http://localhost:5165/api/purchase-orders/5/email-retry',
-      expect.objectContaining({ method: 'POST' }),
-    )
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      4,
       'http://localhost:5165/api/purchase-orders/5/cancel',
       expect.objectContaining({
         method: 'POST',
@@ -90,7 +78,7 @@ describe('purchaseOrderService', () => {
       }),
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
-      5,
+      3,
       'http://localhost:5165/api/purchase-orders/5',
       expect.objectContaining({ method: 'DELETE' }),
     )

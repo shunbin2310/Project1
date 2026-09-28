@@ -405,6 +405,58 @@ test.describe('authenticated administration workspace', () => {
     await expect(page.getByText('RM 1,500.00', { exact: true }).last()).toBeVisible()
   })
 
+  test('opens email records and reviews a saved message snapshot', async ({ page }) => {
+    const emailRecord = {
+      id: 1,
+      sourceType: 'PurchaseOrder',
+      sourceId: 5,
+      sourceReference: 'PO-0005',
+      fromAddress: 'purchasing@project1.test',
+      fromName: 'Project1 Purchasing',
+      recipientEmail: 'orders@supplier.test',
+      ccRecipients: null,
+      bccRecipients: null,
+      subject: 'Purchase Order PO-0005',
+      htmlBody: '<h1>PO-0005</h1>',
+      status: 'Sent',
+      attemptCount: 1,
+      createdByUserId: 4,
+      createdByName: 'Demo Admin',
+      resentFromEmailOutboxId: null,
+      createdAtUtc: '2026-09-28T08:00:00Z',
+      updatedAtUtc: '2026-09-28T08:01:00Z',
+      lastAttemptAtUtc: '2026-09-28T08:01:00Z',
+      sentAtUtc: '2026-09-28T08:01:00Z',
+      lastError: null,
+    }
+
+    await page.route('http://localhost:5165/api/email-records', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([emailRecord]),
+      })
+    })
+    await page.route('http://localhost:5165/api/email-records/1', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(emailRecord),
+      })
+    })
+
+    await page.goto('/email-records')
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Email Records')
+    await expect(page.getByRole('link', { name: 'Email Records' })).toBeVisible()
+    await expect(page.getByText('PO-0005', { exact: true })).toBeVisible()
+    await expect(page.getByText('orders@supplier.test', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'View' }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await expect(page.getByRole('dialog')).toContainText('Project1 Purchasing')
+    await expect(page.getByRole('dialog')).toContainText('Resend email')
+  })
+
   test('opens goods receiving and loads an issued purchase order into the create form', async ({
     page,
   }) => {

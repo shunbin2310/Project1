@@ -12,12 +12,20 @@ public sealed class SmtpEmailSender(IOptions<SmtpOptions> options) : IEmailSende
     {
         using var mailMessage = new MailMessage
         {
-            From = new MailAddress(options.FromAddress, options.FromName),
+            From = new MailAddress(
+                string.IsNullOrWhiteSpace(message.FromAddress)
+                    ? options.FromAddress
+                    : message.FromAddress,
+                string.IsNullOrWhiteSpace(message.FromName)
+                    ? options.FromName
+                    : message.FromName),
             Subject = message.Subject,
             Body = message.HtmlBody,
             IsBodyHtml = true
         };
         mailMessage.To.Add(new MailAddress(message.RecipientEmail));
+        AddRecipients(mailMessage.CC, message.CcRecipients);
+        AddRecipients(mailMessage.Bcc, message.BccRecipients);
 
         using var smtpClient = new SmtpClient(options.Host, options.Port)
         {
@@ -31,5 +39,18 @@ public sealed class SmtpEmailSender(IOptions<SmtpOptions> options) : IEmailSende
         }
 
         await smtpClient.SendMailAsync(mailMessage, cancellationToken);
+    }
+
+    private static void AddRecipients(MailAddressCollection collection, string? recipients)
+    {
+        if (string.IsNullOrWhiteSpace(recipients))
+        {
+            return;
+        }
+
+        foreach (var recipient in recipients.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            collection.Add(new MailAddress(recipient.Trim()));
+        }
     }
 }

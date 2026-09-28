@@ -64,5 +64,5 @@ public sealed class PurchaseOrder
 
     public ICollection<GoodsReceipt> GoodsReceipts { get; set; } = [];
 
-    public EmailOutbox? EmailOutbox { get; set; }
+    public ICollection<EmailOutbox> EmailOutboxes { get; set; } = [];
 }

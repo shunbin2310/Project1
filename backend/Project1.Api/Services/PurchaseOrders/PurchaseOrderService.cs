@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Net.Mail;
 using Project1.Api.Data;
 using Project1.Api.DTOs.PurchaseOrders;
@@ -11,8 +12,11 @@ namespace Project1.Api.Services.PurchaseOrders;
 public sealed class PurchaseOrderService(
     AppDbContext dbContext,
     ICurrentUserContext currentUser,
-    IPurchaseOrderEmailRenderer emailRenderer) : IPurchaseOrderService
+    IPurchaseOrderEmailRenderer emailRenderer,
+    IOptions<SmtpOptions> smtpOptions) : IPurchaseOrderService
 {
+    private readonly SmtpOptions smtp = smtpOptions.Value;
+
     public async Task<IReadOnlyList<PurchaseOrderResponse>> GetAllAsync(
         int? supplierId,
         PurchaseOrderStatus? status,
@@ -254,14 +258,22 @@ public sealed class PurchaseOrderService(
         purchaseOrder.UpdatedAtUtc = now;
 
         var email = emailRenderer.Render(purchaseOrder, supplierEmail);
-        purchaseOrder.EmailOutbox = new EmailOutbox
+        purchaseOrder.EmailOutboxes.Add(new EmailOutbox
         {
+            SourceType = "PurchaseOrder",
+            SourceId = purchaseOrder.Id,
+            SourceReference = purchaseOrder.PurchaseOrderNumber,
+            FromAddress = smtp.FromAddress,
+            FromName = smtp.FromName,
             RecipientEmail = email.RecipientEmail,
             Subject = email.Subject,
             HtmlBody = email.HtmlBody,
             Status = EmailDeliveryStatus.Pending,
+            CreatedByUserId = currentUser.UserId,
+            CreatedByName = CurrentUserName(),
+            CreatedDate = DateOnly.FromDateTime(now.UtcDateTime),
             CreatedAtUtc = now
-        };
+        });
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return await SuccessResultAsync(id, cancellationToken);
@@ -273,7 +285,9 @@ public sealed class PurchaseOrderService(
     {
         var email = await dbContext.EmailOutboxes
             .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.PurchaseOrderId == id, cancellationToken);
+            .Where(item => item.PurchaseOrderId == id)
+            .OrderByDescending(item => item.Id)
+            .FirstOrDefaultAsync(cancellationToken);
 
         return email is null
             ? null
@@ -290,7 +304,7 @@ public sealed class PurchaseOrderService(
         CancellationToken cancellationToken)
     {
         var purchaseOrder = await dbContext.PurchaseOrders
-            .Include(order => order.EmailOutbox)
+            .Include(order => order.EmailOutboxes)
             .SingleOrDefaultAsync(order => order.Id == id, cancellationToken);
 
         if (purchaseOrder is null)
@@ -298,19 +312,22 @@ public sealed class PurchaseOrderService(
             return NotFound();
         }
 
-        if (purchaseOrder.EmailOutbox is null)
+        var email = purchaseOrder.EmailOutboxes
+            .OrderByDescending(item => item.Id)
+            .FirstOrDefault();
+        if (email is null)
         {
             return InvalidState("This purchase order does not have an email delivery record.");
         }
 
-        if (purchaseOrder.EmailOutbox.Status != EmailDeliveryStatus.Failed)
+        if (email.Status != EmailDeliveryStatus.Failed)
         {
             return InvalidState("Only a failed email can be retried.");
         }
 
-        purchaseOrder.EmailOutbox.Status = EmailDeliveryStatus.Pending;
-        purchaseOrder.EmailOutbox.LastError = null;
-        purchaseOrder.EmailOutbox.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        email.Status = EmailDeliveryStatus.Pending;
+        email.LastError = null;
+        email.UpdatedAtUtc = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return await SuccessResultAsync(id, cancellationToken);
@@ -385,7 +402,7 @@ public sealed class PurchaseOrderService(
             .AsNoTracking()
             .AsSplitQuery()
             .Include(order => order.Items)
-            .Include(order => order.EmailOutbox);
+            .Include(order => order.EmailOutboxes);
 
     private async Task<PurchaseOrderOperationResult> SuccessResultAsync(
         int id,
@@ -413,18 +430,21 @@ public sealed class PurchaseOrderService(
                 item.Quantity * item.UnitPrice))
             .ToList();
 
-        var emailDelivery = purchaseOrder.EmailOutbox is null
+        var latestEmail = purchaseOrder.EmailOutboxes
+            .OrderByDescending(email => email.Id)
+            .FirstOrDefault();
+        var emailDelivery = latestEmail is null
             ? null
             : new PurchaseOrderEmailDeliveryResponse(
-                purchaseOrder.EmailOutbox.Id,
-                purchaseOrder.EmailOutbox.RecipientEmail,
-                purchaseOrder.EmailOutbox.Subject,
-                purchaseOrder.EmailOutbox.Status,
-                purchaseOrder.EmailOutbox.AttemptCount,
-                purchaseOrder.EmailOutbox.CreatedAtUtc,
-                purchaseOrder.EmailOutbox.LastAttemptAtUtc,
-                purchaseOrder.EmailOutbox.SentAtUtc,
-                purchaseOrder.EmailOutbox.LastError);
+                latestEmail.Id,
+                latestEmail.RecipientEmail,
+                latestEmail.Subject,
+                latestEmail.Status,
+                latestEmail.AttemptCount,
+                latestEmail.CreatedAtUtc,
+                latestEmail.LastAttemptAtUtc,
+                latestEmail.SentAtUtc,
+                latestEmail.LastError);
 
         return new PurchaseOrderResponse(
             purchaseOrder.Id,

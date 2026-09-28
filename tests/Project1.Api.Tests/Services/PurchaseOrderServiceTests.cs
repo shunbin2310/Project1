@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Project1.Api.Authentication;
 using Project1.Api.Data;
 using Project1.Api.DTOs.PurchaseOrders;
@@ -143,6 +144,10 @@ public sealed class PurchaseOrderServiceTests
         Assert.Equal("orders@supplier.test", issued.PurchaseOrder.EmailDelivery.RecipientEmail);
 
         var email = await fixture.DbContext.EmailOutboxes.SingleAsync();
+        Assert.Equal("PurchaseOrder", email.SourceType);
+        Assert.Equal(issued.PurchaseOrder.Id, email.SourceId);
+        Assert.Equal(issued.PurchaseOrder.PurchaseOrderNumber, email.SourceReference);
+        Assert.Equal("purchasing@project1.test", email.FromAddress);
         Assert.Contains("PO-", email.Subject);
         Assert.Contains("Monitor", email.HtmlBody);
         Assert.Contains("Main warehouse", email.HtmlBody);
@@ -188,7 +193,9 @@ public sealed class PurchaseOrderServiceTests
         Assert.Equal(EmailDeliveryStatus.Sent, email.Status);
         Assert.Equal(1, email.AttemptCount);
         Assert.NotNull(email.SentAtUtc);
-        Assert.Equal("orders@supplier.test", Assert.Single(sender.Messages).RecipientEmail);
+        var message = Assert.Single(sender.Messages);
+        Assert.Equal("orders@supplier.test", message.RecipientEmail);
+        Assert.Equal("purchasing@project1.test", message.FromAddress);
     }
 
     [Fact]
@@ -305,7 +312,12 @@ public sealed class PurchaseOrderServiceTests
             Service = new PurchaseOrderService(
                 dbContext,
                 new FakeCurrentUserContext(),
-                new PurchaseOrderEmailRenderer());
+                new PurchaseOrderEmailRenderer(),
+                Options.Create(new SmtpOptions
+                {
+                    FromAddress = "purchasing@project1.test",
+                    FromName = "Project1 Purchasing"
+                }));
         }
 
         public AppDbContext DbContext { get; }

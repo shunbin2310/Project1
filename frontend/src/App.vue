@@ -123,6 +123,10 @@ async function logout() {
           <span class="nav-icon" aria-hidden="true">PO</span>
           <span>Purchase Orders</span>
         </RouterLink>
+        <RouterLink v-if="canManageProcurement" to="/email-records">
+          <span class="nav-icon" aria-hidden="true">EM</span>
+          <span>Email Records</span>
+        </RouterLink>
         <RouterLink v-if="canViewGoodsReceipts" to="/goods-receipts">
           <span class="nav-icon" aria-hidden="true">GR</span>
           <span>Goods Receiving</span>

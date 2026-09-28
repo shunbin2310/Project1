@@ -537,14 +537,39 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
             entity.HasKey(email => email.Id);
 
-            entity.HasIndex(email => email.PurchaseOrderId)
-                .IsUnique();
+            entity.HasIndex(email => new { email.SourceType, email.SourceId });
+
+            entity.HasIndex(email => email.SourceReference);
 
             entity.HasIndex(email => new { email.Status, email.Id });
+
+            entity.HasIndex(email => new { email.CreatedDate, email.Id });
+
+            entity.Property(email => email.SourceType)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.Property(email => email.SourceReference)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.Property(email => email.FromAddress)
+                .HasMaxLength(254)
+                .IsRequired();
+
+            entity.Property(email => email.FromName)
+                .HasMaxLength(200)
+                .IsRequired();
 
             entity.Property(email => email.RecipientEmail)
                 .HasMaxLength(254)
                 .IsRequired();
+
+            entity.Property(email => email.CcRecipients)
+                .HasMaxLength(2000);
+
+            entity.Property(email => email.BccRecipients)
+                .HasMaxLength(2000);
 
             entity.Property(email => email.Subject)
                 .HasMaxLength(300)
@@ -560,9 +585,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(email => email.LastError)
                 .HasMaxLength(2000);
 
+            entity.Property(email => email.CreatedByName)
+                .HasMaxLength(200);
+
             entity.HasOne(email => email.PurchaseOrder)
-                .WithOne(order => order.EmailOutbox)
-                .HasForeignKey<EmailOutbox>(email => email.PurchaseOrderId)
+                .WithMany(order => order.EmailOutboxes)
+                .HasForeignKey(email => email.PurchaseOrderId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

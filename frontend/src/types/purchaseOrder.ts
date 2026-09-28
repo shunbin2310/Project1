@@ -5,7 +5,7 @@ export type PurchaseOrderStatus =
   | 'Received'
   | 'Cancelled'
 
-export type EmailDeliveryStatus = 'Pending' | 'Sent' | 'Failed'
+import type { EmailDeliveryStatus } from '@/types/emailRecord'
 
 export interface PurchaseOrderEmailDelivery {
   id: number
@@ -17,14 +17,6 @@ export interface PurchaseOrderEmailDelivery {
   lastAttemptAtUtc: string | null
   sentAtUtc: string | null
   lastError: string | null
-}
-
-export interface PurchaseOrderEmailPreview {
-  id: number
-  recipientEmail: string
-  subject: string
-  htmlBody: string
-  status: EmailDeliveryStatus
 }
 
 export interface PurchaseOrderItem {

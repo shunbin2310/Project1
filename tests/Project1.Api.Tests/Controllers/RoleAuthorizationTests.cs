@@ -49,6 +49,14 @@ public sealed class RoleAuthorizationTests
     }
 
     [Fact]
+    public void EmailRecords_AllowProcurementAndAdmin()
+    {
+        Assert.Equal(
+            ApplicationRoles.AdminOrProcurement,
+            ControllerRoles<EmailRecordsController>());
+    }
+
+    [Fact]
     public void GoodsReceipts_AllowOperationalReadersButOnlyWarehouseCanMutate()
     {
         Assert.Equal(

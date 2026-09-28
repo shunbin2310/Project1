@@ -8,7 +8,21 @@ public sealed class EmailOutbox
 
     public PurchaseOrder PurchaseOrder { get; set; } = null!;
 
+    public string SourceType { get; set; } = "PurchaseOrder";
+
+    public int SourceId { get; set; }
+
+    public string SourceReference { get; set; } = string.Empty;
+
+    public string FromAddress { get; set; } = string.Empty;
+
+    public string FromName { get; set; } = string.Empty;
+
     public string RecipientEmail { get; set; } = string.Empty;
+
+    public string? CcRecipients { get; set; }
+
+    public string? BccRecipients { get; set; }
 
     public string Subject { get; set; } = string.Empty;
 
@@ -23,6 +37,14 @@ public sealed class EmailOutbox
     public DateTimeOffset? SentAtUtc { get; set; }
 
     public string? LastError { get; set; }
+
+    public int? CreatedByUserId { get; set; }
+
+    public string? CreatedByName { get; set; }
+
+    public int? ResentFromEmailOutboxId { get; set; }
+
+    public DateOnly CreatedDate { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow);
 
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 
