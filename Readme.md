@@ -699,7 +699,7 @@ dotnet tool run dotnet-ef database update --project backend/Project1.Api --start
 ```
 
 This creates or updates `Project1Db`, including Identity, workflow, purchasing, quotation, purchase
-order, email outbox, goods receipt, and inventory ledger tables.
+order, email outbox and attachment, goods receipt, and inventory ledger tables.
 
 ### 4. Start Mailpit for local email testing
 
@@ -1055,7 +1055,22 @@ Expected result:
 - Its status starts as `Pending` and changes to `Sent` after the background worker runs.
 - `View` displays the saved From, To, CC, BCC, delivery information, and exact HTML content.
 - `View` also displays the Email Template code and version used to create the saved snapshot.
+- `View` displays one Purchase Order PDF under Attachments.
+- Click `View PDF` and confirm the browser opens a professional Purchase Order containing the same
+  supplier, delivery address, products, quantities, prices, total, notes, issuer, and issue time.
+- Return to Email Records, click `Download PDF`, and confirm the saved file name follows
+  `Purchase-Order-PO-xxxx.pdf`.
 - `http://localhost:8025` contains the same message in the Mailpit inbox.
+- Open the SMTP email and confirm the same PDF is attached.
+
+To test attachment snapshot behaviour:
+
+1. Temporarily stop or misconfigure the SMTP service, then issue another Purchase Order.
+2. Wait until its Email Record becomes `Failed`.
+3. Open the record and view its PDF, then restore SMTP and click `Retry email`.
+4. Confirm the same Email Record is reused and its PDF file name and content remain unchanged.
+5. For a `Sent` record, click `Resend email` and confirm the action.
+6. Confirm a new Email Record is created, and both records contain the same saved PDF snapshot.
 
 ##### 7A. Test Email Template versioning as Admin
 
@@ -1440,7 +1455,7 @@ before starting the next one.
 
 ### 1. Email administration, templates, and attachments
 
-Status: In progress (`Email Records` and `Email Templates` completed; Attachments pending)
+Status: Completed on 30 September 2026
 
 The Purchase Order email outbox and SMTP delivery provide the sending foundation. The next task is
 to move email monitoring and maintenance into a dedicated module instead of managing email details
@@ -1487,13 +1502,25 @@ Active version; and Email Records preserve the Template code, version, and rende
 
 #### Phase C: Email attachments
 
-Status: Pending
+Status: Completed on 30 September 2026
 
-- Add attachment metadata including file name, content type, file size, and storage reference.
-- Generate a Purchase Order PDF when its email is queued and attach that saved snapshot.
-- Allow attachments to be viewed or downloaded from Email Records.
-- Retrying an email must reuse its saved attachment; later Purchase Order or template changes must
-  not silently change an existing email record.
+- Attachment metadata and PDF bytes are stored in SQL Server with the Email Record, including file
+  name, content type, file size, creation time, and immutable binary content.
+- Purchase Order issue generates a professional PDF before changing the order to `Issued`. If PDF
+  generation fails, the order remains `Draft` and no Email Record is created.
+- The background SMTP worker sends the saved PDF snapshot with the rendered email snapshot.
+- Email Record Details allows `ADMIN` and `PROCUREMENT_OFFICER` users to view the PDF in a new tab
+  or download it.
+- Retrying an email reuses the original saved attachment. Resending creates a new Email Record and
+  copies the exact attachment bytes, so later Purchase Order or template changes cannot change an
+  historical email.
+
+Phase C completion check: issued Purchase Orders create one saved PDF attachment; SMTP receives the
+same PDF; Email Records expose View PDF and Download PDF; failed delivery retry reuses the same
+record and attachment; and resend creates a separate auditable record with an identical PDF copy.
+
+PDF generation uses a cross-platform font resolver. Windows uses Arial when available; Ubuntu or
+other Linux deployments should install DejaVu Sans (`fonts-dejavu-core`) before starting the API.
 
 #### Permissions and audit rules
 

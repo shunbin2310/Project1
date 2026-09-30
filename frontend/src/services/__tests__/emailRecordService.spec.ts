@@ -58,4 +58,31 @@ describe('emailRecordService', () => {
       expect.objectContaining({ method: 'POST' }),
     )
   })
+
+  it('fetches view and download attachment endpoints as PDF blobs', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(
+      async () =>
+        new Response(new Blob(['pdf'], { type: 'application/pdf' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/pdf' },
+        }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const viewed = await emailRecordService.viewAttachment(7, 12)
+    const downloaded = await emailRecordService.downloadAttachment(7, 12)
+
+    expect(viewed).toBeInstanceOf(Blob)
+    expect(downloaded).toBeInstanceOf(Blob)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:5165/api/email-records/7/attachments/12/view',
+      expect.objectContaining({ headers: expect.objectContaining({ Accept: 'application/pdf' }) }),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:5165/api/email-records/7/attachments/12/download',
+      expect.objectContaining({ headers: expect.objectContaining({ Accept: 'application/pdf' }) }),
+    )
+  })
 })

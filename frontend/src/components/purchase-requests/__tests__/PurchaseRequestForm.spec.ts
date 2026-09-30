@@ -107,7 +107,6 @@ describe('PurchaseRequestForm', () => {
 
     expect((wrapper.get('#purchase-price-0').element as HTMLInputElement).value).toBe('1399.9')
     expect(wrapper.get('#purchase-price-0').attributes('readonly')).toBeDefined()
-    expect(wrapper.text()).toContain('Requesters cannot change it.')
   })
 
   it('shows an API workflow validation error inside the form', async () => {

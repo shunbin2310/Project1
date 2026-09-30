@@ -25,4 +25,5 @@ public sealed record EmailRecordDetailsResponse(
     DateTimeOffset? UpdatedAtUtc,
     DateTimeOffset? LastAttemptAtUtc,
     DateTimeOffset? SentAtUtc,
-    string? LastError);
+    string? LastError,
+    IReadOnlyList<EmailAttachmentResponse> Attachments);

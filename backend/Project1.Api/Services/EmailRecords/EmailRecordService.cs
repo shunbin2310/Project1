@@ -57,11 +57,30 @@ public sealed class EmailRecordService(
 
     public async Task<EmailRecordDetailsResponse?> GetByIdAsync(
         int id,
-        CancellationToken cancellationToken) =>
-        await dbContext.EmailOutboxes
+        CancellationToken cancellationToken)
+    {
+        var email = await dbContext.EmailOutboxes
             .AsNoTracking()
-            .Where(email => email.Id == id)
-            .Select(email => ToDetails(email))
+            .Include(item => item.Attachments)
+            .Where(item => item.Id == id)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return email is null ? null : ToDetails(email);
+    }
+
+    public async Task<EmailAttachmentFileResult?> GetAttachmentAsync(
+        int emailRecordId,
+        int attachmentId,
+        CancellationToken cancellationToken) =>
+        await dbContext.EmailAttachments
+            .AsNoTracking()
+            .Where(attachment =>
+                attachment.EmailOutboxId == emailRecordId &&
+                attachment.Id == attachmentId)
+            .Select(attachment => new EmailAttachmentFileResult(
+                attachment.FileName,
+                attachment.ContentType,
+                attachment.Content))
             .SingleOrDefaultAsync(cancellationToken);
 
     public async Task<EmailRecordOperationResult> RetryAsync(
@@ -69,6 +88,7 @@ public sealed class EmailRecordService(
         CancellationToken cancellationToken)
     {
         var email = await dbContext.EmailOutboxes
+            .Include(item => item.Attachments)
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (email is null)
         {
@@ -95,6 +115,7 @@ public sealed class EmailRecordService(
         CancellationToken cancellationToken)
     {
         var source = await dbContext.EmailOutboxes
+            .Include(item => item.Attachments)
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (source is null)
@@ -129,6 +150,18 @@ public sealed class EmailRecordService(
             CreatedDate = DateOnly.FromDateTime(DateTime.UtcNow),
             CreatedAtUtc = DateTimeOffset.UtcNow
         };
+
+        foreach (var attachment in source.Attachments.OrderBy(attachment => attachment.Id))
+        {
+            resent.Attachments.Add(new EmailAttachment
+            {
+                FileName = attachment.FileName,
+                ContentType = attachment.ContentType,
+                FileSizeBytes = attachment.FileSizeBytes,
+                Content = attachment.Content.ToArray(),
+                CreatedAtUtc = resent.CreatedAtUtc
+            });
+        }
 
         dbContext.EmailOutboxes.Add(resent);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -185,7 +218,16 @@ public sealed class EmailRecordService(
         email.UpdatedAtUtc,
         email.LastAttemptAtUtc,
         email.SentAtUtc,
-        email.LastError);
+        email.LastError,
+        email.Attachments
+            .OrderBy(attachment => attachment.Id)
+            .Select(attachment => new EmailAttachmentResponse(
+                attachment.Id,
+                attachment.FileName,
+                attachment.ContentType,
+                attachment.FileSizeBytes,
+                attachment.CreatedAtUtc))
+            .ToList());
 
     private string CurrentUserName() =>
         string.IsNullOrWhiteSpace(currentUser.DisplayName)

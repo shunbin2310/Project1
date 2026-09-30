@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Project1.Api.Controllers;
 using Project1.Api.DTOs.EmailRecords;
@@ -58,6 +59,51 @@ public sealed class EmailRecordsControllerTests
         Assert.Equal(2, ((EmailRecordDetailsResponse)created.Value!).Id);
     }
 
+    [Fact]
+    public async Task ViewAttachment_ReturnsInlinePdf()
+    {
+        var service = new FakeEmailRecordService
+        {
+            AttachmentResult = new EmailAttachmentFileResult(
+                "Purchase-Order-PO-0001.pdf",
+                "application/pdf",
+                "%PDF test"u8.ToArray())
+        };
+        var controller = new EmailRecordsController(service)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            }
+        };
+
+        var response = await controller.ViewAttachment(1, 2, CancellationToken.None);
+
+        var file = Assert.IsType<FileContentResult>(response);
+        Assert.Equal("application/pdf", file.ContentType);
+        Assert.Equal("%PDF test"u8.ToArray(), file.FileContents);
+        Assert.StartsWith("inline", controller.Response.Headers.ContentDisposition.ToString());
+    }
+
+    [Fact]
+    public async Task DownloadAttachment_ReturnsPdfWithSavedFileName()
+    {
+        var service = new FakeEmailRecordService
+        {
+            AttachmentResult = new EmailAttachmentFileResult(
+                "Purchase-Order-PO-0001.pdf",
+                "application/pdf",
+                "%PDF test"u8.ToArray())
+        };
+        var controller = new EmailRecordsController(service);
+
+        var response = await controller.DownloadAttachment(1, 2, CancellationToken.None);
+
+        var file = Assert.IsType<FileContentResult>(response);
+        Assert.Equal("Purchase-Order-PO-0001.pdf", file.FileDownloadName);
+        Assert.Equal("application/pdf", file.ContentType);
+    }
+
     private static EmailRecordDetailsResponse CreateDetails(int id) => new(
         id,
         "PurchaseOrder",
@@ -81,7 +127,8 @@ public sealed class EmailRecordsControllerTests
         null,
         null,
         null,
-        null);
+        null,
+        []);
 
     private sealed class FakeEmailRecordService : IEmailRecordService
     {
@@ -90,6 +137,8 @@ public sealed class EmailRecordsControllerTests
 
         public EmailRecordOperationResult ResendResult { get; init; } =
             new(EmailRecordOperationStatus.Success, CreateDetails(2));
+
+        public EmailAttachmentFileResult? AttachmentResult { get; init; }
 
         public Task<IReadOnlyList<EmailRecordSummaryResponse>> GetAllAsync(
             string? search,
@@ -104,6 +153,12 @@ public sealed class EmailRecordsControllerTests
             int id,
             CancellationToken cancellationToken) =>
             Task.FromResult<EmailRecordDetailsResponse?>(CreateDetails(id));
+
+        public Task<EmailAttachmentFileResult?> GetAttachmentAsync(
+            int emailRecordId,
+            int attachmentId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(AttachmentResult);
 
         public Task<EmailRecordOperationResult> RetryAsync(
             int id,

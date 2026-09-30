@@ -1,5 +1,13 @@
 export type EmailDeliveryStatus = 'Pending' | 'Sent' | 'Failed'
 
+export interface EmailAttachment {
+  id: number
+  fileName: string
+  contentType: string
+  fileSizeBytes: number
+  createdAtUtc: string
+}
+
 export interface EmailRecordSummary {
   id: number
   sourceType: string
@@ -27,6 +35,7 @@ export interface EmailRecordSummary {
 
 export interface EmailRecordDetails extends EmailRecordSummary {
   htmlBody: string
+  attachments: EmailAttachment[]
 }
 
 export interface EmailRecordFilters {

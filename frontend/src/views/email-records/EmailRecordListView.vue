@@ -7,6 +7,7 @@ import { useToast } from '@/composables/useToast'
 import { emailRecordService } from '@/services/emailRecordService'
 import type {
   EmailDeliveryStatus,
+  EmailAttachment,
   EmailRecordDetails,
   EmailRecordSummary,
 } from '@/types/emailRecord'
@@ -121,6 +122,54 @@ async function resendEmail() {
     await loadEmailRecords()
   } catch (error) {
     operationError.value = getErrorMessage(error, 'Unable to resend the email.')
+  } finally {
+    busyEmailRecordId.value = null
+  }
+}
+
+async function viewAttachment(attachment: EmailAttachment) {
+  const record = selectedEmailRecord.value
+  if (!record) return
+
+  const previewWindow = window.open('', '_blank')
+  if (previewWindow) previewWindow.opener = null
+  busyEmailRecordId.value = record.id
+  operationError.value = ''
+  try {
+    const blob = await emailRecordService.viewAttachment(record.id, attachment.id)
+    const objectUrl = URL.createObjectURL(blob)
+    if (previewWindow) {
+      previewWindow.location.href = objectUrl
+    } else {
+      window.open(objectUrl, '_blank', 'noopener,noreferrer')
+    }
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+  } catch (error) {
+    previewWindow?.close()
+    operationError.value = getErrorMessage(error, 'Unable to open the PDF attachment.')
+  } finally {
+    busyEmailRecordId.value = null
+  }
+}
+
+async function downloadAttachment(attachment: EmailAttachment) {
+  const record = selectedEmailRecord.value
+  if (!record) return
+
+  busyEmailRecordId.value = record.id
+  operationError.value = ''
+  try {
+    const blob = await emailRecordService.downloadAttachment(record.id, attachment.id)
+    const objectUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = attachment.fileName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(objectUrl)
+  } catch (error) {
+    operationError.value = getErrorMessage(error, 'Unable to download the PDF attachment.')
   } finally {
     busyEmailRecordId.value = null
   }
@@ -305,6 +354,8 @@ function sourceTypeLabel(value: string) {
       @close="selectedEmailRecord = null"
       @retry="retryEmail"
       @resend="resendEmail"
+      @view-attachment="viewAttachment"
+      @download-attachment="downloadAttachment"
     />
   </section>
 </template>

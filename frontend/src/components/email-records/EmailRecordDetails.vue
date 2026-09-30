@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { EmailRecordDetails } from '@/types/emailRecord'
+import type { EmailAttachment, EmailRecordDetails } from '@/types/emailRecord'
 
 defineProps<{
   emailRecord: EmailRecordDetails
@@ -10,6 +10,8 @@ const emit = defineEmits<{
   close: []
   retry: []
   resend: []
+  viewAttachment: [attachment: EmailAttachment]
+  downloadAttachment: [attachment: EmailAttachment]
 }>()
 
 function formatDateTime(value: string | null) {
@@ -18,6 +20,12 @@ function formatDateTime(value: string | null) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 </script>
 
@@ -107,6 +115,49 @@ function formatDateTime(value: string | null) {
           <strong>Latest delivery error</strong>
           <p>{{ emailRecord.lastError }}</p>
         </div>
+
+        <section class="email-record-attachments" aria-labelledby="email-attachments-title">
+          <div class="email-record-section-heading">
+            <div>
+              <strong id="email-attachments-title">Attachments</strong>
+              <span>Files saved with this email snapshot</span>
+            </div>
+            <span>{{ emailRecord.attachments.length }}</span>
+          </div>
+
+          <div v-if="emailRecord.attachments.length" class="email-attachment-list">
+            <article
+              v-for="attachment in emailRecord.attachments"
+              :key="attachment.id"
+              class="email-attachment-item"
+            >
+              <span class="email-attachment-icon" aria-hidden="true">PDF</span>
+              <div>
+                <strong>{{ attachment.fileName }}</strong>
+                <span>{{ formatFileSize(attachment.fileSizeBytes) }} · {{ attachment.contentType }}</span>
+              </div>
+              <div class="email-attachment-actions">
+                <button
+                  class="text-button"
+                  type="button"
+                  :disabled="busy"
+                  @click="emit('viewAttachment', attachment)"
+                >
+                  View PDF
+                </button>
+                <button
+                  class="text-button"
+                  type="button"
+                  :disabled="busy"
+                  @click="emit('downloadAttachment', attachment)"
+                >
+                  Download PDF
+                </button>
+              </div>
+            </article>
+          </div>
+          <p v-else class="email-attachment-empty">This email record has no attachments.</p>
+        </section>
 
         <section class="email-record-content">
           <div>

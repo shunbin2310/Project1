@@ -12,6 +12,7 @@ public sealed class EmailOutboxProcessor(
     public async Task<bool> ProcessNextAsync(CancellationToken cancellationToken)
     {
         var outbox = await dbContext.EmailOutboxes
+            .Include(item => item.Attachments)
             .OrderBy(item => item.Id)
             .FirstOrDefaultAsync(
                 item => item.Status == EmailDeliveryStatus.Pending,
@@ -37,7 +38,14 @@ public sealed class EmailOutboxProcessor(
                     outbox.FromAddress,
                     outbox.FromName,
                     outbox.CcRecipients,
-                    outbox.BccRecipients),
+                    outbox.BccRecipients,
+                    outbox.Attachments
+                        .OrderBy(attachment => attachment.Id)
+                        .Select(attachment => new EmailMessageAttachment(
+                            attachment.FileName,
+                            attachment.ContentType,
+                            attachment.Content))
+                        .ToList()),
                 cancellationToken);
 
             outbox.Status = EmailDeliveryStatus.Sent;

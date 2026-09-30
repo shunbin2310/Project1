@@ -7,4 +7,5 @@ public sealed record EmailMessage(
     string? FromAddress = null,
     string? FromName = null,
     string? CcRecipients = null,
-    string? BccRecipients = null);
+    string? BccRecipients = null,
+    IReadOnlyCollection<EmailMessageAttachment>? Attachments = null);
