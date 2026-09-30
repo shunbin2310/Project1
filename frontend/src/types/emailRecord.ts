@@ -11,6 +11,8 @@ export interface EmailRecordSummary {
   ccRecipients: string | null
   bccRecipients: string | null
   subject: string
+  templateCode: string | null
+  templateVersion: number | null
   status: EmailDeliveryStatus
   attemptCount: number
   createdByUserId: number | null

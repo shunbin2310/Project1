@@ -151,6 +151,30 @@ public sealed class PurchaseOrderServiceTests
         Assert.Contains("PO-", email.Subject);
         Assert.Contains("Monitor", email.HtmlBody);
         Assert.Contains("Main warehouse", email.HtmlBody);
+        Assert.Equal(EmailTemplateConstants.PurchaseOrderIssuedCode, email.TemplateCode);
+        Assert.Equal(1, email.TemplateVersion);
+    }
+
+    [Fact]
+    public async Task IssueAsync_RequiresAnActiveEmailTemplate()
+    {
+        await using var fixture = await PurchaseOrderFixture.CreateAsync();
+        fixture.DbContext.EmailTemplates.RemoveRange(fixture.DbContext.EmailTemplates);
+        await fixture.DbContext.SaveChangesAsync();
+        var created = await fixture.Service.CreateAsync(
+            fixture.ValidRequest(),
+            CancellationToken.None);
+
+        var result = await fixture.Service.IssueAsync(
+            created.PurchaseOrder!.Id,
+            CancellationToken.None);
+
+        Assert.Equal(PurchaseOrderOperationStatus.InvalidState, result.Status);
+        Assert.Contains("active Purchase Order email template", result.ErrorMessage);
+        Assert.Equal(
+            PurchaseOrderStatus.Draft,
+            (await fixture.DbContext.PurchaseOrders.SingleAsync()).Status);
+        Assert.Empty(fixture.DbContext.EmailOutboxes);
     }
 
     [Fact]
@@ -312,7 +336,7 @@ public sealed class PurchaseOrderServiceTests
             Service = new PurchaseOrderService(
                 dbContext,
                 new FakeCurrentUserContext(),
-                new PurchaseOrderEmailRenderer(),
+                new EmailTemplateRenderer(dbContext),
                 Options.Create(new SmtpOptions
                 {
                     FromAddress = "purchasing@project1.test",
@@ -341,6 +365,20 @@ public sealed class PurchaseOrderServiceTests
                 .Options;
             var dbContext = new AppDbContext(options);
             await dbContext.Database.EnsureCreatedAsync();
+
+            dbContext.EmailTemplates.Add(new EmailTemplate
+            {
+                Code = EmailTemplateConstants.PurchaseOrderIssuedCode,
+                Name = EmailTemplateConstants.PurchaseOrderIssuedName,
+                Version = 1,
+                Status = EmailTemplateStatus.Active,
+                SubjectTemplate = DefaultEmailTemplates.PurchaseOrderSubject,
+                HtmlBodyTemplate = DefaultEmailTemplates.PurchaseOrderHtmlBody,
+                ToRule = EmailTemplateConstants.SupplierEmailRule,
+                CreatedByName = "System",
+                PublishedByName = "System",
+                PublishedAtUtc = DateTimeOffset.UtcNow
+            });
 
             var category = new ProductCategory { Code = "CAT-TEST", Name = "Test Category" };
             var unit = new UnitOfMeasure { Code = "UNIT", Name = "Unit" };

@@ -67,6 +67,8 @@ public sealed class EmailRecordServiceTests
         Assert.Equal(original.Id, result.EmailRecord.ResentFromEmailOutboxId);
         Assert.Equal(original.Subject, result.EmailRecord.Subject);
         Assert.Equal(original.HtmlBody, result.EmailRecord.HtmlBody);
+        Assert.Equal(original.TemplateCode, result.EmailRecord.TemplateCode);
+        Assert.Equal(original.TemplateVersion, result.EmailRecord.TemplateVersion);
         Assert.Equal("Demo Procurement", result.EmailRecord.CreatedByName);
     }
 
@@ -164,6 +166,8 @@ public sealed class EmailRecordServiceTests
                 RecipientEmail = recipient,
                 Subject = $"Purchase Order {sourceReference}",
                 HtmlBody = "<h1>Purchase Order</h1>",
+                TemplateCode = "PURCHASE_ORDER_ISSUED",
+                TemplateVersion = 1,
                 Status = status,
                 CreatedByUserId = 4,
                 CreatedByName = "Demo Admin",

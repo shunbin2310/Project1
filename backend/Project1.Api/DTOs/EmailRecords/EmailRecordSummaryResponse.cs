@@ -13,6 +13,8 @@ public sealed record EmailRecordSummaryResponse(
     string? CcRecipients,
     string? BccRecipients,
     string Subject,
+    string? TemplateCode,
+    int? TemplateVersion,
     EmailDeliveryStatus Status,
     int AttemptCount,
     int? CreatedByUserId,

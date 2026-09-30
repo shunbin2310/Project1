@@ -63,6 +63,14 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('access-denied')
   })
 
+  it('redirects a requester away from email template administration', async () => {
+    authenticate('REQUESTER')
+
+    await router.push('/email-templates')
+
+    expect(router.currentRoute.value.name).toBe('access-denied')
+  })
+
   it('redirects a requester away from supplier product administration', async () => {
     authenticate('REQUESTER')
 
@@ -141,6 +149,14 @@ describe('router authentication guards', () => {
     await router.push('/workflow-templates')
 
     expect(router.currentRoute.value.name).toBe('workflow-templates')
+  })
+
+  it('allows an administrator to open email template administration', async () => {
+    authenticate('ADMIN')
+
+    await router.push('/email-templates')
+
+    expect(router.currentRoute.value.name).toBe('email-templates')
   })
 
   it('allows an administrator to open supplier product administration', async () => {

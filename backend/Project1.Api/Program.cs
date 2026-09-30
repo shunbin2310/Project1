@@ -13,6 +13,7 @@ using Project1.Api.Entities.Identity;
 using Project1.Api.Services.Authentication;
 using Project1.Api.Services.Departments;
 using Project1.Api.Services.EmailRecords;
+using Project1.Api.Services.EmailTemplates;
 using Project1.Api.Services.ProductCategories;
 using Project1.Api.Services.Products;
 using Project1.Api.Services.PurchaseOrders;
@@ -145,6 +146,7 @@ builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IEmailRecordService, EmailRecordService>();
+builder.Services.AddScoped<IEmailTemplateService, EmailTemplateService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -154,7 +156,7 @@ builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
-builder.Services.AddSingleton<IPurchaseOrderEmailRenderer, PurchaseOrderEmailRenderer>();
+builder.Services.AddScoped<IEmailTemplateRenderer, EmailTemplateRenderer>();
 builder.Services.AddScoped<IEmailOutboxProcessor, EmailOutboxProcessor>();
 builder.Services.AddHostedService<EmailOutboxWorker>();
 builder.Services.AddScoped<IGoodsReceiptService, GoodsReceiptService>();
@@ -195,5 +197,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 await app.Services.SeedIdentityAsync();
+await app.Services.SeedEmailTemplatesAsync();
 
 app.Run();

@@ -12,7 +12,7 @@ namespace Project1.Api.Services.PurchaseOrders;
 public sealed class PurchaseOrderService(
     AppDbContext dbContext,
     ICurrentUserContext currentUser,
-    IPurchaseOrderEmailRenderer emailRenderer,
+    IEmailTemplateRenderer emailRenderer,
     IOptions<SmtpOptions> smtpOptions) : IPurchaseOrderService
 {
     private readonly SmtpOptions smtp = smtpOptions.Value;
@@ -250,6 +250,17 @@ public sealed class PurchaseOrderService(
             return InvalidState("The purchase order does not contain valid order items.");
         }
 
+        var renderedEmail = await emailRenderer.RenderPurchaseOrderAsync(
+            purchaseOrder,
+            supplierEmail,
+            cancellationToken);
+        if (!renderedEmail.IsSuccess)
+        {
+            return InvalidState(renderedEmail.ErrorMessage!);
+        }
+
+        var rendered = renderedEmail.RenderedEmail!;
+        var email = rendered.Message;
         var now = DateTimeOffset.UtcNow;
         purchaseOrder.Status = PurchaseOrderStatus.Issued;
         purchaseOrder.IssuedAtUtc = now;
@@ -257,7 +268,6 @@ public sealed class PurchaseOrderService(
         purchaseOrder.IssuedByName = CurrentUserName();
         purchaseOrder.UpdatedAtUtc = now;
 
-        var email = emailRenderer.Render(purchaseOrder, supplierEmail);
         purchaseOrder.EmailOutboxes.Add(new EmailOutbox
         {
             SourceType = "PurchaseOrder",
@@ -266,8 +276,12 @@ public sealed class PurchaseOrderService(
             FromAddress = smtp.FromAddress,
             FromName = smtp.FromName,
             RecipientEmail = email.RecipientEmail,
+            CcRecipients = email.CcRecipients,
+            BccRecipients = email.BccRecipients,
             Subject = email.Subject,
             HtmlBody = email.HtmlBody,
+            TemplateCode = rendered.TemplateCode,
+            TemplateVersion = rendered.TemplateVersion,
             Status = EmailDeliveryStatus.Pending,
             CreatedByUserId = currentUser.UserId,
             CreatedByName = CurrentUserName(),
