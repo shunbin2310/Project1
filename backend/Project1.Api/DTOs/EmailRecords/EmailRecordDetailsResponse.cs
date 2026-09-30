@@ -14,6 +14,8 @@ public sealed record EmailRecordDetailsResponse(
     string? BccRecipients,
     string Subject,
     string HtmlBody,
+    string? TemplateCode,
+    int? TemplateVersion,
     EmailDeliveryStatus Status,
     int AttemptCount,
     int? CreatedByUserId,

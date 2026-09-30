@@ -80,6 +80,10 @@ async function logout() {
             <span class="nav-icon" aria-hidden="true">WF</span>
             <span>Workflow Templates</span>
           </RouterLink>
+          <RouterLink to="/email-templates">
+            <span class="nav-icon" aria-hidden="true">ET</span>
+            <span>Email Templates</span>
+          </RouterLink>
         </template>
 
         <template v-if="canManageProcurement">

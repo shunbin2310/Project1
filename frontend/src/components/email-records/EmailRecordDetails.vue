@@ -95,6 +95,14 @@ function formatDateTime(value: string | null) {
           Resent from email record #{{ emailRecord.resentFromEmailOutboxId }}.
         </div>
 
+        <div class="email-record-notice">
+          <strong>Template:</strong>
+          <template v-if="emailRecord.templateCode && emailRecord.templateVersion">
+            {{ emailRecord.templateCode }} · Version {{ emailRecord.templateVersion }}
+          </template>
+          <template v-else>Legacy email</template>
+        </div>
+
         <div v-if="emailRecord.lastError" class="email-record-error" role="alert">
           <strong>Latest delivery error</strong>
           <p>{{ emailRecord.lastError }}</p>

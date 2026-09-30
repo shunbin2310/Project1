@@ -87,6 +87,12 @@ const router = createRouter({
       meta: { title: 'Workflow Templates', requiresAuth: true, roles: adminRoutes },
     },
     {
+      path: '/email-templates',
+      name: 'email-templates',
+      component: () => import('@/views/email-templates/EmailTemplateListView.vue'),
+      meta: { title: 'Email Templates', requiresAuth: true, roles: adminRoutes },
+    },
+    {
       path: '/suppliers',
       name: 'suppliers',
       component: () => import('@/views/suppliers/SupplierListView.vue'),

@@ -31,6 +31,8 @@ function emailRecord(
     bccRecipients: null,
     subject: 'Purchase Order PO-0005',
     htmlBody: '<h1>PO-0005</h1>',
+    templateCode: 'PURCHASE_ORDER_ISSUED',
+    templateVersion: 1,
     status,
     attemptCount: status === 'Pending' ? 0 : 1,
     createdByUserId: 4,

@@ -36,6 +36,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<EmailOutbox> EmailOutboxes => Set<EmailOutbox>();
 
+    public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
+
     public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
 
     public DbSet<GoodsReceiptItem> GoodsReceiptItems => Set<GoodsReceiptItem>();
@@ -578,6 +580,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(email => email.HtmlBody)
                 .IsRequired();
 
+            entity.Property(email => email.TemplateCode)
+                .HasMaxLength(50);
+
             entity.Property(email => email.Status)
                 .HasConversion<string>()
                 .HasMaxLength(20);
@@ -592,6 +597,53 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
                 .WithMany(order => order.EmailOutboxes)
                 .HasForeignKey(email => email.PurchaseOrderId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EmailTemplate>(entity =>
+        {
+            entity.ToTable("EmailTemplates");
+
+            entity.HasKey(template => template.Id);
+
+            entity.HasIndex(template => new { template.Code, template.Version })
+                .IsUnique();
+
+            entity.HasIndex(template => new { template.Code, template.Status });
+
+            entity.Property(template => template.Code)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.Property(template => template.Name)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(template => template.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            entity.Property(template => template.SubjectTemplate)
+                .HasMaxLength(300)
+                .IsRequired();
+
+            entity.Property(template => template.HtmlBodyTemplate)
+                .IsRequired();
+
+            entity.Property(template => template.ToRule)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.Property(template => template.CcRecipients)
+                .HasMaxLength(2000);
+
+            entity.Property(template => template.BccRecipients)
+                .HasMaxLength(2000);
+
+            entity.Property(template => template.CreatedByName)
+                .HasMaxLength(200);
+
+            entity.Property(template => template.PublishedByName)
+                .HasMaxLength(200);
         });
 
         modelBuilder.Entity<GoodsReceipt>(entity =>

@@ -28,6 +28,10 @@ public sealed class EmailOutbox
 
     public string HtmlBody { get; set; } = string.Empty;
 
+    public string? TemplateCode { get; set; }
+
+    public int? TemplateVersion { get; set; }
+
     public EmailDeliveryStatus Status { get; set; } = EmailDeliveryStatus.Pending;
 
     public int AttemptCount { get; set; }

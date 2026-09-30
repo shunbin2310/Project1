@@ -87,6 +87,7 @@ The main goals are:
 - ASP.NET Core background worker
 - SMTP delivery through Mailpit during local development
 - Central Email Records page with HTML preview, failed-delivery retry, and auditable resend
+- Versioned Purchase Order Email Templates with placeholder validation and fixed-data preview
 
 ## System architecture
 
@@ -124,7 +125,7 @@ This separation prevents the UI, API contract, and database structure from becom
 | `PROCUREMENT_OFFICER` | Performs daily purchasing work | Suppliers, Supplier Products, Supplier Quotations, Purchase Orders, Email Records; read-only Goods Receiving and Inventory |
 | `WAREHOUSE_OFFICER` | Receives deliveries and monitors stock | Read-only Purchase Orders, Goods Receiving, Inventory |
 | `CATALOG_MANAGER` | Maintains purchasing master data | Product Categories, Units of Measure, Products |
-| `ADMIN` | Configures, supports, and recovers the system | All pages and all operations |
+| `ADMIN` | Configures, supports, and recovers the system | All pages and all operations, including Email Templates |
 
 The dedicated business roles keep daily work separate from system administration:
 
@@ -816,6 +817,10 @@ npm run dev
 
 Run `database update` again after pulling a branch that contains a new migration.
 
+The `AddEmailTemplates` migration adds versioned Email Templates and Template metadata to Email
+Records. After applying the migration, restart the API. Development startup automatically creates
+the default active `PURCHASE_ORDER_ISSUED` Version 1 template when it does not exist.
+
 ## Demo accounts
 
 Development mode seeds these accounts:
@@ -1049,7 +1054,28 @@ Expected result:
 - Open Email Records and find the new record using the Purchase Order number.
 - Its status starts as `Pending` and changes to `Sent` after the background worker runs.
 - `View` displays the saved From, To, CC, BCC, delivery information, and exact HTML content.
+- `View` also displays the Email Template code and version used to create the saved snapshot.
 - `http://localhost:8025` contains the same message in the Mailpit inbox.
+
+##### 7A. Test Email Template versioning as Admin
+
+1. Before issuing another Purchase Order, sign in as `admin@demo.local`.
+2. Open Workspace -> Email Templates.
+3. Confirm `PURCHASE_ORDER_ISSUED` Version 1 is `Active`.
+4. Click Preview and confirm the fixed sample Purchase Order values are rendered.
+5. Click New version. Version 2 opens as a `Draft`.
+6. Change the subject, for example to `New PO {{PurchaseOrderNumber}} for {{SupplierName}}`.
+7. Optionally add default CC or BCC email addresses.
+8. Click a placeholder after focusing Subject or HTML Body, then click Preview.
+9. Click Save draft, followed by Publish from the list.
+
+Expected result:
+
+- Version 2 becomes `Active` and Version 1 becomes `Superseded`.
+- Active and Superseded versions cannot be edited or deleted.
+- The next issued Purchase Order uses Version 2.
+- Existing Email Records keep their original rendered content and Template Version.
+- If no Active Template exists, Purchase Order Issue is rejected and the order remains Draft.
 
 ##### 8. Test partial Goods Receiving
 
@@ -1414,7 +1440,7 @@ before starting the next one.
 
 ### 1. Email administration, templates, and attachments
 
-Status: In progress (`Email Records` completed; Templates and Attachments pending)
+Status: In progress (`Email Records` and `Email Templates` completed; Attachments pending)
 
 The Purchase Order email outbox and SMTP delivery provide the sending foundation. The next task is
 to move email monitoring and maintenance into a dedicated module instead of managing email details
@@ -1440,11 +1466,11 @@ and resending creates a new audit record instead of overwriting the sent email.
 
 #### Phase B: Email Template administration
 
-Status: Pending
+Status: Completed on 29 September 2026
 
 - Add versioned Email Templates with a code, name, subject template, HTML body template, recipient
-  rules, default `CC` and `BCC`, attachment rules, status, and version number.
-- Allow only `ADMIN` users to create, edit, activate, and supersede templates.
+  rules, default `CC` and `BCC`, status, and version number.
+- Allow only `ADMIN` users to edit, activate, and supersede the built-in Purchase Order template.
 - Provide a placeholder list, validation, and preview before a template is activated.
 - Start with a Purchase Order template that supports values such as purchase order number, supplier
   name, expected delivery date, delivery address, ordered items, and total amount.
@@ -1453,6 +1479,11 @@ Status: Pending
 - Replace the current hard-coded Purchase Order email rendering with the active template version.
 - Editing an active template must create a new version. Existing Email Records must keep the old
   template version and fully rendered subject/body snapshot.
+
+Phase B completion check: the default Purchase Order template is seeded automatically; Admin can
+create and edit a Draft version, validate placeholders, preview it with fixed sample data, and
+publish it; the previous Active version becomes Superseded; Purchase Order issue uses the current
+Active version; and Email Records preserve the Template code, version, and rendered snapshot.
 
 #### Phase C: Email attachments
 

@@ -2973,6 +2973,173 @@ tbody tr:hover {
   border: 0;
 }
 
+.email-template-identity {
+  display: flex;
+  min-width: 250px;
+  gap: 11px;
+  align-items: center;
+}
+
+.email-template-identity strong,
+.email-template-identity small {
+  display: block;
+}
+
+.email-template-identity strong {
+  color: #203331;
+  font-size: 12px;
+}
+
+.email-template-identity small {
+  margin-top: 4px;
+  color: #83908e;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+}
+
+.email-template-row-actions {
+  min-width: 255px;
+}
+
+.email-template-editor-modal,
+.email-template-preview-modal {
+  width: min(1080px, calc(100vw - 2rem));
+}
+
+.email-template-editor {
+  display: grid;
+  gap: 18px;
+  padding: 22px 25px 25px;
+}
+
+.email-template-editor .form-field > span {
+  color: #314744;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.email-template-editor .form-field > small {
+  display: block;
+  margin-top: 5px;
+  color: #84918f;
+  font-size: 9px;
+}
+
+.email-template-definition-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.email-template-placeholder-panel {
+  padding: 15px;
+  background: #f3f8f6;
+  border: 1px solid #d8e6e1;
+  border-radius: 11px;
+}
+
+.email-template-placeholder-panel > div:first-child {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.email-template-placeholder-panel strong {
+  color: #29423e;
+  font-size: 11px;
+}
+
+.email-template-placeholder-panel span {
+  color: #7b8a87;
+  font-size: 9px;
+}
+
+.email-template-placeholder-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.email-template-placeholder-list button {
+  padding: 6px 9px;
+  color: #176b5d;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  background: #fff;
+  border: 1px solid #c9dfd8;
+  border-radius: 7px;
+}
+
+.email-template-placeholder-list button:hover:not(:disabled) {
+  background: #e7f4ef;
+}
+
+.email-template-html-field textarea {
+  min-height: 370px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.email-template-preview-backdrop {
+  z-index: 60;
+}
+
+.email-template-preview-content {
+  display: grid;
+  gap: 18px;
+  padding: 22px 25px 25px;
+}
+
+.email-template-preview-addresses {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  background: #f7faf9;
+  border: 1px solid #dce6e3;
+  border-radius: 12px;
+}
+
+.email-template-preview-addresses > div {
+  min-width: 0;
+  padding: 14px 16px;
+  border-left: 1px solid #dce6e3;
+}
+
+.email-template-preview-addresses > div:first-child {
+  border-left: 0;
+}
+
+.email-template-preview-addresses span,
+.email-template-preview-subject span {
+  display: block;
+  margin-bottom: 6px;
+  color: #7c8987;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.email-template-preview-addresses strong,
+.email-template-preview-subject strong {
+  overflow-wrap: anywhere;
+  color: #203331;
+  font-size: 11px;
+}
+
+.email-template-preview-subject {
+  padding: 14px 16px;
+  background: #f7faf9;
+  border: 1px solid #dce6e3;
+  border-radius: 12px;
+}
+
 .purchase-order-cancel-modal {
   width: min(540px, 100%);
 }
@@ -3611,7 +3778,9 @@ tbody tr:hover {
   }
 
   .email-record-overview,
-  .email-record-addresses {
+  .email-record-addresses,
+  .email-template-definition-grid,
+  .email-template-preview-addresses {
     grid-template-columns: 1fr;
   }
 
@@ -3626,6 +3795,21 @@ tbody tr:hover {
   .email-record-overview > div:first-child,
   .email-record-addresses > div:first-child {
     border-top: 0;
+  }
+
+  .email-template-preview-addresses > div,
+  .email-template-preview-addresses > div:first-child {
+    border-top: 1px solid #dce6e3;
+    border-left: 0;
+  }
+
+  .email-template-preview-addresses > div:first-child {
+    border-top: 0;
+  }
+
+  .email-template-placeholder-panel > div:first-child {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .goods-receipt-summary-primary,

@@ -70,6 +70,8 @@ public sealed class EmailRecordsControllerTests
         null,
         "Purchase Order PO-0001",
         "<h1>PO-0001</h1>",
+        "PURCHASE_ORDER_ISSUED",
+        1,
         EmailDeliveryStatus.Pending,
         0,
         4,
