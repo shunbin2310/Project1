@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   getById: vi.fn<(id: number) => Promise<EmailRecordDetails>>(),
   retry: vi.fn<(id: number) => Promise<EmailRecordDetails>>(),
   resend: vi.fn<(id: number) => Promise<EmailRecordDetails>>(),
+  viewAttachment: vi.fn<(emailRecordId: number, attachmentId: number) => Promise<Blob>>(),
+  downloadAttachment: vi.fn<(emailRecordId: number, attachmentId: number) => Promise<Blob>>(),
 }))
 
 vi.mock('@/services/emailRecordService', () => ({
@@ -43,6 +45,15 @@ function emailRecord(
     lastAttemptAtUtc: status === 'Pending' ? null : '2026-09-28T08:01:00Z',
     sentAtUtc: status === 'Sent' ? '2026-09-28T08:01:00Z' : null,
     lastError: status === 'Failed' ? 'SMTP unavailable' : null,
+    attachments: [
+      {
+        id: 11,
+        fileName: 'Purchase-Order-PO-0005.pdf',
+        contentType: 'application/pdf',
+        fileSizeBytes: 4096,
+        createdAtUtc: '2026-09-28T08:00:00Z',
+      },
+    ],
   }
 }
 
@@ -56,6 +67,8 @@ describe('EmailRecordListView', () => {
       ...emailRecord(3, 'Pending'),
       resentFromEmailOutboxId: 1,
     })
+    mocks.viewAttachment.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }))
+    mocks.downloadAttachment.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }))
     vi.stubGlobal(
       'confirm',
       vi.fn(() => true),
@@ -109,5 +122,20 @@ describe('EmailRecordListView', () => {
     expect(window.confirm).toHaveBeenCalled()
     expect(mocks.resend).toHaveBeenCalledWith(1)
     expect(wrapper.get('.success-toast').text()).toContain('Email #3')
+  })
+
+  it('shows the saved PDF attachment in email details', async () => {
+    const wrapper = mount(EmailRecordListView)
+    await flushPromises()
+
+    await wrapper.findAll('tbody button')[0]?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.email-record-attachments').text()).toContain(
+      'Purchase-Order-PO-0005.pdf',
+    )
+    expect(wrapper.get('.email-record-attachments').text()).toContain('4.0 KB')
+    expect(wrapper.get('.email-record-attachments').text()).toContain('View PDF')
+    expect(wrapper.get('.email-record-attachments').text()).toContain('Download PDF')
   })
 })

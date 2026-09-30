@@ -153,6 +153,34 @@ public sealed class PurchaseOrderServiceTests
         Assert.Contains("Main warehouse", email.HtmlBody);
         Assert.Equal(EmailTemplateConstants.PurchaseOrderIssuedCode, email.TemplateCode);
         Assert.Equal(1, email.TemplateVersion);
+        var attachment = await fixture.DbContext.EmailAttachments.SingleAsync();
+        Assert.Equal($"Purchase-Order-{issued.PurchaseOrder.PurchaseOrderNumber}.pdf", attachment.FileName);
+        Assert.Equal("application/pdf", attachment.ContentType);
+        Assert.Equal(attachment.Content.LongLength, attachment.FileSizeBytes);
+        Assert.Equal(FakePurchaseOrderPdfGenerator.PdfContent, attachment.Content);
+    }
+
+    [Fact]
+    public async Task IssueAsync_LeavesOrderInDraft_WhenPdfGenerationFails()
+    {
+        await using var fixture = await PurchaseOrderFixture.CreateAsync(
+            new FakePurchaseOrderPdfGenerator(
+                new InvalidOperationException("PDF rendering failed")));
+        var created = await fixture.Service.CreateAsync(
+            fixture.ValidRequest(),
+            CancellationToken.None);
+
+        var result = await fixture.Service.IssueAsync(
+            created.PurchaseOrder!.Id,
+            CancellationToken.None);
+
+        Assert.Equal(PurchaseOrderOperationStatus.InvalidState, result.Status);
+        Assert.Contains("PDF could not be generated", result.ErrorMessage);
+        Assert.Equal(
+            PurchaseOrderStatus.Draft,
+            (await fixture.DbContext.PurchaseOrders.SingleAsync()).Status);
+        Assert.Empty(fixture.DbContext.EmailOutboxes);
+        Assert.Empty(fixture.DbContext.EmailAttachments);
     }
 
     [Fact]
@@ -220,6 +248,9 @@ public sealed class PurchaseOrderServiceTests
         var message = Assert.Single(sender.Messages);
         Assert.Equal("orders@supplier.test", message.RecipientEmail);
         Assert.Equal("purchasing@project1.test", message.FromAddress);
+        var messageAttachment = Assert.Single(message.Attachments!);
+        Assert.Equal("application/pdf", messageAttachment.ContentType);
+        Assert.Equal(FakePurchaseOrderPdfGenerator.PdfContent, messageAttachment.Content);
     }
 
     [Fact]
@@ -326,7 +357,8 @@ public sealed class PurchaseOrderServiceTests
             AppDbContext dbContext,
             Supplier supplier,
             Product product,
-            Quotation quotation)
+            Quotation quotation,
+            IPurchaseOrderPdfGenerator pdfGenerator)
         {
             this.connection = connection;
             DbContext = dbContext;
@@ -337,6 +369,7 @@ public sealed class PurchaseOrderServiceTests
                 dbContext,
                 new FakeCurrentUserContext(),
                 new EmailTemplateRenderer(dbContext),
+                pdfGenerator,
                 Options.Create(new SmtpOptions
                 {
                     FromAddress = "purchasing@project1.test",
@@ -356,7 +389,8 @@ public sealed class PurchaseOrderServiceTests
 
         public DateOnly Today { get; } = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        public static async Task<PurchaseOrderFixture> CreateAsync()
+        public static async Task<PurchaseOrderFixture> CreateAsync(
+            IPurchaseOrderPdfGenerator? pdfGenerator = null)
         {
             var connection = new SqliteConnection("Data Source=:memory:");
             await connection.OpenAsync();
@@ -441,7 +475,13 @@ public sealed class PurchaseOrderServiceTests
             dbContext.Quotations.Add(quotation);
             await dbContext.SaveChangesAsync();
 
-            return new PurchaseOrderFixture(connection, dbContext, supplier, product, quotation);
+            return new PurchaseOrderFixture(
+                connection,
+                dbContext,
+                supplier,
+                product,
+                quotation,
+                pdfGenerator ?? new FakePurchaseOrderPdfGenerator());
         }
 
         public CreatePurchaseOrderRequest ValidRequest() => new()
@@ -489,6 +529,25 @@ public sealed class PurchaseOrderServiceTests
 
             Messages.Add(message);
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakePurchaseOrderPdfGenerator(Exception? exception = null)
+        : IPurchaseOrderPdfGenerator
+    {
+        public static readonly byte[] PdfContent = "%PDF-1.7 test snapshot"u8.ToArray();
+
+        public byte[] Generate(
+            PurchaseOrder purchaseOrder,
+            string issuedByName,
+            DateTimeOffset issuedAtUtc)
+        {
+            if (exception is not null)
+            {
+                throw exception;
+            }
+
+            return PdfContent.ToArray();
         }
     }
 }

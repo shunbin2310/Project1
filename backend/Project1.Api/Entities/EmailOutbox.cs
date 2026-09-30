@@ -53,4 +53,6 @@ public sealed class EmailOutbox
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset? UpdatedAtUtc { get; set; }
+
+    public ICollection<EmailAttachment> Attachments { get; set; } = [];
 }

@@ -81,3 +81,48 @@ export async function apiRequest<T>(
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
 }
+
+export async function apiBlobRequest(
+  path: string,
+  options: ApiRequestOptions = {},
+  ErrorType: ApiErrorConstructor = ApiError,
+): Promise<Blob> {
+  const {
+    authenticated = true,
+    handleUnauthorized = true,
+    headers: requestHeaders,
+    ...fetchOptions
+  } = options
+  const headers: Record<string, string> = {}
+  new Headers(requestHeaders).forEach((value, key) => {
+    headers[key] = value
+  })
+  headers.Accept = 'application/pdf'
+
+  const accessToken = authenticated ? getAccessToken() : null
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...fetchOptions,
+    headers,
+  })
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`
+
+    try {
+      const problem = (await response.json()) as ProblemDetails
+      message = problem.detail || problem.title || message
+    } catch {
+      // The response did not include a JSON error body.
+    }
+
+    if (response.status === 401 && handleUnauthorized && unauthorizedHandler) {
+      await unauthorizedHandler()
+    }
+
+    throw new ErrorType(response.status, message)
+  }
+
+  return response.blob()
+}

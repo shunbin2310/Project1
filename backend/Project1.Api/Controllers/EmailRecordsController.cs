@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 using Project1.Api.Authentication;
 using Project1.Api.DTOs.EmailRecords;
 using Project1.Api.Entities;
@@ -52,6 +53,47 @@ public sealed class EmailRecordsController(IEmailRecordService emailRecordServic
     {
         var record = await emailRecordService.GetByIdAsync(id, cancellationToken);
         return record is null ? NotFound() : Ok(record);
+    }
+
+    [HttpGet("{id:int}/attachments/{attachmentId:int}/view")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(FileContentResult))]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ViewAttachment(
+        int id,
+        int attachmentId,
+        CancellationToken cancellationToken)
+    {
+        var attachment = await emailRecordService.GetAttachmentAsync(
+            id,
+            attachmentId,
+            cancellationToken);
+        if (attachment is null)
+        {
+            return NotFound();
+        }
+
+        Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("inline")
+        {
+            FileNameStar = attachment.FileName
+        }.ToString();
+        return File(attachment.Content, attachment.ContentType);
+    }
+
+    [HttpGet("{id:int}/attachments/{attachmentId:int}/download")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(FileContentResult))]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DownloadAttachment(
+        int id,
+        int attachmentId,
+        CancellationToken cancellationToken)
+    {
+        var attachment = await emailRecordService.GetAttachmentAsync(
+            id,
+            attachmentId,
+            cancellationToken);
+        return attachment is null
+            ? NotFound()
+            : File(attachment.Content, attachment.ContentType, attachment.FileName);
     }
 
     [HttpPost("{id:int}/retry")]

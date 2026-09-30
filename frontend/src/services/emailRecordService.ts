@@ -1,4 +1,4 @@
-import { apiRequest, ApiError } from '@/services/apiClient'
+import { apiBlobRequest, apiRequest, ApiError } from '@/services/apiClient'
 import type {
   EmailRecordDetails,
   EmailRecordFilters,
@@ -40,5 +40,21 @@ export const emailRecordService = {
 
   resend(id: number) {
     return request<EmailRecordDetails>(`/api/email-records/${id}/resend`, { method: 'POST' })
+  },
+
+  viewAttachment(emailRecordId: number, attachmentId: number) {
+    return apiBlobRequest(
+      `/api/email-records/${emailRecordId}/attachments/${attachmentId}/view`,
+      undefined,
+      EmailRecordApiError,
+    )
+  },
+
+  downloadAttachment(emailRecordId: number, attachmentId: number) {
+    return apiBlobRequest(
+      `/api/email-records/${emailRecordId}/attachments/${attachmentId}/download`,
+      undefined,
+      EmailRecordApiError,
+    )
   },
 }

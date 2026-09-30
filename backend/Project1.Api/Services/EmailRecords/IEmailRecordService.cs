@@ -17,6 +17,11 @@ public interface IEmailRecordService
         int id,
         CancellationToken cancellationToken);
 
+    Task<EmailAttachmentFileResult?> GetAttachmentAsync(
+        int emailRecordId,
+        int attachmentId,
+        CancellationToken cancellationToken);
+
     Task<EmailRecordOperationResult> RetryAsync(
         int id,
         CancellationToken cancellationToken);

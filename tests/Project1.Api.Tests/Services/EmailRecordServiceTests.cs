@@ -38,6 +38,7 @@ public sealed class EmailRecordServiceTests
         var email = fixture.AddEmail(EmailDeliveryStatus.Failed);
         email.AttemptCount = 1;
         email.LastError = "SMTP unavailable";
+        var originalPdf = AddAttachment(email);
         await fixture.DbContext.SaveChangesAsync();
 
         var result = await fixture.Service.RetryAsync(email.Id, CancellationToken.None);
@@ -47,6 +48,9 @@ public sealed class EmailRecordServiceTests
         Assert.Equal(1, result.EmailRecord.AttemptCount);
         Assert.Null(result.EmailRecord.LastError);
         Assert.Equal("<h1>Purchase Order</h1>", result.EmailRecord.HtmlBody);
+        var attachment = Assert.Single(result.EmailRecord.Attachments);
+        Assert.Equal(originalPdf, (await fixture.DbContext.EmailAttachments.SingleAsync()).Content);
+        Assert.Equal("Purchase-Order-PO-0001.pdf", attachment.FileName);
     }
 
     [Fact]
@@ -56,6 +60,7 @@ public sealed class EmailRecordServiceTests
         var original = fixture.AddEmail(EmailDeliveryStatus.Sent);
         original.AttemptCount = 1;
         original.SentAtUtc = DateTimeOffset.UtcNow;
+        var originalPdf = AddAttachment(original);
         await fixture.DbContext.SaveChangesAsync();
 
         var result = await fixture.Service.ResendAsync(original.Id, CancellationToken.None);
@@ -70,6 +75,73 @@ public sealed class EmailRecordServiceTests
         Assert.Equal(original.TemplateCode, result.EmailRecord.TemplateCode);
         Assert.Equal(original.TemplateVersion, result.EmailRecord.TemplateVersion);
         Assert.Equal("Demo Procurement", result.EmailRecord.CreatedByName);
+        var attachments = await fixture.DbContext.EmailAttachments
+            .OrderBy(attachment => attachment.Id)
+            .ToListAsync();
+        Assert.Equal(2, attachments.Count);
+        Assert.Equal(originalPdf, attachments[0].Content);
+        Assert.Equal(originalPdf, attachments[1].Content);
+        Assert.NotSame(attachments[0].Content, attachments[1].Content);
+        Assert.Single(result.EmailRecord.Attachments);
+    }
+
+    [Fact]
+    public async Task GetAttachmentAsync_ReturnsOnlyAttachmentOwnedByEmailRecord()
+    {
+        await using var fixture = await EmailRecordFixture.CreateAsync();
+        var first = fixture.AddEmail(EmailDeliveryStatus.Sent);
+        var firstAttachmentBytes = AddAttachment(first);
+        var second = fixture.AddEmail(EmailDeliveryStatus.Sent, "PO-0002");
+        var secondAttachmentBytes = AddAttachment(second, "Purchase-Order-PO-0002.pdf");
+        await fixture.DbContext.SaveChangesAsync();
+
+        var firstFile = await fixture.Service.GetAttachmentAsync(
+            first.Id,
+            first.Attachments.Single().Id,
+            CancellationToken.None);
+        var wrongOwner = await fixture.Service.GetAttachmentAsync(
+            first.Id,
+            second.Attachments.Single().Id,
+            CancellationToken.None);
+
+        Assert.NotNull(firstFile);
+        Assert.Equal(firstAttachmentBytes, firstFile.Content);
+        Assert.NotEqual(secondAttachmentBytes, firstFile.Content);
+        Assert.Null(wrongOwner);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_ReturnsSavedAttachmentMetadataFromDatabase()
+    {
+        await using var fixture = await EmailRecordFixture.CreateAsync();
+        var email = fixture.AddEmail(EmailDeliveryStatus.Sent);
+        var pdfContent = AddAttachment(email);
+        await fixture.DbContext.SaveChangesAsync();
+        var emailId = email.Id;
+        fixture.DbContext.ChangeTracker.Clear();
+
+        var result = await fixture.Service.GetByIdAsync(emailId, CancellationToken.None);
+
+        Assert.NotNull(result);
+        var attachment = Assert.Single(result.Attachments);
+        Assert.Equal("Purchase-Order-PO-0001.pdf", attachment.FileName);
+        Assert.Equal("application/pdf", attachment.ContentType);
+        Assert.Equal(pdfContent.LongLength, attachment.FileSizeBytes);
+    }
+
+    private static byte[] AddAttachment(
+        EmailOutbox email,
+        string fileName = "Purchase-Order-PO-0001.pdf")
+    {
+        var content = System.Text.Encoding.UTF8.GetBytes($"%PDF snapshot for {fileName}");
+        email.Attachments.Add(new EmailAttachment
+        {
+            FileName = fileName,
+            ContentType = "application/pdf",
+            FileSizeBytes = content.LongLength,
+            Content = content
+        });
+        return content;
     }
 
     [Fact]

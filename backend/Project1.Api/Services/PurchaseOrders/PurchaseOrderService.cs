@@ -13,6 +13,7 @@ public sealed class PurchaseOrderService(
     AppDbContext dbContext,
     ICurrentUserContext currentUser,
     IEmailTemplateRenderer emailRenderer,
+    IPurchaseOrderPdfGenerator pdfGenerator,
     IOptions<SmtpOptions> smtpOptions) : IPurchaseOrderService
 {
     private readonly SmtpOptions smtp = smtpOptions.Value;
@@ -262,13 +263,30 @@ public sealed class PurchaseOrderService(
         var rendered = renderedEmail.RenderedEmail!;
         var email = rendered.Message;
         var now = DateTimeOffset.UtcNow;
+        var issuedByName = CurrentUserName();
+        byte[] pdfContent;
+        try
+        {
+            pdfContent = pdfGenerator.Generate(purchaseOrder, issuedByName, now);
+            if (pdfContent.Length == 0)
+            {
+                return InvalidState(
+                    "The Purchase Order PDF could not be generated. The order remains in Draft.");
+            }
+        }
+        catch (Exception)
+        {
+            return InvalidState(
+                "The Purchase Order PDF could not be generated. The order remains in Draft.");
+        }
+
         purchaseOrder.Status = PurchaseOrderStatus.Issued;
         purchaseOrder.IssuedAtUtc = now;
         purchaseOrder.IssuedByUserId = currentUser.UserId;
-        purchaseOrder.IssuedByName = CurrentUserName();
+        purchaseOrder.IssuedByName = issuedByName;
         purchaseOrder.UpdatedAtUtc = now;
 
-        purchaseOrder.EmailOutboxes.Add(new EmailOutbox
+        var emailOutbox = new EmailOutbox
         {
             SourceType = "PurchaseOrder",
             SourceId = purchaseOrder.Id,
@@ -284,10 +302,19 @@ public sealed class PurchaseOrderService(
             TemplateVersion = rendered.TemplateVersion,
             Status = EmailDeliveryStatus.Pending,
             CreatedByUserId = currentUser.UserId,
-            CreatedByName = CurrentUserName(),
+            CreatedByName = issuedByName,
             CreatedDate = DateOnly.FromDateTime(now.UtcDateTime),
             CreatedAtUtc = now
+        };
+        emailOutbox.Attachments.Add(new EmailAttachment
+        {
+            FileName = $"Purchase-Order-{purchaseOrder.PurchaseOrderNumber}.pdf",
+            ContentType = "application/pdf",
+            FileSizeBytes = pdfContent.LongLength,
+            Content = pdfContent,
+            CreatedAtUtc = now
         });
+        purchaseOrder.EmailOutboxes.Add(emailOutbox);
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return await SuccessResultAsync(id, cancellationToken);

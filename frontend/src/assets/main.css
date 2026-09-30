@@ -2946,6 +2946,79 @@ tbody tr:hover {
   border-radius: 12px;
 }
 
+.email-record-attachments {
+  overflow: hidden;
+  border: 1px solid #dce6e3;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.email-record-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid #dce6e3;
+  background: #f8fbfa;
+}
+
+.email-record-section-heading > div,
+.email-attachment-item > div:first-of-type {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.email-record-section-heading span,
+.email-attachment-item span,
+.email-attachment-empty {
+  color: #84918f;
+  font-size: 0.78rem;
+}
+
+.email-attachment-list {
+  display: grid;
+}
+
+.email-attachment-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.9rem 1.1rem;
+}
+
+.email-attachment-item + .email-attachment-item {
+  border-top: 1px solid #dce6e3;
+}
+
+.email-attachment-icon {
+  display: grid;
+  width: 2.8rem;
+  height: 2.8rem;
+  place-items: center;
+  border-radius: 10px;
+  background: #fce9e9;
+  color: #a52b2b !important;
+  font-size: 0.7rem !important;
+  font-weight: 800;
+}
+
+.email-attachment-item strong {
+  overflow-wrap: anywhere;
+}
+
+.email-attachment-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.email-attachment-empty {
+  margin: 0;
+  padding: 1rem 1.1rem;
+}
+
 .email-record-content > div {
   display: flex;
   align-items: center;

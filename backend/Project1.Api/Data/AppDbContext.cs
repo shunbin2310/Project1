@@ -36,6 +36,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<EmailOutbox> EmailOutboxes => Set<EmailOutbox>();
 
+    public DbSet<EmailAttachment> EmailAttachments => Set<EmailAttachment>();
+
     public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
 
     public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
@@ -596,6 +598,36 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasOne(email => email.PurchaseOrder)
                 .WithMany(order => order.EmailOutboxes)
                 .HasForeignKey(email => email.PurchaseOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EmailAttachment>(entity =>
+        {
+            entity.ToTable("EmailAttachments");
+
+            entity.HasKey(attachment => attachment.Id);
+
+            entity.HasIndex(attachment => new
+            {
+                attachment.EmailOutboxId,
+                attachment.FileName
+            })
+                .IsUnique();
+
+            entity.Property(attachment => attachment.FileName)
+                .HasMaxLength(255)
+                .IsRequired();
+
+            entity.Property(attachment => attachment.ContentType)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(attachment => attachment.Content)
+                .IsRequired();
+
+            entity.HasOne(attachment => attachment.EmailOutbox)
+                .WithMany(email => email.Attachments)
+                .HasForeignKey(attachment => attachment.EmailOutboxId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

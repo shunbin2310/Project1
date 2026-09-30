@@ -27,6 +27,15 @@ public sealed class SmtpEmailSender(IOptions<SmtpOptions> options) : IEmailSende
         AddRecipients(mailMessage.CC, message.CcRecipients);
         AddRecipients(mailMessage.Bcc, message.BccRecipients);
 
+        foreach (var attachment in message.Attachments ?? [])
+        {
+            var contentStream = new MemoryStream(attachment.Content, writable: false);
+            mailMessage.Attachments.Add(new Attachment(
+                contentStream,
+                attachment.FileName,
+                attachment.ContentType));
+        }
+
         using var smtpClient = new SmtpClient(options.Host, options.Port)
         {
             EnableSsl = options.UseSsl,
