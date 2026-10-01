@@ -6,14 +6,82 @@ using Project1.Api.Authentication;
 using Project1.Api.Data;
 using Project1.Api.DTOs.PurchaseOrders;
 using Project1.Api.Entities;
+using Project1.Api.Entities.Workflows;
 using Project1.Api.Email;
 using Project1.Api.Services.Authentication;
 using Project1.Api.Services.PurchaseOrders;
+using Project1.Api.Services.Workflows;
 
 namespace Project1.Api.Tests.Services;
 
 public sealed class PurchaseOrderServiceTests
 {
+    [Fact]
+    public async Task ExecuteActionAsync_SubmitApproveAndRejectFollowWorkflowRules()
+    {
+        await using var fixture = await PurchaseOrderFixture.CreateAsync();
+        fixture.CurrentUser.Set(
+            10,
+            "Procurement Officer",
+            ApplicationRoles.ProcurementOfficer);
+        var created = await fixture.Service.CreateAsync(
+            fixture.ValidRequest(),
+            CancellationToken.None);
+
+        var submitted = await fixture.Service.ExecuteActionAsync(
+            created.PurchaseOrder!.Id,
+            PurchaseOrderWorkflow.SubmitAction,
+            new PurchaseOrderActionRequest(),
+            CancellationToken.None);
+
+        fixture.CurrentUser.Set(
+            11,
+            "Purchase Order Approver",
+            ApplicationRoles.PurchaseOrderApprover);
+        var missingComment = await fixture.Service.ExecuteActionAsync(
+            created.PurchaseOrder.Id,
+            PurchaseOrderWorkflow.RejectAction,
+            new PurchaseOrderActionRequest(),
+            CancellationToken.None);
+        var rejected = await fixture.Service.ExecuteActionAsync(
+            created.PurchaseOrder.Id,
+            PurchaseOrderWorkflow.RejectAction,
+            new PurchaseOrderActionRequest { Comment = "Please correct the delivery address." },
+            CancellationToken.None);
+
+        Assert.Equal(PurchaseOrderStatus.PendingApproval, submitted.PurchaseOrder!.Status);
+        Assert.Equal(PurchaseOrderOperationStatus.ValidationFailed, missingComment.Status);
+        Assert.Equal(PurchaseOrderStatus.Draft, rejected.PurchaseOrder!.Status);
+        Assert.Contains(
+            rejected.PurchaseOrder.Workflow!.History,
+            entry => entry.ActionCode == PurchaseOrderWorkflow.RejectAction &&
+                     entry.Comment == "Please correct the delivery address.");
+    }
+
+    [Fact]
+    public async Task ExecuteActionAsync_LazilyStartsWorkflowForLegacyDraft()
+    {
+        await using var fixture = await PurchaseOrderFixture.CreateAsync();
+        var created = await fixture.Service.CreateAsync(
+            fixture.ValidRequest(),
+            CancellationToken.None);
+        var workflowEngine = new WorkflowEngine(fixture.DbContext);
+        await workflowEngine.DeleteInstanceAsync(
+            PurchaseOrderWorkflow.EntityType,
+            created.PurchaseOrder!.Id,
+            CancellationToken.None);
+
+        var submitted = await fixture.Service.ExecuteActionAsync(
+            created.PurchaseOrder.Id,
+            PurchaseOrderWorkflow.SubmitAction,
+            new PurchaseOrderActionRequest(),
+            CancellationToken.None);
+
+        Assert.Equal(PurchaseOrderOperationStatus.Success, submitted.Status);
+        Assert.Equal(PurchaseOrderStatus.PendingApproval, submitted.PurchaseOrder!.Status);
+        Assert.Equal(PurchaseOrderWorkflow.PendingApprovalStep, submitted.PurchaseOrder.Workflow!.CurrentStepCode);
+    }
+
     [Fact]
     public async Task CreateAsync_CopiesSelectedQuotationIntoDraftSnapshot()
     {
@@ -27,6 +95,8 @@ public sealed class PurchaseOrderServiceTests
         Assert.NotNull(result.PurchaseOrder);
         Assert.StartsWith("PO-", result.PurchaseOrder.PurchaseOrderNumber);
         Assert.Equal(PurchaseOrderStatus.Draft, result.PurchaseOrder.Status);
+        Assert.NotNull(result.PurchaseOrder.Workflow);
+        Assert.Equal(PurchaseOrderWorkflow.DraftStep, result.PurchaseOrder.Workflow.CurrentStepCode);
         Assert.Equal("QT-0001", result.PurchaseOrder.QuotationNumber);
         Assert.Equal("PR-0001", result.PurchaseOrder.PurchaseRequestNumber);
         Assert.Equal("SUP-0001", result.PurchaseOrder.SupplierCode);
@@ -95,6 +165,7 @@ public sealed class PurchaseOrderServiceTests
         };
 
         var updated = await fixture.Service.UpdateAsync(id, update, CancellationToken.None);
+        await fixture.ApproveAsync(id);
         await fixture.Service.IssueAsync(id, CancellationToken.None);
         var rejected = await fixture.Service.UpdateAsync(id, update, CancellationToken.None);
 
@@ -117,8 +188,10 @@ public sealed class PurchaseOrderServiceTests
         };
         var created = await fixture.Service.CreateAsync(request, CancellationToken.None);
 
-        var rejected = await fixture.Service.IssueAsync(
+        var rejected = await fixture.Service.ExecuteActionAsync(
             created.PurchaseOrder!.Id,
+            PurchaseOrderWorkflow.SubmitAction,
+            new PurchaseOrderActionRequest(),
             CancellationToken.None);
         await fixture.Service.UpdateAsync(
             created.PurchaseOrder.Id,
@@ -129,6 +202,7 @@ public sealed class PurchaseOrderServiceTests
                 DeliveryAddress = "Main warehouse"
             },
             CancellationToken.None);
+        await fixture.ApproveAsync(created.PurchaseOrder.Id);
         var issued = await fixture.Service.IssueAsync(
             created.PurchaseOrder.Id,
             CancellationToken.None);
@@ -169,15 +243,16 @@ public sealed class PurchaseOrderServiceTests
         var created = await fixture.Service.CreateAsync(
             fixture.ValidRequest(),
             CancellationToken.None);
+        await fixture.ApproveAsync(created.PurchaseOrder!.Id);
 
         var result = await fixture.Service.IssueAsync(
-            created.PurchaseOrder!.Id,
+            created.PurchaseOrder.Id,
             CancellationToken.None);
 
         Assert.Equal(PurchaseOrderOperationStatus.InvalidState, result.Status);
         Assert.Contains("PDF could not be generated", result.ErrorMessage);
         Assert.Equal(
-            PurchaseOrderStatus.Draft,
+            PurchaseOrderStatus.Approved,
             (await fixture.DbContext.PurchaseOrders.SingleAsync()).Status);
         Assert.Empty(fixture.DbContext.EmailOutboxes);
         Assert.Empty(fixture.DbContext.EmailAttachments);
@@ -192,15 +267,16 @@ public sealed class PurchaseOrderServiceTests
         var created = await fixture.Service.CreateAsync(
             fixture.ValidRequest(),
             CancellationToken.None);
+        await fixture.ApproveAsync(created.PurchaseOrder!.Id);
 
         var result = await fixture.Service.IssueAsync(
-            created.PurchaseOrder!.Id,
+            created.PurchaseOrder.Id,
             CancellationToken.None);
 
         Assert.Equal(PurchaseOrderOperationStatus.InvalidState, result.Status);
         Assert.Contains("active Purchase Order email template", result.ErrorMessage);
         Assert.Equal(
-            PurchaseOrderStatus.Draft,
+            PurchaseOrderStatus.Approved,
             (await fixture.DbContext.PurchaseOrders.SingleAsync()).Status);
         Assert.Empty(fixture.DbContext.EmailOutboxes);
     }
@@ -214,9 +290,10 @@ public sealed class PurchaseOrderServiceTests
         var created = await fixture.Service.CreateAsync(
             fixture.ValidRequest(),
             CancellationToken.None);
+        await fixture.ApproveAsync(created.PurchaseOrder!.Id);
 
         var result = await fixture.Service.IssueAsync(
-            created.PurchaseOrder!.Id,
+            created.PurchaseOrder.Id,
             CancellationToken.None);
 
         Assert.Equal(PurchaseOrderOperationStatus.ValidationFailed, result.Status);
@@ -231,6 +308,7 @@ public sealed class PurchaseOrderServiceTests
         var created = await fixture.Service.CreateAsync(
             fixture.ValidRequest(),
             CancellationToken.None);
+        await fixture.ApproveAsync(created.PurchaseOrder!.Id);
         await fixture.Service.IssueAsync(created.PurchaseOrder!.Id, CancellationToken.None);
         var sender = new FakeEmailSender();
         var processor = new EmailOutboxProcessor(
@@ -260,6 +338,7 @@ public sealed class PurchaseOrderServiceTests
         var created = await fixture.Service.CreateAsync(
             fixture.ValidRequest(),
             CancellationToken.None);
+        await fixture.ApproveAsync(created.PurchaseOrder!.Id);
         await fixture.Service.IssueAsync(created.PurchaseOrder!.Id, CancellationToken.None);
         var failingSender = new FakeEmailSender(new InvalidOperationException("SMTP unavailable"));
         var failingProcessor = new EmailOutboxProcessor(
@@ -306,6 +385,7 @@ public sealed class PurchaseOrderServiceTests
             id,
             new CancelPurchaseOrderRequest { Reason = "Supplier unavailable." },
             CancellationToken.None);
+        await fixture.ApproveAsync(id);
         await fixture.Service.IssueAsync(id, CancellationToken.None);
         var missingReason = await fixture.Service.CancelAsync(
             id,
@@ -338,6 +418,7 @@ public sealed class PurchaseOrderServiceTests
         var second = await fixture.Service.CreateAsync(
             fixture.ValidRequest(),
             CancellationToken.None);
+        await fixture.ApproveAsync(second.PurchaseOrder!.Id);
         await fixture.Service.IssueAsync(second.PurchaseOrder!.Id, CancellationToken.None);
         var rejected = await fixture.Service.DeleteAsync(
             second.PurchaseOrder.Id,
@@ -365,9 +446,11 @@ public sealed class PurchaseOrderServiceTests
             Supplier = supplier;
             Product = product;
             Quotation = quotation;
+            CurrentUser = new FakeCurrentUserContext();
             Service = new PurchaseOrderService(
                 dbContext,
-                new FakeCurrentUserContext(),
+                new WorkflowEngine(dbContext),
+                CurrentUser,
                 new EmailTemplateRenderer(dbContext),
                 pdfGenerator,
                 Options.Create(new SmtpOptions
@@ -380,6 +463,8 @@ public sealed class PurchaseOrderServiceTests
         public AppDbContext DbContext { get; }
 
         public PurchaseOrderService Service { get; }
+
+        public FakeCurrentUserContext CurrentUser { get; }
 
         public Supplier Supplier { get; }
 
@@ -413,6 +498,7 @@ public sealed class PurchaseOrderServiceTests
                 PublishedByName = "System",
                 PublishedAtUtc = DateTimeOffset.UtcNow
             });
+            dbContext.WorkflowProcessTemplates.Add(CreatePurchaseOrderWorkflowTemplate());
 
             var category = new ProductCategory { Code = "CAT-TEST", Name = "Test Category" };
             var unit = new UnitOfMeasure { Code = "UNIT", Name = "Unit" };
@@ -493,6 +579,103 @@ public sealed class PurchaseOrderServiceTests
             Notes = "Deliver during office hours."
         };
 
+        public async Task ApproveAsync(int id)
+        {
+            var submitted = await Service.ExecuteActionAsync(
+                id,
+                PurchaseOrderWorkflow.SubmitAction,
+                new PurchaseOrderActionRequest(),
+                CancellationToken.None);
+            Assert.Equal(PurchaseOrderOperationStatus.Success, submitted.Status);
+            Assert.Equal(PurchaseOrderStatus.PendingApproval, submitted.PurchaseOrder!.Status);
+
+            var approved = await Service.ExecuteActionAsync(
+                id,
+                PurchaseOrderWorkflow.ApproveAction,
+                new PurchaseOrderActionRequest(),
+                CancellationToken.None);
+            Assert.Equal(PurchaseOrderOperationStatus.Success, approved.Status);
+            Assert.Equal(PurchaseOrderStatus.Approved, approved.PurchaseOrder!.Status);
+        }
+
+        private static WorkflowProcessTemplate CreatePurchaseOrderWorkflowTemplate()
+        {
+            var draft = new WorkflowStepTemplate
+            {
+                Code = PurchaseOrderWorkflow.DraftStep,
+                Name = "Draft",
+                DisplayOrder = 1,
+                IsInitial = true
+            };
+            var pending = new WorkflowStepTemplate
+            {
+                Code = PurchaseOrderWorkflow.PendingApprovalStep,
+                Name = "Pending Approval",
+                DisplayOrder = 2
+            };
+            var approved = new WorkflowStepTemplate
+            {
+                Code = PurchaseOrderWorkflow.ApprovedStep,
+                Name = "Approved",
+                DisplayOrder = 3,
+                IsTerminal = true
+            };
+            draft.Actions.Add(new WorkflowActionTemplate
+            {
+                Code = PurchaseOrderWorkflow.SubmitAction,
+                Name = "Submit for approval",
+                ToStepTemplate = pending,
+                Actioners =
+                [
+                    new WorkflowActionerTemplate
+                    {
+                        ActionerType = WorkflowActionerType.Requester
+                    }
+                ]
+            });
+            pending.Actions.Add(new WorkflowActionTemplate
+            {
+                Code = PurchaseOrderWorkflow.ApproveAction,
+                Name = "Approve purchase order",
+                ToStepTemplate = approved,
+                Actioners =
+                [
+                    new WorkflowActionerTemplate
+                    {
+                        ActionerType = WorkflowActionerType.Role,
+                        ActionerKey = ApplicationRoles.PurchaseOrderApprover
+                    }
+                ]
+            });
+            pending.Actions.Add(new WorkflowActionTemplate
+            {
+                Code = PurchaseOrderWorkflow.RejectAction,
+                Name = "Reject purchase order",
+                ToStepTemplate = draft,
+                RequiresComment = true,
+                Actioners =
+                [
+                    new WorkflowActionerTemplate
+                    {
+                        ActionerType = WorkflowActionerType.Role,
+                        ActionerKey = ApplicationRoles.PurchaseOrderApprover
+                    }
+                ]
+            });
+
+            return new WorkflowProcessTemplate
+            {
+                Code = PurchaseOrderWorkflow.TemplateCode,
+                Name = PurchaseOrderWorkflow.TemplateName,
+                EntityType = PurchaseOrderWorkflow.EntityType,
+                Version = 1,
+                IsPublished = true,
+                IsActive = true,
+                PublishedAtUtc = DateTimeOffset.UtcNow,
+                Steps = [draft, pending, approved]
+            };
+        }
+
         public async ValueTask DisposeAsync()
         {
             await DbContext.DisposeAsync();
@@ -504,16 +687,23 @@ public sealed class PurchaseOrderServiceTests
     {
         public bool IsAuthenticated => true;
 
-        public int UserId => 4;
+        public int UserId { get; private set; } = 4;
 
-        public string DisplayName => "Demo Admin";
+        public string DisplayName { get; private set; } = "Demo Admin";
 
         public int? DepartmentId => 1;
 
-        public IReadOnlyCollection<string> Roles => [ApplicationRoles.Admin];
+        public IReadOnlyCollection<string> Roles { get; private set; } = [ApplicationRoles.Admin];
 
         public bool IsInRole(string role) =>
-            string.Equals(role, ApplicationRoles.Admin, StringComparison.OrdinalIgnoreCase);
+            Roles.Contains(role, StringComparer.OrdinalIgnoreCase);
+
+        public void Set(int userId, string displayName, params string[] roles)
+        {
+            UserId = userId;
+            DisplayName = displayName;
+            Roles = roles;
+        }
     }
 
     private sealed class FakeEmailSender(Exception? exception = null) : IEmailSender

@@ -64,6 +64,27 @@ public sealed class PurchaseOrdersControllerTests
     }
 
     [Fact]
+    public async Task ExecuteAction_ReturnsForbidden_WhenActorIsNotAuthorized()
+    {
+        var service = new FakePurchaseOrderService
+        {
+            ActionResult = new PurchaseOrderOperationResult(
+                PurchaseOrderOperationStatus.Unauthorized,
+                ErrorMessage: "The current user cannot approve this purchase order.")
+        };
+        var controller = new PurchaseOrdersController(service);
+
+        var response = await controller.ExecuteAction(
+            1,
+            PurchaseOrderWorkflow.ApproveAction,
+            new PurchaseOrderActionRequest(),
+            CancellationToken.None);
+
+        var forbidden = Assert.IsType<ObjectResult>(response.Result);
+        Assert.Equal(StatusCodes.Status403Forbidden, forbidden.StatusCode);
+    }
+
+    [Fact]
     public async Task Delete_ReturnsNoContent_WhenDraftIsDeleted()
     {
         var controller = new PurchaseOrdersController(new FakePurchaseOrderService());
@@ -123,7 +144,8 @@ public sealed class PurchaseOrdersControllerTests
         null,
         null,
         null,
-        []);
+        [],
+        null);
 
     private sealed class FakePurchaseOrderService : IPurchaseOrderService
     {
@@ -136,6 +158,9 @@ public sealed class PurchaseOrdersControllerTests
             new(PurchaseOrderOperationStatus.Success, CreateResponse());
 
         public PurchaseOrderOperationResult IssueResult { get; init; } =
+            new(PurchaseOrderOperationStatus.Success, CreateResponse());
+
+        public PurchaseOrderOperationResult ActionResult { get; init; } =
             new(PurchaseOrderOperationStatus.Success, CreateResponse());
 
         public PurchaseOrderOperationResult CancelResult { get; init; } =
@@ -167,6 +192,12 @@ public sealed class PurchaseOrdersControllerTests
         public Task<PurchaseOrderOperationResult> IssueAsync(
             int id,
             CancellationToken cancellationToken) => Task.FromResult(IssueResult);
+
+        public Task<PurchaseOrderOperationResult> ExecuteActionAsync(
+            int id,
+            string actionCode,
+            PurchaseOrderActionRequest request,
+            CancellationToken cancellationToken) => Task.FromResult(ActionResult);
 
         public Task<PurchaseOrderEmailPreviewResponse?> GetEmailPreviewAsync(
             int id,

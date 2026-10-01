@@ -2,6 +2,7 @@ import { apiRequest, ApiError } from '@/services/apiClient'
 import type {
   CreatePurchaseOrderRequest,
   PurchaseOrder,
+  PurchaseOrderActionRequest,
   PurchaseOrderStatus,
   UpdatePurchaseOrderRequest,
 } from '@/types/purchaseOrder'
@@ -41,6 +42,14 @@ export const purchaseOrderService = {
   update(id: number, payload: UpdatePurchaseOrderRequest) {
     return request<PurchaseOrder>(`/api/purchase-orders/${id}`, {
       method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  },
+
+  executeAction(id: number, actionCode: string, payload: PurchaseOrderActionRequest) {
+    return request<PurchaseOrder>(`/api/purchase-orders/${id}/actions/${actionCode}`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })

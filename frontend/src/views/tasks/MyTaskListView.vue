@@ -3,13 +3,18 @@ import { computed, onMounted, ref } from 'vue'
 
 import PurchaseRequestDetails from '@/components/purchase-requests/PurchaseRequestDetails.vue'
 import PurchaseRequestForm from '@/components/purchase-requests/PurchaseRequestForm.vue'
+import PurchaseOrderDetails from '@/components/purchase-orders/PurchaseOrderDetails.vue'
+import PurchaseOrderForm from '@/components/purchase-orders/PurchaseOrderForm.vue'
 import WorkflowActionDialog from '@/components/purchase-requests/WorkflowActionDialog.vue'
 import AppToast from '@/components/ui/AppToast.vue'
 import { useToast } from '@/composables/useToast'
 import { productService } from '@/services/productService'
 import { purchaseRequestService } from '@/services/purchaseRequestService'
+import { purchaseOrderService } from '@/services/purchaseOrderService'
 import { useAuthStore } from '@/stores/auth'
+import { applicationRoles } from '@/types/auth'
 import type { Product } from '@/types/product'
+import type { PurchaseOrder, PurchaseOrderFormValues } from '@/types/purchaseOrder'
 import type {
   PurchaseRequest,
   PurchaseRequestFormValues,
@@ -22,6 +27,7 @@ import {
 } from '@/utils/workflowAuthorization'
 
 const requests = ref<PurchaseRequest[]>([])
+const purchaseOrders = ref<PurchaseOrder[]>([])
 const products = ref<Product[]>([])
 const loading = ref(true)
 const saving = ref(false)
@@ -30,7 +36,9 @@ const loadError = ref('')
 const formError = ref('')
 const actionError = ref('')
 const selectedRequest = ref<PurchaseRequest | null>(null)
+const selectedPurchaseOrder = ref<PurchaseOrder | null>(null)
 const editingRequest = ref<PurchaseRequest | null>(null)
+const editingPurchaseOrder = ref<PurchaseOrder | null>(null)
 const selectedAction = ref<WorkflowAvailableAction | null>(null)
 const authStore = useAuthStore()
 const { toast, showSuccess, dismissToast } = useToast()
@@ -40,8 +48,20 @@ const actor = computed<WorkflowActorIdentity>(() => ({
   name: authStore.user?.fullName ?? 'Current user',
   roles: authStore.roles,
 }))
+const canLoadPurchaseOrders = computed(
+  () =>
+    authStore.roles.includes(applicationRoles.admin) ||
+    authStore.roles.includes(applicationRoles.procurementOfficer) ||
+    authStore.roles.includes(applicationRoles.purchaseOrderApprover),
+)
+const canLoadPurchaseRequests = computed(
+  () => authStore.roles.some((role) => role !== applicationRoles.purchaseOrderApprover),
+)
 const currentTasks = computed(() =>
   requests.value.filter((request) => authorizedActions(request).length > 0),
+)
+const currentPurchaseOrderTasks = computed(() =>
+  purchaseOrders.value.filter((order) => authorizedPurchaseOrderActions(order).length > 0),
 )
 
 onMounted(loadTasks)
@@ -59,16 +79,34 @@ function canEditTask(request: PurchaseRequest) {
   )
 }
 
+function authorizedPurchaseOrderActions(order: PurchaseOrder) {
+  return order.workflow
+    ? getAuthorizedWorkflowActions(order.workflow.availableActions, actor.value)
+    : []
+}
+
+function canEditPurchaseOrderTask(order: PurchaseOrder) {
+  return (
+    order.workflow?.currentStepCode === 'DRAFT' &&
+    order.workflow.availableActions.some(
+      (action) =>
+        action.code === 'SUBMIT' && isWorkflowActionDirectlyAssignedToActor(action, actor.value),
+    )
+  )
+}
+
 async function loadTasks() {
   loading.value = true
   loadError.value = ''
 
   try {
-    const [requestRecords, productRecords] = await Promise.all([
-      purchaseRequestService.getAll(),
+    const [requestRecords, purchaseOrderRecords, productRecords] = await Promise.all([
+      canLoadPurchaseRequests.value ? purchaseRequestService.getAll() : Promise.resolve([]),
+      canLoadPurchaseOrders.value ? purchaseOrderService.getAll() : Promise.resolve([]),
       productService.getAll(true),
     ])
     requests.value = requestRecords
+    purchaseOrders.value = purchaseOrderRecords
     products.value = productRecords
   } catch (error) {
     loadError.value = getErrorMessage(error, 'Unable to load your workflow tasks.')
@@ -92,6 +130,54 @@ function closeEditForm() {
   if (saving.value) return
   editingRequest.value = null
   formError.value = ''
+}
+
+function openPurchaseOrderDetails(order: PurchaseOrder) {
+  selectedPurchaseOrder.value = order
+}
+
+function openPurchaseOrderEditForm(order: PurchaseOrder) {
+  if (!canEditPurchaseOrderTask(order)) return
+  selectedPurchaseOrder.value = null
+  editingPurchaseOrder.value = order
+  formError.value = ''
+}
+
+function closePurchaseOrderEditForm() {
+  if (saving.value) return
+  editingPurchaseOrder.value = null
+  formError.value = ''
+}
+
+async function savePurchaseOrder(values: PurchaseOrderFormValues, submitAfterSave: boolean) {
+  if (!editingPurchaseOrder.value) return
+
+  saving.value = true
+  formError.value = ''
+  const order = editingPurchaseOrder.value
+  try {
+    let updated = await purchaseOrderService.update(order.id, {
+      orderDate: values.orderDate,
+      expectedDeliveryDate: values.expectedDeliveryDate,
+      deliveryAddress: values.deliveryAddress,
+      notes: values.notes,
+    })
+    if (submitAfterSave) {
+      updated = await purchaseOrderService.executeAction(updated.id, 'SUBMIT', { comment: null })
+    }
+
+    editingPurchaseOrder.value = null
+    showSuccess(
+      submitAfterSave
+        ? `${updated.purchaseOrderNumber} was submitted for approval.`
+        : `${updated.purchaseOrderNumber} draft was updated.`,
+    )
+    await loadTasks()
+  } catch (error) {
+    formError.value = getErrorMessage(error, 'Unable to update the purchase order.')
+  } finally {
+    saving.value = false
+  }
 }
 
 async function saveRequest(values: PurchaseRequestFormValues, submitAfterSave: boolean) {
@@ -127,10 +213,19 @@ async function saveRequest(values: PurchaseRequestFormValues, submitAfterSave: b
 function closeDetails() {
   if (actioning.value) return
   selectedRequest.value = null
+  selectedPurchaseOrder.value = null
   selectedAction.value = null
 }
 
 function openAction(action: WorkflowAvailableAction) {
+  selectedPurchaseOrder.value = null
+  selectedAction.value = action
+  actionError.value = ''
+}
+
+function openPurchaseOrderAction(order: PurchaseOrder, action: WorkflowAvailableAction) {
+  selectedRequest.value = null
+  selectedPurchaseOrder.value = order
   selectedAction.value = action
   actionError.value = ''
 }
@@ -142,21 +237,31 @@ function closeAction() {
 }
 
 async function executeAction(comment: string | null) {
-  if (!selectedRequest.value || !selectedAction.value) return
+  if ((!selectedRequest.value && !selectedPurchaseOrder.value) || !selectedAction.value) return
   const action = selectedAction.value
 
   actioning.value = true
   actionError.value = ''
 
   try {
-    const updated = await purchaseRequestService.executeAction(
-      selectedRequest.value.id,
-      action.code,
-      { comment },
-    )
+    if (selectedPurchaseOrder.value) {
+      const updated = await purchaseOrderService.executeAction(
+        selectedPurchaseOrder.value.id,
+        action.code,
+        { comment },
+      )
+      showSuccess(`${updated.purchaseOrderNumber}: ${action.name} completed.`)
+    } else {
+      const updated = await purchaseRequestService.executeAction(
+        selectedRequest.value!.id,
+        action.code,
+        { comment },
+      )
+      showSuccess(`${updated.requestNumber}: ${action.name} completed.`)
+    }
     selectedAction.value = null
     selectedRequest.value = null
-    showSuccess(`${updated.requestNumber}: ${action.name} completed.`)
+    selectedPurchaseOrder.value = null
     await loadTasks()
   } catch (error) {
     actionError.value = getErrorMessage(error, 'Unable to execute the workflow action.')
@@ -197,10 +302,10 @@ function stepClass(stepCode: string) {
       </div>
     </header>
 
-    <section class="data-panel" aria-labelledby="current-tasks-title">
+    <section class="data-panel" aria-labelledby="purchase-request-tasks-title">
       <div class="panel-toolbar">
         <div>
-          <h2 id="current-tasks-title">Pending workflow tasks</h2>
+          <h2 id="purchase-request-tasks-title">Purchase Request Tasks</h2>
           <p v-if="loading">Checking workflow assignments</p>
           <p v-else>
             {{ currentTasks.length }} {{ currentTasks.length === 1 ? 'task' : 'tasks' }} assigned to
@@ -223,8 +328,8 @@ function stepClass(stepCode: string) {
 
       <div v-else-if="currentTasks.length === 0" class="panel-state">
         <div class="empty-icon" aria-hidden="true">OK</div>
-        <strong>You're all caught up</strong>
-        <p>No workflow item currently needs an action from you.</p>
+        <strong>No purchase request tasks</strong>
+        <p>No purchase request currently needs an action from you.</p>
       </div>
 
       <div v-else class="table-scroll">
@@ -291,6 +396,93 @@ function stepClass(stepCode: string) {
       </div>
     </section>
 
+    <section
+      v-if="!loading && !loadError"
+      class="data-panel"
+      aria-labelledby="purchase-order-tasks-title"
+    >
+      <div class="panel-toolbar">
+        <div>
+          <h2 id="purchase-order-tasks-title">Purchase Order Tasks</h2>
+          <p>
+            {{ currentPurchaseOrderTasks.length }}
+            {{ currentPurchaseOrderTasks.length === 1 ? 'task' : 'tasks' }} assigned to your account
+          </p>
+        </div>
+      </div>
+
+      <div v-if="currentPurchaseOrderTasks.length === 0" class="panel-state">
+        <div class="empty-icon" aria-hidden="true">OK</div>
+        <strong>No purchase order tasks</strong>
+        <p>No purchase order currently needs an action from you.</p>
+      </div>
+
+      <div v-else class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Purchase order</th>
+              <th>Supplier</th>
+              <th>Purchase request</th>
+              <th>Expected delivery</th>
+              <th>Total</th>
+              <th>Current step</th>
+              <th><span class="sr-only">Details</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="task in currentPurchaseOrderTasks" :key="task.id">
+              <td>
+                <div class="purchase-order-identity">
+                  <span class="code-avatar">PO</span>
+                  <span>
+                    <strong>{{ task.purchaseOrderNumber }}</strong>
+                    <small>{{ task.quotationNumber }}</small>
+                  </span>
+                </div>
+              </td>
+              <td>
+                <span class="table-primary">{{ task.supplierName }}</span>
+                <small class="table-secondary">{{ task.supplierCode }}</small>
+              </td>
+              <td>{{ task.purchaseRequestNumber }}</td>
+              <td>{{ formatDate(task.expectedDeliveryDate) }}</td>
+              <td>{{ formatCurrency(task.totalAmount) }}</td>
+              <td>
+                <span
+                  v-if="task.workflow"
+                  class="workflow-step-badge"
+                  :class="stepClass(task.workflow.currentStepCode)"
+                >
+                  {{ task.workflow.currentStepCode.replace(/_/g, ' ') }}
+                </span>
+              </td>
+              <td>
+                <div class="row-actions">
+                  <button
+                    v-if="!canEditPurchaseOrderTask(task)"
+                    class="text-button"
+                    type="button"
+                    @click="openPurchaseOrderDetails(task)"
+                  >
+                    Details
+                  </button>
+                  <button
+                    v-if="canEditPurchaseOrderTask(task)"
+                    class="text-button"
+                    type="button"
+                    @click="openPurchaseOrderEditForm(task)"
+                  >
+                    Edit
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <AppToast :toast="toast" @dismiss="dismissToast" />
 
     <PurchaseRequestForm
@@ -311,6 +503,24 @@ function stepClass(stepCode: string) {
       :deleting="false"
       @close="closeDetails"
       @action="openAction"
+    />
+
+    <PurchaseOrderForm
+      v-if="editingPurchaseOrder"
+      :purchase-order="editingPurchaseOrder"
+      :quotations="[]"
+      :saving="saving"
+      :error-message="formError"
+      @cancel="closePurchaseOrderEditForm"
+      @save="savePurchaseOrder"
+    />
+
+    <PurchaseOrderDetails
+      v-if="selectedPurchaseOrder"
+      :purchase-order="selectedPurchaseOrder"
+      :actor="actor"
+      @close="closeDetails"
+      @action="(action) => openPurchaseOrderAction(selectedPurchaseOrder!, action)"
     />
 
     <WorkflowActionDialog

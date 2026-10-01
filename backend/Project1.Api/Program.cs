@@ -199,5 +199,6 @@ app.MapControllers();
 
 await app.Services.SeedIdentityAsync();
 await app.Services.SeedEmailTemplatesAsync();
+await app.Services.SeedPurchaseOrderWorkflowAsync();
 
 app.Run();

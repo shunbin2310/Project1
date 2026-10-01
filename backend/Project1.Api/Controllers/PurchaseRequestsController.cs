@@ -7,7 +7,7 @@ using Project1.Api.Services.PurchaseRequests;
 namespace Project1.Api.Controllers;
 
 [ApiController]
-[Authorize]
+[Authorize(Roles = ApplicationRoles.PurchaseRequestReaders)]
 [Route("api/purchase-requests")]
 public sealed class PurchaseRequestsController(IPurchaseRequestService purchaseRequestService)
     : ControllerBase

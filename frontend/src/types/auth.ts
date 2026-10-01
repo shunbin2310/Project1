@@ -3,6 +3,7 @@ export const applicationRoles = {
   departmentApprover: 'DEPARTMENT_APPROVER',
   financeApprover: 'FINANCE_APPROVER',
   procurementOfficer: 'PROCUREMENT_OFFICER',
+  purchaseOrderApprover: 'PURCHASE_ORDER_APPROVER',
   warehouseOfficer: 'WAREHOUSE_OFFICER',
   catalogManager: 'CATALOG_MANAGER',
   admin: 'ADMIN',

@@ -22,7 +22,17 @@ const canManageCatalog = computed(
 const canManageWarehouse = computed(
   () => isAdmin.value || authStore.roles.includes(applicationRoles.warehouseOfficer),
 )
-const canViewPurchaseOrders = computed(() => canManageProcurement.value || canManageWarehouse.value)
+const canViewPurchaseRequests = computed(
+  () =>
+    isAdmin.value ||
+    authStore.roles.some((role) => role !== applicationRoles.purchaseOrderApprover),
+)
+const canViewPurchaseOrders = computed(
+  () =>
+    canManageProcurement.value ||
+    canManageWarehouse.value ||
+    authStore.roles.includes(applicationRoles.purchaseOrderApprover),
+)
 const canViewGoodsReceipts = computed(() => canManageProcurement.value || canManageWarehouse.value)
 const canViewInventory = computed(() => canManageProcurement.value || canManageWarehouse.value)
 const initials = computed(() =>
@@ -115,7 +125,7 @@ async function logout() {
         </template>
 
         <p>Purchasing</p>
-        <RouterLink to="/purchase-requests">
+        <RouterLink v-if="canViewPurchaseRequests" to="/purchase-requests">
           <span class="nav-icon" aria-hidden="true">RQ</span>
           <span>Purchase Requests</span>
         </RouterLink>

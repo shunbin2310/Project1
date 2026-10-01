@@ -20,6 +20,10 @@ const mocks = vi.hoisted(() => ({
     >(),
   create: vi.fn<(payload: CreatePurchaseOrderRequest) => Promise<PurchaseOrder>>(),
   update: vi.fn<(id: number, payload: UpdatePurchaseOrderRequest) => Promise<PurchaseOrder>>(),
+  executeAction:
+    vi.fn<
+      (id: number, actionCode: string, payload: { comment: string | null }) => Promise<PurchaseOrder>
+    >(),
   issue: vi.fn<(id: number) => Promise<PurchaseOrder>>(),
   cancel: vi.fn<(id: number, reason: string) => Promise<PurchaseOrder>>(),
   delete: vi.fn<(id: number) => Promise<void>>(),
@@ -31,6 +35,7 @@ vi.mock('@/services/purchaseOrderService', () => ({
     getAll: mocks.getPurchaseOrders,
     create: mocks.create,
     update: mocks.update,
+    executeAction: mocks.executeAction,
     issue: mocks.issue,
     cancel: mocks.cancel,
     delete: mocks.delete,
@@ -96,8 +101,8 @@ function purchaseOrder(status: PurchaseOrderStatus = 'Draft'): PurchaseOrder {
     notes: null,
     status,
     totalAmount: 1500,
-    createdByUserId: 4,
-    createdByName: 'Demo Admin',
+    createdByUserId: 5,
+    createdByName: 'Demo User',
     createdAtUtc: '2026-09-16T00:00:00Z',
     updatedAtUtc: null,
     issuedAtUtc: status === 'Draft' ? null : '2026-09-16T01:00:00Z',
@@ -108,6 +113,7 @@ function purchaseOrder(status: PurchaseOrderStatus = 'Draft'): PurchaseOrder {
     cancelledByName: status === 'Cancelled' ? 'Demo Admin' : null,
     cancellationReason: status === 'Cancelled' ? 'Supplier unavailable' : null,
     emailDelivery: null,
+    workflow: null,
     items: [
       {
         id: 2,
@@ -153,6 +159,7 @@ describe('PurchaseOrderListView', () => {
     mocks.getQuotations.mockResolvedValue([quotation()])
     mocks.create.mockResolvedValue(purchaseOrder())
     mocks.update.mockResolvedValue({ ...purchaseOrder(), updatedAtUtc: '2026-09-16T02:00:00Z' })
+    mocks.executeAction.mockResolvedValue(purchaseOrder('PendingApproval'))
     mocks.issue.mockResolvedValue(purchaseOrder('Issued'))
     mocks.cancel.mockResolvedValue(purchaseOrder('Cancelled'))
     mocks.delete.mockResolvedValue(undefined)
@@ -170,12 +177,14 @@ describe('PurchaseOrderListView', () => {
     expect(wrapper.get('h1').text()).toBe('Purchase Orders')
     expect(wrapper.get('tbody').text()).toContain('PO-0005')
     expect(wrapper.get('tbody').text()).toContain('Edit')
-    expect(wrapper.get('tbody').text()).toContain('Issue')
+    expect(wrapper.get('tbody').text()).toContain('Submit')
+    expect(wrapper.get('tbody').text()).not.toContain('Issue')
     expect(wrapper.get('tbody').text()).toContain('Delete')
     expect(wrapper.get('tbody').text()).not.toContain('Cancel')
   })
 
-  it('issues a draft order, shows a toast, and reloads the register', async () => {
+  it('issues an approved order, shows a toast, and reloads the register', async () => {
+    mocks.getPurchaseOrders.mockResolvedValue([purchaseOrder('Approved')])
     const wrapper = mountView()
     await flushPromises()
 
@@ -189,6 +198,20 @@ describe('PurchaseOrderListView', () => {
     expect(mocks.issue).toHaveBeenCalledWith(5)
     expect(mocks.getPurchaseOrders).toHaveBeenCalledTimes(2)
     expect(wrapper.get('.success-toast').text()).toContain('PO-0005 was issued')
+  })
+
+  it('submits a draft order for approval and reloads the register', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Submit')
+      ?.trigger('click')
+    await flushPromises()
+
+    expect(mocks.executeAction).toHaveBeenCalledWith(5, 'SUBMIT', { comment: null })
+    expect(wrapper.get('.success-toast').text()).toContain('submitted for approval')
   })
 
   it('collects a reason before cancelling an issued order', async () => {

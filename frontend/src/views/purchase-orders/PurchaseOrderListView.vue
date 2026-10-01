@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import PurchaseOrderCancelDialog from '@/components/purchase-orders/PurchaseOrderCancelDialog.vue'
 import PurchaseOrderDetails from '@/components/purchase-orders/PurchaseOrderDetails.vue'
 import PurchaseOrderForm from '@/components/purchase-orders/PurchaseOrderForm.vue'
+import WorkflowActionDialog from '@/components/purchase-requests/WorkflowActionDialog.vue'
 import AppToast from '@/components/ui/AppToast.vue'
 import { useToast } from '@/composables/useToast'
 import { purchaseOrderService } from '@/services/purchaseOrderService'
@@ -15,11 +16,15 @@ import type {
   PurchaseOrderFormValues,
   PurchaseOrderStatus,
 } from '@/types/purchaseOrder'
+import type { WorkflowActorIdentity, WorkflowAvailableAction } from '@/types/purchaseRequest'
 import type { Quotation } from '@/types/quotation'
+import { isWorkflowActionAuthorized } from '@/utils/workflowAuthorization'
 
 const statusFilters: { value: '' | PurchaseOrderStatus; label: string }[] = [
   { value: '', label: 'All statuses' },
   { value: 'Draft', label: 'Draft' },
+  { value: 'PendingApproval', label: 'Pending approval' },
+  { value: 'Approved', label: 'Approved' },
   { value: 'Issued', label: 'Issued' },
   { value: 'PartiallyReceived', label: 'Partially received' },
   { value: 'Received', label: 'Received' },
@@ -32,6 +37,11 @@ const canManagePurchaseOrders = computed(
     authStore.roles.includes(applicationRoles.admin) ||
     authStore.roles.includes(applicationRoles.procurementOfficer),
 )
+const actor = computed<WorkflowActorIdentity>(() => ({
+  id: authStore.user?.id ?? 0,
+  name: authStore.user?.fullName ?? 'Current user',
+  roles: authStore.roles,
+}))
 const purchaseOrders = ref<PurchaseOrder[]>([])
 const selectedQuotations = ref<Quotation[]>([])
 const loading = ref(true)
@@ -48,6 +58,10 @@ const formOpen = ref(false)
 const editingPurchaseOrder = ref<PurchaseOrder | null>(null)
 const detailsPurchaseOrder = ref<PurchaseOrder | null>(null)
 const cancellingPurchaseOrder = ref<PurchaseOrder | null>(null)
+const actionPurchaseOrder = ref<PurchaseOrder | null>(null)
+const selectedAction = ref<WorkflowAvailableAction | null>(null)
+const actioning = ref(false)
+const actionError = ref('')
 const { toast, showSuccess, dismissToast } = useToast()
 
 const draftCount = computed(
@@ -59,11 +73,11 @@ const openDeliveryCount = computed(
       (order) => order.status === 'Issued' || order.status === 'PartiallyReceived',
     ).length,
 )
-const closedCount = computed(
-  () =>
-    purchaseOrders.value.filter(
-      (order) => order.status === 'Received' || order.status === 'Cancelled',
-    ).length,
+const pendingApprovalCount = computed(
+  () => purchaseOrders.value.filter((order) => order.status === 'PendingApproval').length,
+)
+const approvedCount = computed(
+  () => purchaseOrders.value.filter((order) => order.status === 'Approved').length,
 )
 const usedQuotationIds = computed(
   () => new Set(purchaseOrders.value.map((order) => order.quotationId)),
@@ -101,6 +115,16 @@ const visiblePurchaseOrders = computed(() => {
     ].some((value) => value.toLowerCase().includes(term))
   })
 })
+
+function canSubmitPurchaseOrder(order: PurchaseOrder) {
+  if (!canManagePurchaseOrders.value || order.status !== 'Draft') return false
+  if (authStore.roles.includes(applicationRoles.admin)) return true
+
+  const submitAction = order.workflow?.availableActions.find((action) => action.code === 'SUBMIT')
+  return submitAction
+    ? isWorkflowActionAuthorized(submitAction, actor.value)
+    : order.createdByUserId === actor.value.id
+}
 
 onMounted(loadData)
 
@@ -144,9 +168,10 @@ function closeForm() {
   formError.value = ''
 }
 
-async function savePurchaseOrder(values: PurchaseOrderFormValues) {
+async function savePurchaseOrder(values: PurchaseOrderFormValues, submitAfterSave: boolean) {
   saving.value = true
   formError.value = ''
+  const wasEditing = editingPurchaseOrder.value !== null
 
   try {
     let saved: PurchaseOrder
@@ -161,16 +186,72 @@ async function savePurchaseOrder(values: PurchaseOrderFormValues) {
       saved = await purchaseOrderService.create(values)
     }
 
+    if (submitAfterSave) {
+      saved = await purchaseOrderService.executeAction(saved.id, 'SUBMIT', { comment: null })
+    }
+
     formOpen.value = false
     editingPurchaseOrder.value = null
     showSuccess(
-      `${saved.purchaseOrderNumber} was ${saved.updatedAtUtc ? 'updated' : 'created as a draft'}.`,
+      submitAfterSave
+        ? `${saved.purchaseOrderNumber} was submitted for approval.`
+        : wasEditing
+          ? `${saved.purchaseOrderNumber} draft was updated.`
+          : `${saved.purchaseOrderNumber} was created as a draft.`,
     )
     await loadData()
   } catch (error) {
     formError.value = getErrorMessage(error, 'Unable to save the purchase order.')
   } finally {
     saving.value = false
+  }
+}
+
+async function submitPurchaseOrder(order: PurchaseOrder) {
+  busyPurchaseOrderId.value = order.id
+  operationError.value = ''
+  try {
+    await purchaseOrderService.executeAction(order.id, 'SUBMIT', { comment: null })
+    showSuccess(`${order.purchaseOrderNumber} was submitted for approval.`)
+    await loadData()
+  } catch (error) {
+    operationError.value = getErrorMessage(error, 'Unable to submit the purchase order.')
+  } finally {
+    busyPurchaseOrderId.value = null
+  }
+}
+
+function openWorkflowAction(order: PurchaseOrder, action: WorkflowAvailableAction) {
+  actionPurchaseOrder.value = order
+  selectedAction.value = action
+  actionError.value = ''
+}
+
+function closeWorkflowAction() {
+  if (actioning.value) return
+  selectedAction.value = null
+  actionPurchaseOrder.value = null
+  actionError.value = ''
+}
+
+async function executeWorkflowAction(comment: string | null) {
+  if (!actionPurchaseOrder.value || !selectedAction.value) return
+  const order = actionPurchaseOrder.value
+  const action = selectedAction.value
+
+  actioning.value = true
+  actionError.value = ''
+  try {
+    await purchaseOrderService.executeAction(order.id, action.code, { comment })
+    selectedAction.value = null
+    actionPurchaseOrder.value = null
+    detailsPurchaseOrder.value = null
+    showSuccess(`${order.purchaseOrderNumber}: ${action.name} completed.`)
+    await loadData()
+  } catch (error) {
+    actionError.value = getErrorMessage(error, 'Unable to execute the workflow action.')
+  } finally {
+    actioning.value = false
   }
 }
 
@@ -263,7 +344,9 @@ function formatDate(value: string | null) {
 }
 
 function statusLabel(status: PurchaseOrderStatus) {
-  return status === 'PartiallyReceived' ? 'Partially received' : status
+  if (status === 'PartiallyReceived') return 'Partially received'
+  if (status === 'PendingApproval') return 'Pending approval'
+  return status
 }
 </script>
 
@@ -296,14 +379,14 @@ function statusLabel(status: PurchaseOrderStatus) {
         <span>Orders still being prepared</span>
       </article>
       <article class="summary-card summary-card-positive">
-        <span class="summary-label">Open delivery</span>
-        <strong>{{ openDeliveryCount }}</strong>
-        <span>Issued or partially received</span>
+        <span class="summary-label">Pending approval</span>
+        <strong>{{ pendingApprovalCount }}</strong>
+        <span>Waiting for Purchase Order Approver</span>
       </article>
       <article class="summary-card">
-        <span class="summary-label">Closed</span>
-        <strong>{{ closedCount }}</strong>
-        <span>Fully received or cancelled</span>
+        <span class="summary-label">Ready / open delivery</span>
+        <strong>{{ approvedCount + openDeliveryCount }}</strong>
+        <span>Approved, issued, or partially received</span>
       </article>
     </div>
 
@@ -429,7 +512,16 @@ function statusLabel(status: PurchaseOrderStatus) {
                     Edit
                   </button>
                   <button
-                    v-if="canManagePurchaseOrders && order.status === 'Draft'"
+                    v-if="canSubmitPurchaseOrder(order)"
+                    class="text-button text-button-positive"
+                    type="button"
+                    :disabled="busyPurchaseOrderId === order.id"
+                    @click="submitPurchaseOrder(order)"
+                  >
+                    Submit
+                  </button>
+                  <button
+                    v-if="canManagePurchaseOrders && order.status === 'Approved'"
                     class="text-button text-button-positive"
                     type="button"
                     :disabled="busyPurchaseOrderId === order.id"
@@ -438,7 +530,10 @@ function statusLabel(status: PurchaseOrderStatus) {
                     Issue
                   </button>
                   <button
-                    v-if="canManagePurchaseOrders && order.status === 'Issued'"
+                    v-if="
+                      canManagePurchaseOrders &&
+                      (order.status === 'Approved' || order.status === 'Issued')
+                    "
                     class="text-button text-button-danger"
                     type="button"
                     @click="openCancelDialog(order)"
@@ -475,7 +570,19 @@ function statusLabel(status: PurchaseOrderStatus) {
     <PurchaseOrderDetails
       v-if="detailsPurchaseOrder"
       :purchase-order="detailsPurchaseOrder"
+      :actor="actor"
       @close="detailsPurchaseOrder = null"
+      @action="(action) => openWorkflowAction(detailsPurchaseOrder!, action)"
+    />
+
+    <WorkflowActionDialog
+      v-if="selectedAction"
+      :action="selectedAction"
+      :actor="actor"
+      :saving="actioning"
+      :error-message="actionError"
+      @cancel="closeWorkflowAction"
+      @execute="executeWorkflowAction"
     />
 
     <PurchaseOrderCancelDialog
