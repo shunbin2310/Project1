@@ -90,7 +90,7 @@ function submit() {
             maxlength="500"
             rows="4"
             :placeholder="
-              isReject ? 'Explain why this request is rejected' : 'Add an audit comment'
+              isReject ? 'Explain why this record is rejected' : 'Add an audit comment'
             "
             :aria-invalid="Boolean(commentError)"
           />

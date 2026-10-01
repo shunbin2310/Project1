@@ -215,6 +215,19 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('my-tasks')
   })
 
+  it('allows a Purchase Order Approver to open Purchase Orders but not procurement settings', async () => {
+    authenticate('PURCHASE_ORDER_APPROVER')
+
+    await router.push('/purchase-orders')
+    expect(router.currentRoute.value.name).toBe('purchase-orders')
+
+    await router.push('/suppliers')
+    expect(router.currentRoute.value.name).toBe('access-denied')
+
+    await router.push('/purchase-requests')
+    expect(router.currentRoute.value.name).toBe('access-denied')
+  })
+
   it('routes procurement officers to quotations and purchasing pages', async () => {
     authenticate('PROCUREMENT_OFFICER')
 

@@ -17,9 +17,19 @@ const catalogRoutes: readonly ApplicationRole[] = [
   applicationRoles.admin,
   applicationRoles.catalogManager,
 ]
+const purchaseRequestRoutes: readonly ApplicationRole[] = [
+  applicationRoles.admin,
+  applicationRoles.requester,
+  applicationRoles.departmentApprover,
+  applicationRoles.financeApprover,
+  applicationRoles.procurementOfficer,
+  applicationRoles.warehouseOfficer,
+  applicationRoles.catalogManager,
+]
 const purchaseOrderRoutes: readonly ApplicationRole[] = [
   applicationRoles.admin,
   applicationRoles.procurementOfficer,
+  applicationRoles.purchaseOrderApprover,
   applicationRoles.warehouseOfficer,
 ]
 const goodsReceiptRoutes: readonly ApplicationRole[] = [
@@ -126,7 +136,7 @@ const router = createRouter({
       path: '/purchase-requests',
       name: 'purchase-requests',
       component: () => import('@/views/purchase-requests/PurchaseRequestListView.vue'),
-      meta: { title: 'Purchase Requests', requiresAuth: true },
+      meta: { title: 'Purchase Requests', requiresAuth: true, roles: purchaseRequestRoutes },
     },
     {
       path: '/quotations',

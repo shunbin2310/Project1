@@ -32,6 +32,12 @@ const demoAccounts = [
     description: 'Manage suppliers, quotations, and purchase orders',
   },
   {
+    email: 'po.approver@demo.local',
+    name: 'Purchase Order Approver',
+    role: applicationRoles.purchaseOrderApprover,
+    description: 'Approve or reject submitted purchase orders',
+  },
+  {
     email: 'warehouse@demo.local',
     name: 'Warehouse Officer',
     role: applicationRoles.warehouseOfficer,

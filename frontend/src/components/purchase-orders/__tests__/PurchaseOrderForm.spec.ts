@@ -72,6 +72,7 @@ function purchaseOrder(): PurchaseOrder {
     cancelledByName: null,
     cancellationReason: null,
     emailDelivery: null,
+    workflow: null,
     items: [
       {
         id: 2,
@@ -103,13 +104,13 @@ describe('PurchaseOrderForm', () => {
     expect(wrapper.text()).toContain('Office Chair')
     expect(wrapper.text().replace(/\s/g, '')).toContain('RM1,500.00')
 
-    await wrapper.get('#purchase-order-delivery-date').setValue('2026-09-30')
+    await wrapper.get('#purchase-order-delivery-date').setValue('2030-09-30')
     await wrapper.get('#purchase-order-address').setValue(' Main warehouse ')
     await wrapper.get('form').trigger('submit')
 
     expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
       quotationId: 8,
-      expectedDeliveryDate: '2026-09-30',
+      expectedDeliveryDate: '2030-09-30',
       deliveryAddress: 'Main warehouse',
     })
   })
@@ -130,6 +131,26 @@ describe('PurchaseOrderForm', () => {
 
     expect(wrapper.text()).toContain('Expected delivery must be on or after the order date.')
     expect(wrapper.emitted('save')).toBeUndefined()
+  })
+
+  it('emits create and submit when the approval-ready fields are complete', async () => {
+    const wrapper = mount(PurchaseOrderForm, {
+      props: {
+        purchaseOrder: null,
+        quotations: [quotation()],
+        saving: false,
+        errorMessage: '',
+      },
+    })
+
+    await wrapper.get('#purchase-order-delivery-date').setValue('2030-09-30')
+    await wrapper.get('#purchase-order-address').setValue('Main warehouse')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Create and submit')
+      ?.trigger('click')
+
+    expect(wrapper.emitted('save')?.[0]?.[1]).toBe(true)
   })
 
   it('keeps the source quotation read-only when editing', () => {

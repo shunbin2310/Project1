@@ -83,4 +83,26 @@ describe('purchaseOrderService', () => {
       expect.objectContaining({ method: 'DELETE' }),
     )
   })
+
+  it('executes a purchase order workflow action with an optional comment', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response('{}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await purchaseOrderService.executeAction(5, 'REJECT', {
+      comment: 'Please update the delivery address.',
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:5165/api/purchase-orders/5/actions/REJECT',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ comment: 'Please update the delivery address.' }),
+      }),
+    )
+  })
 })

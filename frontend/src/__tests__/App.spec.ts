@@ -170,6 +170,17 @@ describe('App', () => {
     expect(wrapper.find('a[href="/products"]').exists()).toBe(false)
   })
 
+  it('shows only workflow and Purchase Order navigation to a Purchase Order Approver', async () => {
+    const wrapper = await mountForRole('PURCHASE_ORDER_APPROVER')
+
+    expect(wrapper.get('a[href="/my-tasks"]').text()).toContain('My Tasks')
+    expect(wrapper.get('a[href="/purchase-orders"]').text()).toContain('Purchase Orders')
+    expect(wrapper.find('a[href="/purchase-requests"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="/suppliers"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="/quotations"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="/goods-receipts"]').exists()).toBe(false)
+  })
+
   it('shows catalog navigation to a catalog manager', async () => {
     const wrapper = await mountForRole('CATALOG_MANAGER')
 

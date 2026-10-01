@@ -76,6 +76,7 @@ function purchaseOrder(status: PurchaseOrderStatus = 'Issued'): PurchaseOrder {
     cancelledByName: null,
     cancellationReason: null,
     emailDelivery: null,
+    workflow: null,
     items: [
       {
         id: 2,

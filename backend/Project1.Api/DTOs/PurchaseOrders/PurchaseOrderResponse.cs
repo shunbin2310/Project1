@@ -1,4 +1,5 @@
 using Project1.Api.Entities;
+using Project1.Api.DTOs.Workflows;
 
 namespace Project1.Api.DTOs.PurchaseOrders;
 
@@ -31,4 +32,5 @@ public sealed record PurchaseOrderResponse(
     string? CancelledByName,
     string? CancellationReason,
     PurchaseOrderEmailDeliveryResponse? EmailDelivery,
-    IReadOnlyList<PurchaseOrderItemResponse> Items);
+    IReadOnlyList<PurchaseOrderItemResponse> Items,
+    WorkflowInstanceResponse? Workflow);

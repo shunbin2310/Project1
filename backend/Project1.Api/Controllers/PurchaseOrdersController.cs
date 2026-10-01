@@ -75,6 +75,28 @@ public sealed class PurchaseOrdersController(
             : OperationProblem(result);
     }
 
+    [HttpPost("{id:int}/actions/{actionCode}")]
+    [ProducesResponseType<PurchaseOrderResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PurchaseOrderResponse>> ExecuteAction(
+        int id,
+        string actionCode,
+        PurchaseOrderActionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await purchaseOrderService.ExecuteActionAsync(
+            id,
+            actionCode,
+            request,
+            cancellationToken);
+        return result.Status == PurchaseOrderOperationStatus.Success
+            ? Ok(result.PurchaseOrder)
+            : OperationProblem(result);
+    }
+
     [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
     [HttpPost("{id:int}/issue")]
     [ProducesResponseType<PurchaseOrderResponse>(StatusCodes.Status200OK)]
@@ -91,6 +113,7 @@ public sealed class PurchaseOrdersController(
             : OperationProblem(result);
     }
 
+    [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
     [HttpGet("{id:int}/email-preview")]
     [ProducesResponseType<PurchaseOrderEmailPreviewResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -165,6 +188,10 @@ public sealed class PurchaseOrdersController(
                 (StatusCodes.Status400BadRequest, "Supplier is unavailable."),
             PurchaseOrderOperationStatus.ValidationFailed =>
                 (StatusCodes.Status400BadRequest, "Purchase order validation failed."),
+            PurchaseOrderOperationStatus.Unauthorized =>
+                (StatusCodes.Status403Forbidden, "Purchase order action is not authorized."),
+            PurchaseOrderOperationStatus.WorkflowUnavailable =>
+                (StatusCodes.Status409Conflict, "Purchase order workflow is unavailable."),
             _ =>
                 (StatusCodes.Status500InternalServerError, "Purchase order operation failed.")
         };

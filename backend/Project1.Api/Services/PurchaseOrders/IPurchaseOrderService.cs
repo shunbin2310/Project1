@@ -21,6 +21,12 @@ public interface IPurchaseOrderService
         UpdatePurchaseOrderRequest request,
         CancellationToken cancellationToken);
 
+    Task<PurchaseOrderOperationResult> ExecuteActionAsync(
+        int id,
+        string actionCode,
+        PurchaseOrderActionRequest request,
+        CancellationToken cancellationToken);
+
     Task<PurchaseOrderOperationResult> IssueAsync(int id, CancellationToken cancellationToken);
 
     Task<PurchaseOrderEmailPreviewResponse?> GetEmailPreviewAsync(

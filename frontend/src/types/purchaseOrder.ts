@@ -1,11 +1,14 @@
 export type PurchaseOrderStatus =
   | 'Draft'
+  | 'PendingApproval'
+  | 'Approved'
   | 'Issued'
   | 'PartiallyReceived'
   | 'Received'
   | 'Cancelled'
 
 import type { EmailDeliveryStatus } from '@/types/emailRecord'
+import type { WorkflowInstance } from '@/types/purchaseRequest'
 
 export interface PurchaseOrderEmailDelivery {
   id: number
@@ -61,6 +64,7 @@ export interface PurchaseOrder {
   cancellationReason: string | null
   emailDelivery: PurchaseOrderEmailDelivery | null
   items: PurchaseOrderItem[]
+  workflow: WorkflowInstance | null
 }
 
 export interface CreatePurchaseOrderRequest {
@@ -74,3 +78,7 @@ export interface CreatePurchaseOrderRequest {
 export type UpdatePurchaseOrderRequest = Omit<CreatePurchaseOrderRequest, 'quotationId'>
 
 export type PurchaseOrderFormValues = CreatePurchaseOrderRequest
+
+export interface PurchaseOrderActionRequest {
+  comment: string | null
+}

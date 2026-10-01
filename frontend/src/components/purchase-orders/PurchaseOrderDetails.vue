@@ -1,13 +1,24 @@
 <script setup lang="ts">
+import type {
+  WorkflowActorIdentity,
+  WorkflowAvailableAction,
+} from '@/types/purchaseRequest'
 import type { PurchaseOrder, PurchaseOrderStatus } from '@/types/purchaseOrder'
+import { isWorkflowActionAuthorized } from '@/utils/workflowAuthorization'
 
-defineProps<{
+const props = defineProps<{
   purchaseOrder: PurchaseOrder
+  actor: WorkflowActorIdentity
 }>()
 
 const emit = defineEmits<{
   close: []
+  action: [action: WorkflowAvailableAction]
 }>()
+
+function isAuthorized(action: WorkflowAvailableAction) {
+  return isWorkflowActionAuthorized(action, props.actor)
+}
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR' }).format(value)
@@ -33,7 +44,9 @@ function formatQuantity(value: number) {
 }
 
 function statusLabel(status: PurchaseOrderStatus) {
-  return status === 'PartiallyReceived' ? 'Partially received' : status
+  if (status === 'PartiallyReceived') return 'Partially received'
+  if (status === 'PendingApproval') return 'Pending approval'
+  return status
 }
 </script>
 
@@ -100,6 +113,52 @@ function statusLabel(status: PurchaseOrderStatus) {
           </div>
         </section>
 
+        <section v-if="purchaseOrder.workflow" class="workflow-current-card">
+          <div>
+            <span class="summary-label">Current workflow step</span>
+            <strong>{{ purchaseOrder.workflow.currentStepName }}</strong>
+            <small>
+              {{ purchaseOrder.workflow.templateName }} &middot; Version
+              {{ purchaseOrder.workflow.templateVersion }}
+            </small>
+          </div>
+          <span
+            class="workflow-step-badge"
+            :class="`step-${purchaseOrder.workflow.currentStepCode.toLowerCase()}`"
+          >
+            {{ purchaseOrder.workflow.currentStepCode.replace(/_/g, ' ') }}
+          </span>
+        </section>
+
+        <section
+          v-if="
+            purchaseOrder.workflow &&
+            purchaseOrder.workflow.currentStepCode !== 'DRAFT' &&
+            purchaseOrder.workflow.availableActions.length
+          "
+          class="workflow-actions-panel"
+        >
+          <div class="details-section-heading">
+            <div>
+              <h3>Available actions</h3>
+              <p>Current identity: {{ actor.name }}</p>
+            </div>
+          </div>
+          <div class="workflow-action-buttons">
+            <button
+              v-for="action in purchaseOrder.workflow.availableActions"
+              :key="`${action.code}-${action.toStepCode}`"
+              class="button"
+              :class="action.code === 'REJECT' ? 'button-danger' : 'button-primary'"
+              type="button"
+              :disabled="!isAuthorized(action)"
+              @click="emit('action', action)"
+            >
+              {{ action.name }}
+            </button>
+          </div>
+        </section>
+
         <section class="details-section">
           <div class="details-section-heading">
             <div>
@@ -150,6 +209,28 @@ function statusLabel(status: PurchaseOrderStatus) {
         <section v-if="purchaseOrder.status === 'Cancelled'" class="purchase-order-cancellation">
           <strong>Cancellation reason</strong>
           <p>{{ purchaseOrder.cancellationReason }}</p>
+        </section>
+
+        <section v-if="purchaseOrder.workflow" class="details-section">
+          <div class="details-section-heading">
+            <div>
+              <h3>Workflow history</h3>
+              <p>Immutable approval audit trail</p>
+            </div>
+          </div>
+          <ol class="workflow-timeline">
+            <li v-for="entry in purchaseOrder.workflow.history" :key="entry.id">
+              <span class="timeline-marker" aria-hidden="true"></span>
+              <div class="timeline-content">
+                <div>
+                  <strong>{{ entry.actionCode }}</strong>
+                  <span>{{ entry.toStepCode.replace(/_/g, ' ') }}</span>
+                </div>
+                <p v-if="entry.comment">{{ entry.comment }}</p>
+                <small>{{ entry.actionBy }} &middot; {{ formatDateTime(entry.actionAtUtc) }}</small>
+              </div>
+            </li>
+          </ol>
         </section>
 
         <section class="purchase-order-audit" aria-label="Purchase order audit information">

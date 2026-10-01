@@ -1179,7 +1179,8 @@ tbody tr:hover {
 }
 
 .workflow-step-badge.step-department_review,
-.workflow-step-badge.step-finance_review {
+.workflow-step-badge.step-finance_review,
+.workflow-step-badge.step-pending_approval {
   color: #845f18;
   background: #fff3d7;
 }
@@ -3276,6 +3277,16 @@ tbody tr:hover {
 .purchase-order-status.status-issued {
   color: #17644f;
   background: #def2ea;
+}
+
+.purchase-order-status.status-pendingapproval {
+  color: #7a5920;
+  background: #fff0c9;
+}
+
+.purchase-order-status.status-approved {
+  color: #17644f;
+  background: #dff3ec;
 }
 
 .purchase-order-status.status-partiallyreceived {

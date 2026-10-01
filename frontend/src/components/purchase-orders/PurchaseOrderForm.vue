@@ -13,7 +13,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   cancel: []
-  save: [values: PurchaseOrderFormValues]
+  save: [values: PurchaseOrderFormValues, submitAfterSave: boolean]
 }>()
 
 const form = reactive<PurchaseOrderFormValues>({
@@ -70,7 +70,7 @@ function clearErrors() {
   })
 }
 
-function validate() {
+function validate(submitAfterSave: boolean) {
   clearErrors()
 
   if (!isEditing.value && !selectedQuotation.value) {
@@ -80,8 +80,14 @@ function validate() {
   if (form.expectedDeliveryDate && form.orderDate && form.expectedDeliveryDate < form.orderDate) {
     errors.expectedDeliveryDate = 'Expected delivery must be on or after the order date.'
   }
+  if (submitAfterSave && !form.expectedDeliveryDate) {
+    errors.expectedDeliveryDate = 'Expected delivery date is required before submission.'
+  }
   if ((form.deliveryAddress?.length ?? 0) > 500) {
     errors.deliveryAddress = 'Delivery address cannot exceed 500 characters.'
+  }
+  if (submitAfterSave && !form.deliveryAddress?.trim()) {
+    errors.deliveryAddress = 'Delivery address is required before submission.'
   }
   if ((form.notes?.length ?? 0) > 1000) {
     errors.notes = 'Notes cannot exceed 1000 characters.'
@@ -90,8 +96,8 @@ function validate() {
   return !Object.values(errors).some(Boolean)
 }
 
-function submitForm() {
-  if (!validate()) return
+function submitForm(submitAfterSave = false) {
+  if (!validate(submitAfterSave)) return
 
   emit('save', {
     quotationId: form.quotationId,
@@ -99,7 +105,7 @@ function submitForm() {
     expectedDeliveryDate: form.expectedDeliveryDate || null,
     deliveryAddress: form.deliveryAddress?.trim() || null,
     notes: form.notes?.trim() || null,
-  })
+  }, submitAfterSave)
 }
 
 function todayValue() {
@@ -139,7 +145,7 @@ function formatQuantity(value: number) {
         </button>
       </header>
 
-      <form class="purchase-order-form" novalidate @submit.prevent="submitForm">
+      <form class="purchase-order-form" novalidate @submit.prevent="submitForm(false)">
         <div v-if="errorMessage" class="form-server-error form-grid-full" role="alert">
           <span aria-hidden="true">!</span>
           <div>
@@ -197,7 +203,7 @@ function formatQuantity(value: number) {
           <p v-if="errors.expectedDeliveryDate" class="field-error">
             {{ errors.expectedDeliveryDate }}
           </p>
-          <p v-else class="field-hint">Required before the purchase order can be issued.</p>
+          <p v-else class="field-hint">Required before the purchase order can be submitted.</p>
         </div>
 
         <div class="form-field form-grid-full">
@@ -214,7 +220,7 @@ function formatQuantity(value: number) {
             :aria-invalid="Boolean(errors.deliveryAddress)"
           />
           <p v-if="errors.deliveryAddress" class="field-error">{{ errors.deliveryAddress }}</p>
-          <p v-else class="field-hint">Required before the purchase order can be issued.</p>
+          <p v-else class="field-hint">Required before the purchase order can be submitted.</p>
         </div>
 
         <div class="form-field form-grid-full">
@@ -289,8 +295,16 @@ function formatQuantity(value: number) {
           >
             Cancel
           </button>
-          <button class="button button-primary" type="submit" :disabled="saving">
+          <button class="button button-secondary" type="submit" :disabled="saving">
             {{ saving ? 'Saving...' : purchaseOrder ? 'Save changes' : 'Create draft' }}
+          </button>
+          <button
+            class="button button-primary"
+            type="button"
+            :disabled="saving"
+            @click="submitForm(true)"
+          >
+            {{ saving ? 'Saving...' : purchaseOrder ? 'Save and submit' : 'Create and submit' }}
           </button>
         </footer>
       </form>

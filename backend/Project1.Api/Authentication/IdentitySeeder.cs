@@ -43,6 +43,11 @@ public static class IdentitySeeder
             "PROC",
             [ApplicationRoles.ProcurementOfficer]),
         new(
+            "po.approver@demo.local",
+            "Purchase Order Approver",
+            "PROC",
+            [ApplicationRoles.PurchaseOrderApprover]),
+        new(
             "warehouse@demo.local",
             "Warehouse Officer",
             "WH",

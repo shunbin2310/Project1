@@ -3,14 +3,17 @@ using Microsoft.Extensions.Options;
 using System.Net.Mail;
 using Project1.Api.Data;
 using Project1.Api.DTOs.PurchaseOrders;
+using Project1.Api.DTOs.Workflows;
 using Project1.Api.Email;
 using Project1.Api.Entities;
 using Project1.Api.Services.Authentication;
+using Project1.Api.Services.Workflows;
 
 namespace Project1.Api.Services.PurchaseOrders;
 
 public sealed class PurchaseOrderService(
     AppDbContext dbContext,
+    IWorkflowEngine workflowEngine,
     ICurrentUserContext currentUser,
     IEmailTemplateRenderer emailRenderer,
     IPurchaseOrderPdfGenerator pdfGenerator,
@@ -38,8 +41,16 @@ public sealed class PurchaseOrderService(
         var purchaseOrders = await query
             .OrderByDescending(order => order.Id)
             .ToListAsync(cancellationToken);
+        var workflows = await workflowEngine.GetInstancesAsync(
+            PurchaseOrderWorkflow.EntityType,
+            purchaseOrders.Select(order => order.Id).ToList(),
+            cancellationToken);
 
-        return purchaseOrders.Select(ToResponse).ToList();
+        return purchaseOrders
+            .Select(order => ToResponse(
+                order,
+                workflows.GetValueOrDefault(order.Id)))
+            .ToList();
     }
 
     public async Task<PurchaseOrderResponse?> GetByIdAsync(
@@ -49,13 +60,28 @@ public sealed class PurchaseOrderService(
         var purchaseOrder = await ReadQuery()
             .SingleOrDefaultAsync(order => order.Id == id, cancellationToken);
 
-        return purchaseOrder is null ? null : ToResponse(purchaseOrder);
+        if (purchaseOrder is null)
+        {
+            return null;
+        }
+
+        var workflow = await workflowEngine.GetInstanceAsync(
+            PurchaseOrderWorkflow.EntityType,
+            id,
+            cancellationToken);
+
+        return ToResponse(purchaseOrder, workflow);
     }
 
     public async Task<PurchaseOrderOperationResult> CreateAsync(
         CreatePurchaseOrderRequest request,
         CancellationToken cancellationToken)
     {
+        if (!currentUser.IsAuthenticated || currentUser.UserId < 1)
+        {
+            return Unauthorized("An authenticated user is required.");
+        }
+
         var validationError = ValidateDraftValues(
             request.OrderDate,
             request.ExpectedDeliveryDate,
@@ -157,6 +183,18 @@ public sealed class PurchaseOrderService(
 
         purchaseOrder.PurchaseOrderNumber = $"PO-{purchaseOrder.Id:D4}";
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        var workflowResult = await workflowEngine.StartAsync(
+            PurchaseOrderWorkflow.EntityType,
+            purchaseOrder.Id,
+            ToWorkflowActor(),
+            cancellationToken);
+        if (workflowResult.Status != WorkflowExecutionStatus.Success)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return WorkflowFailure(workflowResult);
+        }
+
         await transaction.CommitAsync(cancellationToken);
 
         return await SuccessResultAsync(purchaseOrder.Id, cancellationToken);
@@ -200,6 +238,87 @@ public sealed class PurchaseOrderService(
         return await SuccessResultAsync(id, cancellationToken);
     }
 
+    public async Task<PurchaseOrderOperationResult> ExecuteActionAsync(
+        int id,
+        string actionCode,
+        PurchaseOrderActionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var purchaseOrder = await dbContext.PurchaseOrders
+            .Include(order => order.Items)
+            .SingleOrDefaultAsync(order => order.Id == id, cancellationToken);
+
+        if (purchaseOrder is null)
+        {
+            return NotFound();
+        }
+
+        var normalizedActionCode = actionCode.Trim().ToUpperInvariant();
+        if (normalizedActionCode == PurchaseOrderWorkflow.SubmitAction)
+        {
+            if (purchaseOrder.Status != PurchaseOrderStatus.Draft)
+            {
+                return InvalidState("Only a draft purchase order can be submitted.");
+            }
+
+            var validationMessage = ValidateForSubmission(purchaseOrder);
+            if (validationMessage is not null)
+            {
+                return ValidationFailed(validationMessage);
+            }
+        }
+        else if ((normalizedActionCode is PurchaseOrderWorkflow.ApproveAction or
+                  PurchaseOrderWorkflow.RejectAction) &&
+                 purchaseOrder.Status != PurchaseOrderStatus.PendingApproval)
+        {
+            return InvalidState("Only a purchase order pending approval can be approved or rejected.");
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var workflow = await workflowEngine.GetInstanceAsync(
+            PurchaseOrderWorkflow.EntityType,
+            id,
+            cancellationToken);
+        if (workflow is null && normalizedActionCode == PurchaseOrderWorkflow.SubmitAction)
+        {
+            var startResult = await workflowEngine.StartAsync(
+                PurchaseOrderWorkflow.EntityType,
+                id,
+                new WorkflowActor(
+                    purchaseOrder.CreatedByUserId,
+                    purchaseOrder.CreatedByName,
+                    []),
+                cancellationToken);
+            if (startResult.Status != WorkflowExecutionStatus.Success)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return WorkflowFailure(startResult);
+            }
+        }
+
+        var workflowResult = await workflowEngine.ExecuteActionAsync(
+            PurchaseOrderWorkflow.EntityType,
+            id,
+            normalizedActionCode,
+            ToWorkflowActor(),
+            request.Comment,
+            cancellationToken);
+        if (workflowResult.Status != WorkflowExecutionStatus.Success)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return WorkflowFailure(workflowResult);
+        }
+
+        purchaseOrder.Status = MapWorkflowStepToStatus(
+            workflowResult.Workflow!.CurrentStepCode);
+        purchaseOrder.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return await SuccessResultAsync(id, cancellationToken);
+    }
+
     public async Task<PurchaseOrderOperationResult> IssueAsync(
         int id,
         CancellationToken cancellationToken)
@@ -214,9 +333,9 @@ public sealed class PurchaseOrderService(
             return NotFound();
         }
 
-        if (purchaseOrder.Status != PurchaseOrderStatus.Draft)
+        if (purchaseOrder.Status != PurchaseOrderStatus.Approved)
         {
-            return InvalidState("Only draft purchase orders can be issued.");
+            return InvalidState("Only approved purchase orders can be issued.");
         }
 
         if (!purchaseOrder.Supplier.IsActive)
@@ -271,13 +390,13 @@ public sealed class PurchaseOrderService(
             if (pdfContent.Length == 0)
             {
                 return InvalidState(
-                    "The Purchase Order PDF could not be generated. The order remains in Draft.");
+                    "The Purchase Order PDF could not be generated. The order remains Approved.");
             }
         }
         catch (Exception)
         {
             return InvalidState(
-                "The Purchase Order PDF could not be generated. The order remains in Draft.");
+                "The Purchase Order PDF could not be generated. The order remains Approved.");
         }
 
         purchaseOrder.Status = PurchaseOrderStatus.Issued;
@@ -398,9 +517,9 @@ public sealed class PurchaseOrderService(
             return NotFound();
         }
 
-        if (purchaseOrder.Status != PurchaseOrderStatus.Issued)
+        if (purchaseOrder.Status is not (PurchaseOrderStatus.Approved or PurchaseOrderStatus.Issued))
         {
-            return InvalidState("Only issued purchase orders can be cancelled.");
+            return InvalidState("Only approved or issued purchase orders can be cancelled.");
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -432,8 +551,15 @@ public sealed class PurchaseOrderService(
             return InvalidState("Only draft purchase orders can be deleted.");
         }
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        await workflowEngine.DeleteInstanceAsync(
+            PurchaseOrderWorkflow.EntityType,
+            id,
+            cancellationToken);
         dbContext.PurchaseOrders.Remove(purchaseOrder);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return new PurchaseOrderOperationResult(PurchaseOrderOperationStatus.Success);
     }
@@ -455,7 +581,9 @@ public sealed class PurchaseOrderService(
             purchaseOrder);
     }
 
-    private static PurchaseOrderResponse ToResponse(PurchaseOrder purchaseOrder)
+    private static PurchaseOrderResponse ToResponse(
+        PurchaseOrder purchaseOrder,
+        WorkflowInstanceResponse? workflow)
     {
         var items = purchaseOrder.Items
             .OrderBy(item => item.Id)
@@ -516,7 +644,34 @@ public sealed class PurchaseOrderService(
             purchaseOrder.CancelledByName,
             purchaseOrder.CancellationReason,
             emailDelivery,
-            items);
+            items,
+            workflow);
+    }
+
+    private static string? ValidateForSubmission(PurchaseOrder purchaseOrder)
+    {
+        if (!purchaseOrder.ExpectedDeliveryDate.HasValue)
+        {
+            return "Expected delivery date is required before submission.";
+        }
+
+        if (purchaseOrder.ExpectedDeliveryDate.Value < purchaseOrder.OrderDate)
+        {
+            return "Expected delivery date must be on or after the order date.";
+        }
+
+        if (string.IsNullOrWhiteSpace(purchaseOrder.DeliveryAddress))
+        {
+            return "Delivery address is required before submission.";
+        }
+
+        if (purchaseOrder.Items.Count == 0 ||
+            purchaseOrder.Items.Any(item => item.Quantity <= 0 || item.UnitPrice <= 0))
+        {
+            return "The purchase order must contain valid items before submission.";
+        }
+
+        return null;
     }
 
     private static string? ValidateDraftValues(
@@ -553,6 +708,35 @@ public sealed class PurchaseOrderService(
             ? "Unknown user"
             : currentUser.DisplayName.Trim();
 
+    private WorkflowActor ToWorkflowActor() => new(
+        currentUser.UserId,
+        CurrentUserName(),
+        currentUser.Roles);
+
+    private static PurchaseOrderStatus MapWorkflowStepToStatus(string stepCode) =>
+        stepCode switch
+        {
+            PurchaseOrderWorkflow.DraftStep => PurchaseOrderStatus.Draft,
+            PurchaseOrderWorkflow.PendingApprovalStep => PurchaseOrderStatus.PendingApproval,
+            PurchaseOrderWorkflow.ApprovedStep => PurchaseOrderStatus.Approved,
+            _ => throw new InvalidOperationException(
+                $"Unsupported Purchase Order workflow step '{stepCode}'.")
+        };
+
+    private static PurchaseOrderOperationResult WorkflowFailure(WorkflowExecutionResult result) =>
+        new(
+            result.Status switch
+            {
+                WorkflowExecutionStatus.ActionNotAvailable =>
+                    PurchaseOrderOperationStatus.InvalidState,
+                WorkflowExecutionStatus.Unauthorized =>
+                    PurchaseOrderOperationStatus.Unauthorized,
+                WorkflowExecutionStatus.CommentRequired =>
+                    PurchaseOrderOperationStatus.ValidationFailed,
+                _ => PurchaseOrderOperationStatus.WorkflowUnavailable
+            },
+            ErrorMessage: result.ErrorMessage);
+
     private static string CreateTemporaryNumber() => $"TMP-{Guid.NewGuid():N}"[..20];
 
     private static string? NormalizeOptionalText(string? value) =>
@@ -566,6 +750,9 @@ public sealed class PurchaseOrderService(
 
     private static PurchaseOrderOperationResult InvalidState(string message) =>
         new(PurchaseOrderOperationStatus.InvalidState, ErrorMessage: message);
+
+    private static PurchaseOrderOperationResult Unauthorized(string message) =>
+        new(PurchaseOrderOperationStatus.Unauthorized, ErrorMessage: message);
 
     private static PurchaseOrderOperationResult SupplierUnavailable() =>
         new(

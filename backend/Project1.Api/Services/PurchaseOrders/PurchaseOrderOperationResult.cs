@@ -10,7 +10,9 @@ public enum PurchaseOrderOperationStatus
     InvalidState,
     DuplicatePurchaseOrder,
     QuotationNotSelected,
-    SupplierUnavailable
+    SupplierUnavailable,
+    Unauthorized,
+    WorkflowUnavailable
 }
 
 public sealed record PurchaseOrderOperationResult(

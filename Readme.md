@@ -123,24 +123,28 @@ This separation prevents the UI, API contract, and database structure from becom
 | `DEPARTMENT_APPROVER` | Checks whether the request is required by the department | My Tasks, Purchase Requests, department approve/reject actions |
 | `FINANCE_APPROVER` | Checks budget and financial approval | My Tasks, Purchase Requests, finance approve/reject actions |
 | `PROCUREMENT_OFFICER` | Performs daily purchasing work | Suppliers, Supplier Products, Supplier Quotations, Purchase Orders, Email Records; read-only Goods Receiving and Inventory |
+| `PURCHASE_ORDER_APPROVER` | Reviews submitted purchase orders before they are sent to suppliers | My Tasks, read-only Purchase Orders, purchase order approve/reject actions |
 | `WAREHOUSE_OFFICER` | Receives deliveries and monitors stock | Read-only Purchase Orders, Goods Receiving, Inventory |
 | `CATALOG_MANAGER` | Maintains purchasing master data | Product Categories, Units of Measure, Products |
 | `ADMIN` | Configures, supports, and recovers the system | All pages and all operations, including Email Templates |
 
 The dedicated business roles keep daily work separate from system administration:
 
-| Page or operation | Requester | Department | Finance | Procurement | Warehouse | Catalog | Admin |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Purchase Request create and own Draft | Yes | No | No | No | No | No | Yes |
-| Department approval | No | Yes | No | No | No | No | Yes |
-| Finance approval | No | No | Yes | No | No | No | Yes |
-| Suppliers and Supplier Products | No | No | No | Manage | No | No | Manage |
-| Supplier Quotations | No | No | No | Manage | No | No | Manage |
-| Purchase Orders | No | No | No | Manage | Read | No | Manage |
-| Goods Receiving | No | No | No | Read | Manage | No | Manage |
-| Inventory | No | No | No | Read | Manage | No | Manage |
-| Product Categories, Units, Products | Reference data only | Reference data only | Reference data only | Reference data only | Reference data only | Manage | Manage |
-| Departments, Users, Workflow Templates | No | No | No | No | No | No | Manage |
+| Page or operation | Requester | Department | Finance | Procurement | PO Approver | Warehouse | Catalog | Admin |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Purchase Request create and own Draft | Yes | No | No | No | No | No | No | Yes |
+| Department approval | No | Yes | No | No | No | No | No | Yes |
+| Finance approval | No | No | Yes | No | No | No | No | Yes |
+| Suppliers and Supplier Products | No | No | No | Manage | No | No | No | Manage |
+| Supplier Quotations | No | No | No | Manage | No | No | No | Manage |
+| Purchase Orders page | No | No | No | Manage | Read | Read | No | Manage |
+| Purchase Order prepare and submit | No | No | No | Yes | No | No | No | Yes |
+| Purchase Order approve or reject | No | No | No | No | Yes | No | No | Yes |
+| Purchase Order issue | No | No | No | Yes | No | No | No | Yes |
+| Goods Receiving | No | No | No | Read | No | Manage | No | Manage |
+| Inventory | No | No | No | Read | No | Manage | No | Manage |
+| Product Categories, Units, Products | Reference data only | Reference data only | Reference data only | Reference data only | Reference data only | Reference data only | Manage | Manage |
+| Departments, Users, Workflow Templates | No | No | No | No | No | No | No | Manage |
 
 ### Admin as Super Admin
 
@@ -171,18 +175,20 @@ After successful login:
 - The frontend stores the current session in `sessionStorage`.
 - The common API client automatically sends `Authorization: Bearer <token>`.
 
-Development mode includes seven quick-login Demo Account buttons.
+Development mode includes eight quick-login Demo Account buttons.
 
 ### My Tasks
 
 My Tasks is the workflow inbox.
 
-It shows purchase requests that the current account can act on:
+It has separate Purchase Request Tasks and Purchase Order Tasks sections for records that the current account can act on:
 
 - Requester sees their Draft requests that can be edited and submitted.
 - Department Approver sees requests waiting for department review.
 - Finance Approver sees requests waiting for finance review.
 - Admin can perform all currently available actions.
+- Procurement Officer sees owned Draft purchase orders that can be edited and submitted.
+- Purchase Order Approver sees purchase orders waiting for approval and can approve or reject them.
 
 Draft tasks open the Edit form directly. Approval tasks open the details and action dialog.
 
@@ -362,17 +368,21 @@ The order copies supplier, product, quantity, and price information from the quo
 Purchase Order statuses:
 
 ```text
-Draft → Issued → Partially Received → Received
-              └→ Cancelled
+Draft → Pending Approval → Approved → Issued → Partially Received → Received
+  ↑          │                └→ Cancelled
+  └── Reject ┘
 ```
 
-- Draft can be edited or deleted.
-- Issue saves the order and queues one supplier email in the same database transaction.
+- Draft can be edited or deleted by Procurement or Admin. Submit is assigned to the user who created
+  the order, with Admin retaining the Super Admin override.
+- Purchase Order Approver can approve a submitted order or reject it back to Draft. Reject requires a comment.
+- Only an Approved order can be issued by Procurement or Admin.
+- Issue queues one supplier email and creates its PDF attachment in the same database operation.
 - The background worker changes the email from Pending to Sent or Failed.
 - Admin or Procurement can preview the generated email and retry a Failed delivery.
 - Only Issued or Partially Received orders can receive goods.
 - A fully received order becomes Received.
-- An eligible Issued order may be Cancelled with a reason.
+- An eligible Approved or Issued order may be Cancelled with a reason.
 
 ### Goods Receiving
 
@@ -515,13 +525,27 @@ If approved, the request moves to the Approved terminal step. If rejected, it mo
 
 The selected quotation becomes Selected and the competing quotations become Not Selected.
 
-### Phase 8: Procurement creates and issues a purchase order
+### Phase 8: Procurement creates and submits a purchase order
 
 1. Open Purchase Orders.
 2. Create a Draft order from the Selected quotation.
 3. Confirm order date, delivery date, delivery address, and notes.
-4. Save the Draft.
-5. Click Issue.
+4. Click Create and submit, or save the Draft and submit it later.
+
+### Phase 8A: Purchase Order Approver reviews the order
+
+1. Log in as `po.approver@demo.local`.
+2. Open My Tasks and find the order under Purchase Order Tasks.
+3. Open Details.
+4. Click Approve purchase order, or Reject purchase order with a required comment.
+
+If rejected, Procurement edits the Draft and submits it again.
+
+### Phase 8B: Procurement issues the approved order
+
+1. Log in as `procurement@demo.local` and open Purchase Orders.
+2. Find the Approved order.
+3. Click Issue.
 
 The purchase order can no longer be edited after it is issued.
 
@@ -831,6 +855,7 @@ Development mode seeds these accounts:
 | Department Approver | `department@demo.local` | `Project1Demo123!` |
 | Finance Approver | `finance@demo.local` | `Project1Demo123!` |
 | Procurement Officer | `procurement@demo.local` | `Project1Demo123!` |
+| Purchase Order Approver | `po.approver@demo.local` | `Project1Demo123!` |
 | Warehouse Officer | `warehouse@demo.local` | `Project1Demo123!` |
 | Catalog Manager | `catalog@demo.local` | `Project1Demo123!` |
 | Admin | `admin@demo.local` | `Project1Demo123!` |
@@ -1034,7 +1059,7 @@ Confirm the selection.
 
 Expected result: Beta becomes `Selected`, while Alpha becomes `Not selected`.
 
-##### 7. Create and issue the Purchase Order
+##### 7. Create, approve, and issue the Purchase Order
 
 1. Open Purchase Orders and click New purchase order.
 2. Select the winning Beta quotation.
@@ -1044,9 +1069,14 @@ Expected result: Beta becomes `Selected`, while Alpha becomes `Not selected`.
    - Delivery address: `Project1 Main Warehouse`
    - Notes: `Complete UI walkthrough order`
 4. Confirm the preview shows quantity `10`, unit price RM 108.00, and total RM 1,080.00.
-5. Click Create draft.
-6. Find the new Draft order and click Issue.
-7. Confirm the warning.
+5. Click Create and submit.
+6. Confirm the new order has status `Pending approval`.
+7. Sign out and use the Purchase Order Approver account (`po.approver@demo.local`).
+8. Open My Tasks, then find the order under Purchase Order Tasks.
+9. Click Details, then Approve purchase order.
+10. Sign out and use the Procurement Officer account again.
+11. Open Purchase Orders, find the now `Approved` order, and click Issue.
+12. Confirm the warning.
 
 Expected result:
 
@@ -1090,7 +1120,7 @@ Expected result:
 - Active and Superseded versions cannot be edited or deleted.
 - The next issued Purchase Order uses Version 2.
 - Existing Email Records keep their original rendered content and Template Version.
-- If no Active Template exists, Purchase Order Issue is rejected and the order remains Draft.
+- If no Active Template exists, Purchase Order Issue is rejected and the order remains Approved.
 
 ##### 8. Test partial Goods Receiving
 
@@ -1507,7 +1537,7 @@ Status: Completed on 30 September 2026
 - Attachment metadata and PDF bytes are stored in SQL Server with the Email Record, including file
   name, content type, file size, creation time, and immutable binary content.
 - Purchase Order issue generates a professional PDF before changing the order to `Issued`. If PDF
-  generation fails, the order remains `Draft` and no Email Record is created.
+  generation fails, the order remains `Approved` and no Email Record is created.
 - The background SMTP worker sends the saved PDF snapshot with the rendered email snapshot.
 - Email Record Details allows `ADMIN` and `PROCUREMENT_OFFICER` users to view the PDF in a new tab
   or download it.
@@ -1545,12 +1575,17 @@ auditable record; and the Purchase Order PDF is available as an attachment.
 
 ### 2. Connect additional business modules to the Workflow Engine
 
-Status: Pending future extension
+Status: Purchase Order workflow completed on 1 October 2026; additional modules remain a future extension
 
 Creating a Workflow Template for a new Entity Type only stores its definition. It does not run until
 the corresponding business service calls the Workflow Engine.
 
-For each new workflow-enabled module:
+Purchase Orders now implement this pattern with Draft, Pending Approval, Approved, and rejection back
+to Draft. New records start a versioned workflow instance; legacy Draft orders receive one lazily on
+their first Submit. The dedicated `PURCHASE_ORDER_APPROVER` role handles approval while Procurement
+retains preparation and Issue responsibilities.
+
+For each additional workflow-enabled module:
 
 - Choose a real business entity, for example `PurchaseOrder` approval.
 - Call `StartAsync(entityType, entityId)` when the business record is created.

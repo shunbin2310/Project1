@@ -34,6 +34,7 @@ function purchaseOrder(): ReceivablePurchaseOrder {
     cancelledByName: null,
     cancellationReason: null,
     emailDelivery: null,
+    workflow: null,
     items: [
       {
         id: 2,

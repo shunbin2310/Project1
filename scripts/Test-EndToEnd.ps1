@@ -123,11 +123,12 @@ Write-Step "Checking API health"
 $health = Invoke-ProjectApi -Method GET -Path "/api/health"
 Write-Host "API health response: $($health.status)"
 
-Write-Step "Signing in with all seven demo roles"
+Write-Step "Signing in with all eight demo roles"
 $requesterToken = Login-DemoUser -Email "requester@demo.local"
 $departmentToken = Login-DemoUser -Email "department@demo.local"
 $financeToken = Login-DemoUser -Email "finance@demo.local"
 $procurementToken = Login-DemoUser -Email "procurement@demo.local"
+$purchaseOrderApproverToken = Login-DemoUser -Email "po.approver@demo.local"
 $warehouseToken = Login-DemoUser -Email "warehouse@demo.local"
 $catalogToken = Login-DemoUser -Email "catalog@demo.local"
 $adminToken = Login-DemoUser -Email "admin@demo.local"
@@ -141,6 +142,14 @@ $activeTemplate = $templates |
 
 Assert-True -Condition ($null -ne $activeTemplate) `
     -Message "An active, published PURCHASE_REQUEST workflow template is available."
+
+$activePurchaseOrderTemplate = $templates |
+    Where-Object { $_.code -eq "PURCHASE_ORDER" -and $_.isPublished -and $_.isActive } |
+    Sort-Object version -Descending |
+    Select-Object -First 1
+
+Assert-True -Condition ($null -ne $activePurchaseOrderTemplate) `
+    -Message "An active, published PURCHASE_ORDER workflow template is available."
 
 $runId = Get-Date -Format "yyyyMMddHHmmssfff"
 $today = (Get-Date).Date
@@ -302,6 +311,20 @@ $purchaseOrder = Invoke-ProjectApi -Method POST -Path "/api/purchase-orders" -To
     notes               = "Purchase order created by the complete system smoke test."
 }
 Assert-Equal -Actual $purchaseOrder.status -Expected "Draft" -Message "A new Purchase Order starts in Draft."
+
+$purchaseOrder = Invoke-ProjectApi -Method POST `
+    -Path "/api/purchase-orders/$($purchaseOrder.id)/actions/SUBMIT" `
+    -Token $procurementToken `
+    -Body @{ comment = "Submitted by the complete system smoke test." }
+Assert-Equal -Actual $purchaseOrder.status -Expected "PendingApproval" `
+    -Message "Submitting the Purchase Order moves it to Pending Approval."
+
+$purchaseOrder = Invoke-ProjectApi -Method POST `
+    -Path "/api/purchase-orders/$($purchaseOrder.id)/actions/APPROVE" `
+    -Token $purchaseOrderApproverToken `
+    -Body @{ comment = "Purchase Order approved by the complete system smoke test." }
+Assert-Equal -Actual $purchaseOrder.status -Expected "Approved" `
+    -Message "The Purchase Order Approver moves the order to Approved."
 
 $purchaseOrder = Invoke-ProjectApi -Method POST `
     -Path "/api/purchase-orders/$($purchaseOrder.id)/issue" `
