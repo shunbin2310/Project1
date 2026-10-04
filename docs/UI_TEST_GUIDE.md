@@ -14,6 +14,7 @@ By the end of the walkthrough, you will have tested:
 - Purchase Order preparation, approval, issue, supplier email, and PDF attachment.
 - Partial Goods Receiving.
 - Inventory balance and transaction history.
+- Role-aware Dashboard summaries, reminders, and recent activity.
 - Role-based page and action permissions.
 
 The test uses one Product, two Suppliers, two Quotations, one Purchase Order, and two Goods Receipts.
@@ -61,6 +62,7 @@ Admin is a Super Admin for support and demonstrations. The normal walkthrough us
 
 | Page or action | Requester | Dept. | Finance | Procurement | PO Approver | Warehouse | Catalog | Admin |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Dashboard | Own work | Approval queue | Approval queue | Purchasing work | PO approvals | Receiving/stock | Stock health | Company-wide |
 | Own Purchase Request Draft | Manage | View | View | View | — | View | View | Manage |
 | Department approval | — | Act | — | — | — | — | — | Act |
 | Finance approval | — | — | Act | — | — | — | — | Act |
@@ -72,6 +74,33 @@ Admin is a Super Admin for support and demonstrations. The normal walkthrough us
 | Inventory | — | — | — | View | — | View | — | View |
 | Email Records | — | — | — | Manage delivery | — | — | — | Manage |
 | Email and Workflow Templates | — | — | — | — | — | — | — | Manage |
+
+## Dashboard checks for every role
+
+Every authenticated account now opens `/dashboard` after login. Test the Dashboard once with each Demo Account before continuing the full process:
+
+1. Confirm the summary cards match that role's responsibility.
+2. Confirm reminders only appear when the displayed count is greater than zero.
+3. Click a summary card or reminder and confirm it opens the relevant authorized module.
+4. Confirm Recent Activity contains at most 10 records and only includes modules the account can access.
+5. Use **Refresh** after completing a workflow action and confirm the live counts change.
+
+Expected role focus:
+
+| Role | Dashboard focus |
+| --- | --- |
+| Requester | Own Draft, in-review, approved, and rejected Purchase Requests. |
+| Department Approver | Purchase Requests waiting at Department Review. |
+| Finance Approver | Purchase Requests waiting at Finance Review. |
+| Procurement Officer | Quotations to prepare/compare, Purchase Orders to create/issue, and failed supplier emails. |
+| Purchase Order Approver | Purchase Orders waiting for approval. |
+| Warehouse Officer | Orders ready to receive, Draft receipts, and stock warnings. |
+| Catalog Manager | Active/inactive Products and low/out-of-stock Products. |
+| Admin | A company-wide combined view of approvals, receiving, stock, and email failures. |
+
+A user with multiple business roles receives a merged view. Repeated summary or reminder types are displayed once. Admin always receives the company-wide Super Admin view.
+
+The reminders are calculated from current business data when the Dashboard loads. They are not inbox messages, so there is no read/unread state or notification bell.
 
 ## Step 1: Confirm system configuration
 

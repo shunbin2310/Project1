@@ -119,12 +119,12 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('access-denied')
   })
 
-  it('uses My Tasks as the requester default page', async () => {
+  it('uses Dashboard as the requester default page', async () => {
     authenticate('REQUESTER')
 
     await router.push('/')
 
-    expect(router.currentRoute.value.name).toBe('my-tasks')
+    expect(router.currentRoute.value.name).toBe('dashboard')
   })
 
   it('allows an administrator to open admin routes', async () => {
@@ -228,11 +228,11 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('access-denied')
   })
 
-  it('routes procurement officers to quotations and purchasing pages', async () => {
+  it('routes procurement officers to Dashboard and purchasing pages', async () => {
     authenticate('PROCUREMENT_OFFICER')
 
     await router.push('/')
-    expect(router.currentRoute.value.name).toBe('quotations')
+    expect(router.currentRoute.value.name).toBe('dashboard')
 
     await router.push('/suppliers')
     expect(router.currentRoute.value.name).toBe('suppliers')
@@ -254,11 +254,11 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('access-denied')
   })
 
-  it('routes warehouse officers to receiving and read-only purchasing pages', async () => {
+  it('routes warehouse officers to Dashboard and read-only purchasing pages', async () => {
     authenticate('WAREHOUSE_OFFICER')
 
     await router.push('/')
-    expect(router.currentRoute.value.name).toBe('goods-receipts')
+    expect(router.currentRoute.value.name).toBe('dashboard')
 
     await router.push('/purchase-orders')
     expect(router.currentRoute.value.name).toBe('purchase-orders')
@@ -278,11 +278,11 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('access-denied')
   })
 
-  it('routes catalog managers to product maintenance', async () => {
+  it('routes catalog managers to Dashboard and product maintenance', async () => {
     authenticate('CATALOG_MANAGER')
 
     await router.push('/')
-    expect(router.currentRoute.value.name).toBe('products')
+    expect(router.currentRoute.value.name).toBe('dashboard')
 
     await router.push('/product-categories')
     expect(router.currentRoute.value.name).toBe('product-categories')

@@ -236,6 +236,24 @@ Backend gets requester ID and department from CurrentUserContext
 Purchase Request is stored with trusted ownership
 ```
 
+## Dashboard and live reminders
+
+`GET /api/dashboard` returns one role-aware response containing summary cards, actionable reminders, and recent activity. `DashboardService` uses `ICurrentUserContext` as the authorization boundary and builds only the sections relevant to the authenticated roles.
+
+The Dashboard is a read model over existing Purchase Request, quotation, Purchase Order, Goods Receipt, inventory, Product, workflow-history, and email-outbox data. It does not persist a separate Notification entity or read/unread state. This avoids duplicated operational state: completing the underlying work automatically removes or changes the reminder the next time the Dashboard is loaded.
+
+Important behavior:
+
+- Requesters only receive summaries and activity for their own Purchase Requests.
+- Dedicated approvers receive the queue for their workflow step.
+- Procurement, Warehouse, and Catalog roles receive module-specific operational reminders.
+- Multiple roles are merged and stable keys remove duplicate cards, reminders, and activity.
+- Admin receives the company-wide Super Admin view.
+- Recent Activity is sorted by UTC occurrence time and limited to the latest 10 authorized records.
+- Routes returned by the API point to modules the same role is authorized to open.
+
+The frontend `DashboardView` renders this response without rebuilding business authorization rules. Backend role and ownership filtering remains the security boundary.
+
 ## Business state and Workflow state
 
 Project1 keeps the generic approval state in the Workflow Instance while business entities keep statuses needed by their domain.
@@ -536,6 +554,7 @@ If the module needs approval, also follow the integration steps in [Workflow Eng
 - Workflow authorization and versioning.
 - Email Template, Email Record, and PDF tests.
 - Goods Receipt and Inventory transaction tests.
+- Dashboard role filtering, aggregation, deduplication, and controller tests.
 
 SQLite is used for database-backed tests so relational behavior is exercised without depending on the developer's SQL Server database.
 

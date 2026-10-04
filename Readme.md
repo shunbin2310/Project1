@@ -30,6 +30,7 @@ Inventory balance and transaction ledger
 
 - JWT authentication with ASP.NET Core Identity and immediate session invalidation through security stamps.
 - Eight business roles with frontend route guards and backend API authorization.
+- Role-aware Dashboard with live summaries, actionable reminders, and the latest authorized activity.
 - Versioned Workflow Templates and immutable Workflow Instances.
 - Purchase Request department and finance approval.
 - Supplier eligibility through Supplier Product relationships.
@@ -313,25 +314,69 @@ For implementation details, see [Architecture](docs/ARCHITECTURE.md).
 - Inventory balance and immutable transaction ledger.
 - Email Records, versioned Email Templates, retry/resend, and attachments.
 - Role separation for Procurement, PO Approval, Warehouse, and Catalog.
+- Role-aware Dashboard and live operational reminders.
 - Project documentation split into focused guides.
 
-### Pending
+### Learning and deployment roadmap
 
-1. Dashboard and notifications
-   - Role-specific summaries.
-   - Pending approval and receiving reminders.
-   - Low-stock notifications.
-   - Recent purchasing and inventory activity.
-2. Docker configuration
-   - API and Vue Dockerfiles.
-   - SQL Server and Docker Compose.
-   - Environment-variable configuration.
-3. GitHub Actions
-   - Backend restore, build, and tests.
-   - Frontend install, lint, tests, and build.
-   - Optional Playwright checks.
-4. Ubuntu deployment
-   - Production secrets and SMTP configuration.
-   - Containers, HTTPS, reverse proxy, backups, and logging.
-5. Future workflow expansion
-   - Connect another business module to the generic Workflow Engine when a real approval requirement is identified.
+Follow these phases in order. The current focus is Phase 2: manual deployment to Ubuntu Server. Docker begins in Phase 4, after the first manual deployment and its automated deployment pipeline are working.
+
+| Phase | Learning goal | Status | Completion target |
+| --- | --- | --- | --- |
+| 1 | Develop Vue + .NET on the development PC | Completed for the current feature set | Run and test the full purchasing and inventory process locally. |
+| 2 | Manually deploy to Ubuntu Server | Pending — next task | Run the frontend, API, and database on Ubuntu and access the application through a link. |
+| 3 | Automate deployment with CI/CD, without Docker | Pending | Use GitHub Actions to test, build, and deploy the application to Ubuntu. |
+| 4 | Learn Docker and containerize locally | Pending | Run the Vue frontend, .NET API, and SQL Server together on the development PC using Docker Compose. |
+| 5 | Manually deploy Docker to Ubuntu Server | Pending | Deploy and verify the containerized application on Ubuntu. |
+| 6 | Automate Docker build and deployment with CI/CD | Pending | Test the application, build container images, and deploy them to Ubuntu through GitHub Actions. |
+| 7 | Start learning Local LLM / Qwen | Pending | Run a model locally, understand its hardware needs, and evaluate a useful project integration. |
+
+#### Phase 2: Manual Ubuntu deployment
+
+- Prepare the Ubuntu laptop/server and confirm its hardware and network setup.
+- Install the required runtime, database, web server, and PDF fonts.
+- Build and transfer the Vue frontend and .NET API to the server.
+- Configure the database, migrations, environment variables, JWT signing key, and SMTP credentials.
+- Configure the API service, reverse proxy, and HTTPS for external access.
+- Verify demo login, the complete business process, email/PDF delivery, and service recovery after a restart.
+- Document startup, updates, logs, database backups, and restore steps.
+
+Review production SMTP settings and credentials before the Ubuntu deployment.
+
+#### Phase 3: CI/CD without Docker
+
+- Add GitHub Actions checks for backend restore, build, and tests.
+- Add frontend installation, lint, tests, and production build checks.
+- Store deployment credentials in GitHub Actions secrets.
+- Automate transfer of build artifacts and application service updates on Ubuntu.
+- Verify deployment health and document rollback steps.
+
+#### Phase 4: Local Docker learning
+
+- Create API and Vue Dockerfiles.
+- Add SQL Server and Docker Compose for the local container environment.
+- Configure environment variables, persistent database storage, health checks, and PDF fonts.
+- Verify the same business process in the local container environment.
+
+#### Phase 5: Manual Docker deployment
+
+- Prepare Docker on Ubuntu and configure the server environment.
+- Manually deploy the container images and Compose configuration.
+- Verify HTTPS, persistent data, SMTP/PDF delivery, restart behavior, and backups.
+- Document manual updates and rollback.
+
+#### Phase 6: Docker CI/CD
+
+- Build and publish container images through GitHub Actions.
+- Automate deployment of versioned images to Ubuntu.
+- Verify health checks and rollback to the previous image version.
+
+#### Phase 7: Local LLM / Qwen
+
+- Check available hardware and choose a suitable model size.
+- Learn local model startup and inference.
+- Evaluate a project use case before planning application integration.
+
+### Future business enhancements
+
+- Connect another business module to the generic Workflow Engine when a real approval requirement is identified.
