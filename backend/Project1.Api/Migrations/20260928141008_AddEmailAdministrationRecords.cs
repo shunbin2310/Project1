@@ -94,20 +94,23 @@ namespace Project1.Api.Migrations
                 nullable: false,
                 defaultValue: "");
 
+            // Defer compilation until the new columns exist, including in idempotent scripts.
             migrationBuilder.Sql(
                 """
+                EXEC(N'
                 UPDATE email
-                SET SourceType = 'PurchaseOrder',
+                SET SourceType = ''PurchaseOrder'',
                     SourceId = email.PurchaseOrderId,
                     SourceReference = purchaseOrder.PurchaseOrderNumber,
-                    FromAddress = 'purchasing@project1.local',
-                    FromName = 'Project1 Purchasing',
+                    FromAddress = ''purchasing@project1.local'',
+                    FromName = ''Project1 Purchasing'',
                     CreatedByUserId = COALESCE(purchaseOrder.IssuedByUserId, purchaseOrder.CreatedByUserId),
                     CreatedByName = COALESCE(purchaseOrder.IssuedByName, purchaseOrder.CreatedByName),
                     CreatedDate = CONVERT(date, email.CreatedAtUtc)
                 FROM EmailOutboxes AS email
                 INNER JOIN PurchaseOrders AS purchaseOrder
                     ON purchaseOrder.Id = email.PurchaseOrderId;
+                ');
                 """);
 
             migrationBuilder.CreateIndex(
