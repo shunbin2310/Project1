@@ -189,6 +189,14 @@ Set `VITE_API_BASE_URL` in `frontend/.env` only when the API uses a different ad
 VITE_API_BASE_URL=http://localhost:5165
 ```
 
+For a production build, `frontend/.env.production` sets `VITE_API_BASE_URL` to an empty
+string. Requests then use same-origin paths such as `/api/auth/login`; configure Nginx
+to forward `/api/` to the backend while serving the Vue build. Do not set this value
+to `/api`, because the service paths already include that prefix. Local development
+continues to use `http://localhost:5165`. Rebuild the frontend after changing its
+environment configuration, and never put passwords or JWT signing keys in `VITE_*`
+variables: these values are exposed to browsers.
+
 ## Demo accounts
 
 Development startup seeds the following accounts. Their default password is `Project1Demo123!`.
