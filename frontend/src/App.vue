@@ -70,6 +70,12 @@ async function logout() {
       </div>
 
       <nav class="primary-nav" aria-label="Primary navigation">
+        <p>Workspace</p>
+        <RouterLink to="/dashboard">
+          <span class="nav-icon" aria-hidden="true">DB</span>
+          <span>Dashboard</span>
+        </RouterLink>
+
         <p>Tasks</p>
         <RouterLink to="/my-tasks">
           <span class="nav-icon" aria-hidden="true">TK</span>
@@ -77,7 +83,7 @@ async function logout() {
         </RouterLink>
 
         <template v-if="isAdmin">
-          <p>Workspace</p>
+          <p>Administration</p>
           <RouterLink to="/departments">
             <span class="nav-icon" aria-hidden="true">DP</span>
             <span>Departments</span>

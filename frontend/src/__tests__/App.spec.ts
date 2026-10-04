@@ -89,6 +89,7 @@ describe('App', () => {
     expect(wrapper.get('a[href="/units-of-measure"]').text()).toContain('Units of Measure')
     expect(wrapper.get('a[href="/products"]').text()).toContain('Products')
     expect(wrapper.get('a[href="/my-tasks"]').text()).toContain('My Tasks')
+    expect(wrapper.get('a[href="/dashboard"]').text()).toContain('Dashboard')
     expect(wrapper.get('a[href="/purchase-requests"]').text()).toContain('Purchase Requests')
     expect(wrapper.get('a[href="/quotations"]').text()).toContain('Supplier Quotations')
     expect(wrapper.get('a[href="/purchase-orders"]').text()).toContain('Purchase Orders')
@@ -141,6 +142,7 @@ describe('App', () => {
     expect(wrapper.find('a[href="/goods-receipts"]').exists()).toBe(false)
     expect(wrapper.find('a[href="/inventory"]').exists()).toBe(false)
     expect(wrapper.get('a[href="/my-tasks"]').text()).toContain('My Tasks')
+    expect(wrapper.get('a[href="/dashboard"]').text()).toContain('Dashboard')
     expect(wrapper.get('a[href="/purchase-requests"]').text()).toContain('Purchase Requests')
   })
 

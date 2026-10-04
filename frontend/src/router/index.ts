@@ -43,12 +43,8 @@ const inventoryRoutes: readonly ApplicationRole[] = [
   applicationRoles.warehouseOfficer,
 ]
 
-function defaultAuthenticatedPath(roles: readonly string[]) {
-  if (roles.includes(applicationRoles.admin)) return '/departments'
-  if (roles.includes(applicationRoles.procurementOfficer)) return '/quotations'
-  if (roles.includes(applicationRoles.warehouseOfficer)) return '/goods-receipts'
-  if (roles.includes(applicationRoles.catalogManager)) return '/products'
-  return '/my-tasks'
+function defaultAuthenticatedPath() {
+  return '/dashboard'
 }
 
 const router = createRouter({
@@ -65,6 +61,12 @@ const router = createRouter({
       name: 'login',
       component: () => import('@/views/auth/LoginView.vue'),
       meta: { title: 'Sign in', guestOnly: true, layout: 'auth' },
+    },
+    {
+      path: '/dashboard',
+      name: 'dashboard',
+      component: () => import('@/views/dashboard/DashboardView.vue'),
+      meta: { title: 'Dashboard', requiresAuth: true },
     },
     {
       path: '/access-denied',
@@ -175,7 +177,7 @@ router.beforeEach((to) => {
   const authStore = useAuthStore(pinia)
 
   if (to.meta.guestOnly && authStore.isAuthenticated) {
-    return defaultAuthenticatedPath(authStore.roles)
+    return defaultAuthenticatedPath()
   }
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
@@ -185,7 +187,7 @@ router.beforeEach((to) => {
     }
   }
 
-  if (to.name === 'home') return defaultAuthenticatedPath(authStore.roles)
+  if (to.name === 'home') return defaultAuthenticatedPath()
 
   const requiredRoles = (to.meta.roles ?? []) as readonly ApplicationRole[]
   if (requiredRoles.length && !authStore.hasAnyRole(requiredRoles)) {

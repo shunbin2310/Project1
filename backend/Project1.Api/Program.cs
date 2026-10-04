@@ -12,6 +12,7 @@ using Project1.Api.Email;
 using Project1.Api.Entities.Identity;
 using Project1.Api.Services.Authentication;
 using Project1.Api.Services.Departments;
+using Project1.Api.Services.Dashboard;
 using Project1.Api.Services.EmailRecords;
 using Project1.Api.Services.EmailTemplates;
 using Project1.Api.Services.ProductCategories;
@@ -145,6 +146,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddScoped<IDepartmentService, DepartmentService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IEmailRecordService, EmailRecordService>();
 builder.Services.AddScoped<IEmailTemplateService, EmailTemplateService>();
 builder.Services.AddScoped<IAuthService, AuthService>();

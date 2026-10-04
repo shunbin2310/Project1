@@ -74,13 +74,13 @@ async function submit() {
   }
 
   try {
-    const user = await authStore.login({
+    await authStore.login({
       email: form.email.trim(),
       password: form.password,
     })
     const requestedPath = typeof route.query.redirect === 'string' ? route.query.redirect : ''
     const safeRedirect = requestedPath.startsWith('/') && !requestedPath.startsWith('//')
-    const defaultPath = defaultAuthenticatedPath(user.roles)
+    const defaultPath = defaultAuthenticatedPath()
 
     await router.replace(safeRedirect ? requestedPath : defaultPath)
   } catch (error) {
@@ -90,12 +90,8 @@ async function submit() {
   }
 }
 
-function defaultAuthenticatedPath(roles: readonly string[]) {
-  if (roles.includes(applicationRoles.admin)) return '/departments'
-  if (roles.includes(applicationRoles.procurementOfficer)) return '/quotations'
-  if (roles.includes(applicationRoles.warehouseOfficer)) return '/goods-receipts'
-  if (roles.includes(applicationRoles.catalogManager)) return '/products'
-  return '/my-tasks'
+function defaultAuthenticatedPath() {
+  return '/dashboard'
 }
 
 async function loginAsDemo(email: string) {
