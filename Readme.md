@@ -177,7 +177,7 @@ Open terminal 2:
 
 ```powershell
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
@@ -242,7 +242,8 @@ dotnet test Project1.slnx -c Release
 
 ```powershell
 cd frontend
-npm run lint
+npm ci
+npm run lint:check
 npm run test:unit -- --run
 npm run build
 ```
@@ -253,6 +254,95 @@ Install the Playwright browser once, then run browser tests:
 npx playwright install chromium
 npm run test:e2e -- --project=chromium
 ```
+
+### GitHub Actions CI (tests and build only)
+
+The workflow is [`.github/workflows/ci.yml`](.github/workflows/ci.yml), named **Project1 CI**.
+It uses GitHub-hosted Ubuntu 24.04 runners, .NET 10, and Node.js 24.15.0. Your Ubuntu
+laptop does not need to be online for CI. This workflow does **not** deploy, connect
+to your home server, apply database migrations, or send emails. No GitHub deployment
+secrets or self-hosted runner are required.
+
+#### When does it run?
+
+| Trigger | What happens |
+| --- | --- |
+| Open, reopen, or update a Pull Request targeting `main` | Check the proposed changes before merging. Pushing another commit to that PR runs the checks again. |
+| Push to `main`, including merging a PR | Check the updated `main` after the push or merge. |
+| Actions → Project1 CI → Run workflow | Run the same checks manually for the selected branch. The workflow must first exist on the default branch for this button to appear. |
+
+Pulling code onto your PC does not trigger CI. Creating a PR and later merging it
+normally produces two runs: a PR check before merging and a `main` check afterward.
+CI does not block merging by itself; requiring successful checks needs a separate
+GitHub branch protection rule or ruleset, which is not configured by this task.
+
+#### What does it check?
+
+The backend and frontend jobs run independently:
+
+- **Backend:** restore dependencies, install PDF fonts, build and run xUnit tests,
+  then publish a framework-dependent `linux-x64` API. Tests use isolated SQLite
+  databases and test doubles; they do not use the Ubuntu SQL Server or SMTP account.
+- **Frontend:** install dependencies with `npm ci`, check Oxlint/ESLint without
+  modifying files, run Vitest unit tests, then type-check and create a production
+  build. The production API base URL is empty for same-origin Nginx `/api/` requests.
+
+This first CI does not run Playwright browser tests or `Test-EndToEnd.ps1`. Some
+browser tests still contain older page expectations; the full API smoke script
+requires a running API and creates business records. These can be addressed in a
+separate test-improvement task.
+
+Frontend dependencies are managed with **npm**, not pnpm. Commit both `package.json`
+and `package-lock.json` when changing dependencies. Use `npm ci` for a fresh install
+from the lock file; use `npm install <package>` when intentionally adding a dependency.
+The previous pnpm lock file and Vue release-candidate overrides have been removed.
+Oxlint is aligned to `~1.73.0` because `eslint-plugin-oxlint` currently requires that
+version range. `npm run lint:check` does not edit files; `npm run lint` still runs
+the existing automatic-fix commands.
+
+#### How to test CI on GitHub
+
+1. Commit and push these changes on your feature branch.
+2. Create a Pull Request from that branch into `main`.
+3. Open the PR's **Checks** tab, or **Actions → Project1 CI**, and inspect the run.
+4. Confirm that **Backend tests and Linux publish** and **Frontend checks and
+   production build** both pass. If either fails, open its failed step and read the log.
+5. Merge the PR when ready, then confirm that the new `main` run also passes.
+6. Once the workflow is on `main`, use **Run workflow** to test the manual trigger.
+
+For a simple repeat-trigger test, push a small documentation change to an open PR;
+another PR CI run should appear. A push to a feature branch without a PR targeting
+`main` does not trigger this workflow.
+
+#### Where are the build files?
+
+Open a completed workflow run and scroll to **Artifacts**. Build artifacts are saved
+only after their own job's checks pass; test reports are saved when produced, even
+when tests fail. Each artifact name includes the checked commit SHA and is retained
+for 14 days:
+
+| Artifact | Contents |
+| --- | --- |
+| `project1-api-linux-x64-<sha>` | API publish files, including `Project1.Api.dll`; no `appsettings.Development.json`. |
+| `project1-frontend-dist-<sha>` | Vue production files, including `index.html` and `assets/`. |
+| `backend-test-results-<sha>` | xUnit results in TRX format. |
+| `frontend-test-results-<sha>` | Vitest results in JUnit XML format. |
+
+After downloading and extracting a build ZIP, the publish files are at the archive
+root: there is no enclosing `api` or `dist` folder. Extract into appropriately named
+folders before following the existing manual deployment procedure.
+
+These are build outputs, not automatic deployment or GitHub Releases. For deployment,
+use artifacts from a successful **trusted `main` run**, not an unreviewed PR. Both jobs
+must be green: one job's artifact can exist even if the other job failed. The API
+still needs the .NET 10 runtime, production environment configuration, SQL Server,
+and PDF fonts on Ubuntu. Database schema changes still require a separately reviewed
+migration and backup procedure; this workflow does not generate or apply migrations.
+
+Keep database/SMTP passwords and JWT signing keys out of tracked configuration and
+build artifacts. `/etc/project1/project1.env` remains on Ubuntu. Do not upload it, PC
+User Secrets, or `.env.local` files. The workflow uses a read-only repository token
+and Actions pinned to commit SHAs, and does not execute public PRs on the home server.
 
 ### Complete API smoke test
 
@@ -327,13 +417,16 @@ For implementation details, see [Architecture](docs/ARCHITECTURE.md).
 
 ### Learning and deployment roadmap
 
-Follow these phases in order. The current focus is Phase 2: manual deployment to Ubuntu Server. Docker begins in Phase 4, after the first manual deployment and its automated deployment pipeline are working.
+Follow these phases in order. The manual LAN deployment has been tested; the current
+focus is Phase 3's first step: CI tests and build artifacts, without automatic
+deployment. Docker begins in Phase 4, after the manual deployment and its automated
+deployment pipeline are working. Public access and HTTPS remain separate work.
 
 | Phase | Learning goal | Status | Completion target |
 | --- | --- | --- | --- |
 | 1 | Develop Vue + .NET on the development PC | Completed for the current feature set | Run and test the full purchasing and inventory process locally. |
-| 2 | Manually deploy to Ubuntu Server | Pending — next task | Run the frontend, API, and database on Ubuntu and access the application through a link. |
-| 3 | Automate deployment with CI/CD, without Docker | Pending | Use GitHub Actions to test, build, and deploy the application to Ubuntu. |
+| 2 | Manually deploy to Ubuntu Server | LAN deployment tested; public HTTPS not configured | Run the frontend, API, and database on Ubuntu and access the application through a link. |
+| 3 | Automate deployment with CI/CD, without Docker | CI workflow added; GitHub verification and CD pending | Use GitHub Actions to test, build, and later deploy the application to Ubuntu. |
 | 4 | Learn Docker and containerize locally | Pending | Run the Vue frontend, .NET API, and SQL Server together on the development PC using Docker Compose. |
 | 5 | Manually deploy Docker to Ubuntu Server | Pending | Deploy and verify the containerized application on Ubuntu. |
 | 6 | Automate Docker build and deployment with CI/CD | Pending | Test the application, build container images, and deploy them to Ubuntu through GitHub Actions. |
@@ -353,11 +446,13 @@ Review production SMTP settings and credentials before the Ubuntu deployment.
 
 #### Phase 3: CI/CD without Docker
 
-- Add GitHub Actions checks for backend restore, build, and tests.
-- Add frontend installation, lint, tests, and production build checks.
-- Store deployment credentials in GitHub Actions secrets.
-- Automate transfer of build artifacts and application service updates on Ubuntu.
-- Verify deployment health and document rollback steps.
+- First step implemented: GitHub-hosted backend restore, build, tests, and Linux publish.
+- First step implemented: locked npm installation, non-mutating lint, frontend unit
+  tests, type-checking, production build, and downloadable artifacts.
+- Next: verify the PR, `main` push, and manual CI triggers on GitHub.
+- Later, with separate approval: design secure access to the private Ubuntu server,
+  deployment credentials, artifact transfer, and service updates.
+- Later: verify deployment health, backups, and rollback. No Docker is used in this phase.
 
 #### Phase 4: Local Docker learning
 
