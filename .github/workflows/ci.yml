@@ -1,0 +1,120 @@
+name: Project1 CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Public PRs run only on disposable GitHub-hosted machines, without deployment secrets.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests and Linux publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - name: Check out code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install fonts for PDF tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends fonts-dejavu-core
+
+      - name: Restore backend and test dependencies
+        run: dotnet restore Project1.slnx
+
+      - name: Build and test backend
+        run: dotnet test Project1.slnx --configuration Release --no-restore --logger "trx;LogFileName=backend.trx" --results-directory artifacts/backend-test-results
+
+      - name: Save backend test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: backend-test-results-${{ github.sha }}
+          path: artifacts/backend-test-results/*.trx
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Publish backend for Ubuntu x64
+        run: dotnet publish backend/Project1.Api/Project1.Api.csproj --configuration Release --runtime linux-x64 --self-contained false --output artifacts/api
+
+      - name: Save backend build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: project1-api-linux-x64-${{ github.sha }}
+          path: |
+            artifacts/api/
+            !artifacts/api/appsettings.Development.json
+          if-no-files-found: error
+          retention-days: 14
+
+  frontend:
+    name: Frontend checks and production build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: '24.15.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install locked frontend dependencies
+        run: npm ci
+
+      - name: Check lint without changing files
+        run: npm run lint:check
+
+      - name: Run frontend unit tests
+        run: npm run test:unit -- --run --reporter=default --reporter=junit --outputFile=../artifacts/frontend-test-results/vitest.xml
+
+      - name: Save frontend test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: frontend-test-results-${{ github.sha }}
+          path: artifacts/frontend-test-results/*.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Type-check and build frontend
+        # Empty base URL means same-origin /api requests through the Ubuntu Nginx proxy.
+        env:
+          VITE_API_BASE_URL: ''
+        run: npm run build
+
+      - name: Save frontend build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: project1-frontend-dist-${{ github.sha }}
+          path: frontend/dist/
+          if-no-files-found: error
+          retention-days: 14
