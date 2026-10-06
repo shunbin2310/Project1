@@ -47,7 +47,7 @@ jobs:
 
       - name: Save backend test results
         if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: backend-test-results-${{ github.sha }}
           path: artifacts/backend-test-results/*.trx
@@ -58,7 +58,7 @@ jobs:
         run: dotnet publish backend/Project1.Api/Project1.Api.csproj --configuration Release --runtime linux-x64 --self-contained false --output artifacts/api
 
       - name: Save backend build
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: project1-api-linux-x64-${{ github.sha }}
           path: |
@@ -98,7 +98,7 @@ jobs:
 
       - name: Save frontend test results
         if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: frontend-test-results-${{ github.sha }}
           path: artifacts/frontend-test-results/*.xml
@@ -112,7 +112,7 @@ jobs:
         run: npm run build
 
       - name: Save frontend build
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: project1-frontend-dist-${{ github.sha }}
           path: frontend/dist/
