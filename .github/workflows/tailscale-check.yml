@@ -1,0 +1,66 @@
+name: Project1 Tailscale connectivity check
+
+# A manual network test, not a deployment. Merge this file into main before running it.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: project1-tailscale-connectivity-check
+  cancel-in-progress: false
+
+jobs:
+  connectivity:
+    name: Check Ubuntu SSH port through Tailscale
+    # Match the OIDC trust credential: main branch and workflow_dispatch only.
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      id-token: write
+    defaults:
+      run:
+        shell: bash
+    env:
+      SERVER_TAILSCALE_IP: '100.78.117.97'
+
+    steps:
+      - name: Check required configuration without printing values
+        env:
+          TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
+        run: |
+          if [[ -z "$TS_OAUTH_CLIENT_ID" || -z "$TS_AUDIENCE" ]]; then
+            echo "::error::Set repository secrets TS_OAUTH_CLIENT_ID and TS_AUDIENCE before running this workflow."
+            exit 1
+          fi
+          command -v nc > /dev/null
+
+      - name: Join Tailscale using GitHub OIDC
+        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:github-deploy
+          version: '1.102.5'
+          use-cache: 'false'
+
+      - name: Check TCP port 22 without SSH login
+        # TCP connectivity checks the network grant; Tailscale ping alone does not.
+        # No SSH authentication, commands, uploads, or service changes are performed.
+        run: |
+          for attempt in $(seq 1 12); do
+            if nc -z -w 5 "$SERVER_TAILSCALE_IP" 22; then
+              echo "TCP port 22 is reachable through Tailscale. No SSH login was attempted."
+              exit 0
+            fi
+            echo "TCP port 22 is not reachable yet (attempt $attempt/12)."
+            if [[ "$attempt" -lt 12 ]]; then
+              sleep 5
+            fi
+          done
+          echo "::error::Could not reach Ubuntu TCP port 22. Check server power, Wi-Fi, tailscaled, OpenSSH, firewall, and Tailscale grants."
+          exit 1
+
+# The pinned Tailscale action logs out and cleans up its temporary node after the job.

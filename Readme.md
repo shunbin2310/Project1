@@ -483,3 +483,7 @@ Review production SMTP settings and credentials before the Ubuntu deployment.
 ### Future business enhancements
 
 - Connect another business module to the generic Workflow Engine when a real approval requirement is identified.
+
+
+client id = ThC5Q4Azzz11CNTRL-kUCh513QKk11CNTRL
+audience (aud claim) = api.tailscale.com/ThC5Q4Azzz11CNTRL-kUCh513QKk11CNTRL
