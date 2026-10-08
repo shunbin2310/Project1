@@ -1,0 +1,3 @@
+*.py text eol=lf
+project1-deploy text eol=lf
+*.sudoers text eol=lf

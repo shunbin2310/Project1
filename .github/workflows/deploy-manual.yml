@@ -1,0 +1,124 @@
+name: Project1 manual deployment
+
+# No push/PR/workflow_run trigger. Default mode only validates CI packages.
+on:
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: 'Successful main PUSH run ID from Project1 CI (not the run number)'
+        required: true
+        type: string
+      commit_sha:
+        description: 'Full 40-character lowercase commit SHA from that CI run'
+        required: true
+        type: string
+      deploy:
+        description: 'DEPLOY to Ubuntu: replace API/frontend and restart API (unchecked = validate only)'
+        required: true
+        default: false
+        type: boolean
+
+permissions: {}
+
+# Never cancel an in-flight remote transaction, or overlap manual deployments.
+concurrency:
+  group: project1-manual-deployment
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate exact CI run and packages (no server access)
+    if: ${{ github.repository == 'shunbin2310/Project1' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      ci_attempt: ${{ steps.packages.outputs.ci_attempt }}
+      api_digest: ${{ steps.packages.outputs.api_digest }}
+      frontend_digest: ${{ steps.packages.outputs.frontend_digest }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out trusted manual workflow commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          # Do not execute scripts from the selected build artifact or CI commit.
+          ref: ${{ github.sha }}
+      - name: Run deployment tooling unit tests without deployment credentials
+        run: python3 -m unittest discover -s scripts/deploy/tests -v
+      - name: Verify source and download both exact ZIPs
+        id: packages
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+          CI_COMMIT: ${{ inputs.commit_sha }}
+        run: |
+          python3 scripts/deploy/verify_ci_artifacts.py \
+            --run-id "$CI_RUN_ID" --commit "$CI_COMMIT" \
+            --directory "$RUNNER_TEMP/project1-cd"
+      - name: Explain validation-only result
+        if: ${{ !inputs.deploy }}
+        run: echo 'Validation only passed. No Tailscale connection, SSH, uploads, sudo, service restart or deployment occurred.'
+
+  deploy:
+    name: Explicitly deploy verified CI packages to Ubuntu
+    needs: validate
+    if: ${{ inputs.deploy && github.repository == 'shunbin2310/Project1' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    # No environment: setting it would change the current Tailscale OIDC subject.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out trusted manual workflow commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Reverify CI and packages on this fresh runner before network access
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+          CI_COMMIT: ${{ inputs.commit_sha }}
+          EXPECTED_ATTEMPT: ${{ needs.validate.outputs.ci_attempt }}
+          EXPECTED_API_DIGEST: ${{ needs.validate.outputs.api_digest }}
+          EXPECTED_FRONTEND_DIGEST: ${{ needs.validate.outputs.frontend_digest }}
+        run: |
+          python3 scripts/deploy/verify_ci_artifacts.py \
+            --run-id "$CI_RUN_ID" --commit "$CI_COMMIT" \
+            --directory "$RUNNER_TEMP/project1-cd" \
+            --expected-attempt "$EXPECTED_ATTEMPT" \
+            --expected-api-digest "$EXPECTED_API_DIGEST" \
+            --expected-frontend-digest "$EXPECTED_FRONTEND_DIGEST"
+      - name: Check Tailscale configuration without printing values
+        env:
+          TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
+        run: |
+          if [[ -z "$TS_OAUTH_CLIENT_ID" || -z "$TS_AUDIENCE" ]]; then
+            echo '::error::Set TS_OAUTH_CLIENT_ID and TS_AUDIENCE.'
+            exit 1
+          fi
+      - name: Join Tailscale using existing manual-main OIDC trust
+        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:github-deploy
+          version: '1.102.5'
+          use-cache: 'false'
+      - name: Upload exact ZIPs and invoke restricted server helper
+        env:
+          DEPLOY_CONFIRMED: 'true'
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: python3 scripts/deploy/deploy_verified.py --directory "$RUNNER_TEMP/project1-cd"

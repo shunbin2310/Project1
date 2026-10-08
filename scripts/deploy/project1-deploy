@@ -1,0 +1,5 @@
+#!/bin/sh
+# FUTURE installation: /usr/local/sbin/project1-deploy, owned root:root, mode 0755.
+# The Python implementation and every parent directory must also be root-managed.
+set -eu
+exec /usr/bin/python3 -I /usr/local/libexec/project1-deploy.py "$@"

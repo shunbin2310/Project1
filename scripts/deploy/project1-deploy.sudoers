@@ -1,0 +1,4 @@
+# REVIEW TEMPLATE ONLY. Not installed by this repository or any workflow.
+# Install only after Linux validation and administrator review with visudo.
+# The helper strictly validates its three arguments and has no path/command options.
+project1_deploy ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/project1-deploy
