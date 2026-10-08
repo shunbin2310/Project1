@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { mount } from '@vue/test-utils'
 import { useAuthStore } from '@/stores/auth'
 import type { ApplicationRole } from '@/types/auth'
+import LoginView from '@/views/auth/LoginView.vue'
 import App from '../App.vue'
 
 async function mountForRole(role: ApplicationRole) {
@@ -42,6 +43,27 @@ async function mountForRole(role: ApplicationRole) {
 }
 
 describe('App', () => {
+  it('renders the updated brand on the login page', async () => {
+    const pinia = createPinia()
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: '/login',
+          component: LoginView,
+          meta: { title: 'Sign in', layout: 'auth' },
+        },
+      ],
+    })
+    await router.push('/login')
+    await router.isReady()
+
+    const wrapper = mount(App, { global: { plugins: [pinia, router] } })
+
+    expect(wrapper.get('.auth-brand strong').text()).toBe('Project1 Inventory')
+    wrapper.unmount()
+  })
+
   it('renders the workspace navigation and current page', async () => {
     const pinia = createPinia()
     const authStore = useAuthStore(pinia)
@@ -78,7 +100,7 @@ describe('App', () => {
       global: { plugins: [pinia, router] },
     })
 
-    expect(wrapper.text()).toContain('Purchase & Inventory')
+    expect(wrapper.get('.brand-block strong').text()).toBe('Project1 Inventory')
     expect(wrapper.get('h1').text()).toBe('Departments')
     expect(wrapper.get('a.router-link-active').text()).toContain('Departments')
     expect(wrapper.get('a[href="/suppliers"]').text()).toContain('Suppliers')

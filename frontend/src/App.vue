@@ -64,7 +64,7 @@ async function logout() {
       <div class="brand-block">
         <div class="brand-mark" aria-hidden="true">PI</div>
         <div>
-          <strong>Purchase & Inventory</strong>
+          <strong>Project1 Inventory</strong>
           <span>Operations workspace</span>
         </div>
       </div>

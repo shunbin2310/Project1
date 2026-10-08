@@ -197,7 +197,7 @@ router.beforeEach((to) => {
 
 router.afterEach((to) => {
   const pageTitle = typeof to.meta.title === 'string' ? to.meta.title : 'Workspace'
-  document.title = `${pageTitle} | Purchase & Inventory`
+  document.title = `${pageTitle} | Project1 Inventory`
 })
 
 export default router
