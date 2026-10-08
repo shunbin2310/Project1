@@ -108,7 +108,7 @@ async function loginAsDemo(email: string) {
       <div class="auth-brand">
         <span class="brand-mark" aria-hidden="true">PI</span>
         <div>
-          <strong>Purchase & Inventory</strong>
+          <strong>Project1 Inventory</strong>
           <small>Workflow-enabled operations workspace</small>
         </div>
       </div>

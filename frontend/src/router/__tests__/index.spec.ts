@@ -37,6 +37,7 @@ describe('router authentication guards', () => {
 
     expect(router.currentRoute.value.name).toBe('login')
     expect(router.currentRoute.value.query.redirect).toBe('/purchase-requests')
+    expect(document.title).toBe('Sign in | Project1 Inventory')
   })
 
   it('redirects a requester away from admin routes', async () => {
@@ -133,6 +134,7 @@ describe('router authentication guards', () => {
     await router.push('/departments')
 
     expect(router.currentRoute.value.name).toBe('departments')
+    expect(document.title).toBe('Departments | Project1 Inventory')
   })
 
   it('allows an administrator to open user administration', async () => {
