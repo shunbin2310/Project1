@@ -10,6 +10,8 @@ public sealed class Product
 
     public string? Description { get; set; }
 
+    public string? Note { get; set; }
+
     public int ProductCategoryId { get; set; }
 
     public ProductCategory ProductCategory { get; set; } = null!;
