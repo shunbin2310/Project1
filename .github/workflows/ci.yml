@@ -42,8 +42,27 @@ jobs:
       - name: Restore backend and test dependencies
         run: dotnet restore Project1.slnx
 
+      - name: Restore pinned EF Core CLI tool
+        run: dotnet tool restore
+
       - name: Build and test backend
         run: dotnet test Project1.slnx --configuration Release --no-restore --logger "trx;LogFileName=backend.trx" --results-directory artifacts/backend-test-results
+
+      - name: Check that model changes have a migration
+        # Compare the SQL Server model with its snapshot; never apply migrations.
+        # A non-Development environment avoids loading local user secrets.
+        env:
+          ConnectionStrings__DefaultConnection: 'Server=tcp:127.0.0.1,1;Database=Project1CiModelCheck;User Id=ci_model_check;Password=ci-model-check-not-a-real-password;Encrypt=True;TrustServerCertificate=False;Connect Timeout=1'
+          # Public placeholder, not an authentication or deployment credential.
+          Jwt__SigningKey: 'CI-model-check-only-not-for-authentication-000000000000'
+          Jwt__Issuer: 'Project1.CI.ModelCheck'
+          Jwt__Audience: 'Project1.CI.ModelCheck'
+        run: >-
+          dotnet tool run dotnet-ef -- migrations has-pending-model-changes
+          --project backend/Project1.Api
+          --startup-project backend/Project1.Api
+          --configuration Release --no-build --context AppDbContext
+          -- --environment CiModelCheck
 
       - name: Save backend test results
         if: ${{ always() }}
