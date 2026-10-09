@@ -133,7 +133,7 @@ async function loginAsDemo(email: string) {
       <div class="login-card">
         <header>
           <p class="eyebrow">Secure access</p>
-          <h2 id="login-title">Welcome back</h2>
+          <h2 id="login-title">Welcome to Project1 Inventory</h2>
           <p>Use your account or choose a demo role below.</p>
         </header>
 
