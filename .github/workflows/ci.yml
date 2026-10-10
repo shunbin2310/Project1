@@ -89,7 +89,7 @@ jobs:
         run: >-
           dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj
           --configuration Release --no-restore
-          --filter "FullyQualifiedName!~MigrationSqlIntegrationTests"
+          --filter "FullyQualifiedName!~MigrationSqlIntegrationTests&FullyQualifiedName!~MigrationExecutorSqlIntegrationTests"
           --logger "trx;LogFileName=migrations.trx"
           --results-directory artifacts/backend-test-results
 
@@ -147,6 +147,19 @@ jobs:
           --configuration Release --no-build --no-restore
           --filter "FullyQualifiedName~MigrationSqlIntegrationTests"
           --logger "trx;LogFileName=migration-sql.trx"
+          --results-directory artifacts/backend-test-results
+
+      - name: Test restricted migration account on disposable SQL Server databases
+        # Only the reviewed Note upgrade, with a separate randomly named CI login.
+        # Never grant production permissions or use deployment secrets.
+        env:
+          PROJECT1_CI_MIGRATION_TESTS: 'true'
+          PROJECT1_CI_SQLSERVER_PASSWORD: 'Project1CiOnly-Tests!2026'
+        run: >-
+          dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj
+          --configuration Release --no-build --no-restore
+          --filter "FullyQualifiedName~MigrationExecutorSqlIntegrationTests"
+          --logger "trx;LogFileName=migration-executor.trx"
           --results-directory artifacts/backend-test-results
 
       - name: Verify migration SQL files are unchanged after tests

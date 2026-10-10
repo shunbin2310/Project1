@@ -70,6 +70,25 @@ internal sealed record CiSqlServerSettings(string Password)
             throw new InvalidOperationException("Refusing to create or drop a non-CI database.");
         }
     }
+
+    internal static void ValidateLoginName(string loginName)
+    {
+        if (!Regex.IsMatch(loginName, @"\AProject1CiExecutor_[0-9a-f]{32}\z"))
+        {
+            throw new InvalidOperationException("Refusing to create or drop a non-CI login.");
+        }
+    }
+
+    internal string AccountConnectionString(string databaseName, string loginName, string password)
+    {
+        ValidateDatabaseName(databaseName);
+        ValidateLoginName(loginName);
+        return new SqlConnectionStringBuilder(ConnectionString(databaseName))
+        {
+            UserID = loginName,
+            Password = password
+        }.ConnectionString;
+    }
 }
 
 internal sealed class CiDatabase : IAsyncDisposable
@@ -130,13 +149,27 @@ internal sealed class CiDatabase : IAsyncDisposable
 
     internal SqlConnection CreateConnection() => new(settings.ConnectionString(Name));
 
+    internal SqlConnection CreateAccountConnection(string loginName, string password) =>
+        new(settings.AccountConnectionString(Name, loginName, password));
+
     internal async Task ExecuteScriptAsync(IReadOnlyList<string> batches)
     {
-        CiSqlServerSettings.ValidateDatabaseName(Name);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
         await using var connection = CreateConnection();
+        await ExecuteScriptAsync(connection, batches);
+    }
+
+    internal static async Task ExecuteScriptAsync(SqlConnection connection, IReadOnlyList<string> batches)
+    {
+        _ = CiSqlServerSettings.Load(Environment.GetEnvironmentVariable);
+        var databaseName = new SqlConnectionStringBuilder(connection.ConnectionString).InitialCatalog;
+        CiSqlServerSettings.ValidateDatabaseName(databaseName);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
         await connection.OpenAsync(timeout.Token);
         await ValidateServerAsync(connection);
+        if (connection.Database != databaseName)
+        {
+            throw new InvalidOperationException("Unexpected CI database identity.");
+        }
         // One connection preserves session state and transactions across GO batches.
         // Stop at the first error; closing this unpooled connection rolls back an open transaction.
         foreach (var batch in batches)
@@ -148,7 +181,7 @@ internal sealed class CiDatabase : IAsyncDisposable
         }
     }
 
-    private static async Task ValidateServerAsync(SqlConnection connection)
+    internal static async Task ValidateServerAsync(SqlConnection connection)
     {
         await using var command = connection.CreateCommand();
         command.CommandTimeout = 10;
