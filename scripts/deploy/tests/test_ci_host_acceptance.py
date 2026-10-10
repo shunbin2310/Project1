@@ -4,6 +4,7 @@ import ast
 from contextlib import contextmanager, ExitStack
 import errno
 import io
+import inspect
 import os
 from pathlib import Path
 import sys
@@ -323,7 +324,7 @@ class AcceptanceInstallationTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(acceptance.Path, "is_dir", autospec=True,
                                                  side_effect=lambda path: path == members[-1]))
             stack.enter_context(mock.patch.object(acceptance.Path, "resolve", return_value=runtime))
-            metadata = stack.enter_context(mock.patch.object(acceptance.Path, "lstat",
+            metadata = stack.enter_context(mock.patch.object(acceptance.Path, "lstat", autospec=True,
                 return_value=SimpleNamespace(st_uid=0, st_gid=0, st_mode=stat.S_IFDIR | 0o755, st_nlink=2)))
             output = stack.enter_context(mock.patch("sys.stdout", io.StringIO()))
             errors = stack.enter_context(mock.patch("sys.stderr", io.StringIO()))
@@ -339,7 +340,8 @@ class AcceptanceInstallationTests(unittest.TestCase):
             expected += [mock.call(path, None, directory=path == fixture.members[-1])
                          for path in sorted(fixture.members)]
             expected += [mock.call(fixture.members[0], 0o644, directory=False),
-                         mock.call(fixture.runtime, None, directory=False)]
+                         mock.call(fixture.runtime, None, directory=False),
+                         mock.call(acceptance.LEDGER, 0o700, directory=True)]
             self.assertEqual(fixture.production.trusted.call_args_list, expected)
             fixture.production.require_installation.assert_called_once_with(enabled=False)
             self.assertEqual(acceptance._CURRENT_STAGE, "S18")
@@ -350,7 +352,7 @@ class AcceptanceInstallationTests(unittest.TestCase):
 
     def test_each_trust_failure_keeps_specific_stage_and_original_error(self):
         for call_number, stage in ((1, "S18C"), (2, "S18R"), (3, "S18H"),
-                                   (5, "S18F"), (7, "S18D"), (8, "S18T")):
+                                   (5, "S18F"), (7, "S18D"), (8, "S18T"), (9, "S18L")):
             with self.subTest(stage=stage), self.installation() as fixture:
                 original = RuntimeError("private password; raw SQL; ::error::injected")
                 fixture.production.trusted.side_effect = [None] * (call_number - 1) + [original]
@@ -483,11 +485,79 @@ class AcceptanceInstallationTests(unittest.TestCase):
             umask.assert_not_called()
             child.assert_not_called()
 
+    def test_existing_ledger_refused_before_any_installation_or_initialization(self):
+        modules = {"grp": SimpleNamespace(), "pwd": SimpleNamespace()}
+        with mock.patch.dict(sys.modules, modules), \
+                mock.patch.object(acceptance, "require_ci"), \
+                mock.patch.object(acceptance.os, "geteuid", return_value=0, create=True), \
+                mock.patch.object(acceptance.os.path, "lexists",
+                                  side_effect=lambda path: path == acceptance.LEDGER), \
+                mock.patch.object(acceptance.Path, "mkdir") as mkdir, \
+                mock.patch.object(acceptance, "normalize_runner_sudoers") as normalize, \
+                mock.patch.object(acceptance, "copy_tree") as copies, \
+                mock.patch.object(acceptance, "run") as child, \
+                mock.patch.object(acceptance, "_CURRENT_STAGE", "S00"), \
+                mock.patch("sys.stdout", io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, "Never overwrite"):
+                acceptance.acceptance(*(Path("unused") for _ in range(4)))
+            self.assertEqual(acceptance._CURRENT_STAGE, "S01")
+            mkdir.assert_not_called()
+            normalize.assert_not_called()
+            copies.assert_not_called()
+            child.assert_not_called()
+
+    def test_missing_or_untrusted_ledger_fails_preflight_with_safe_diagnostics(self):
+        # Run the actual production trust function against simulated metadata.
+        # Missing/unsafe directories must fail before the real admin wrapper.
+        for problem in ("missing", "owner", "mode", "symlink", "ancestor"):
+            with self.subTest(problem=problem), self.installation() as fixture, \
+                    mock.patch.object(Path, "is_absolute", return_value=True):
+                def metadata(path):
+                    uid, mode = 0, stat.S_IFDIR | 0o755
+                    if path == acceptance.LEDGER:
+                        mode = stat.S_IFDIR | 0o700
+                        if problem == "missing":
+                            raise FileNotFoundError(errno.ENOENT, "private detail", "private path")
+                        if problem == "owner":
+                            uid = 10001
+                        if problem == "mode":
+                            mode = stat.S_IFDIR | 0o755
+                        if problem == "symlink":
+                            mode = stat.S_IFLNK | 0o700
+                    if problem == "ancestor" and path == Path("/var/lib"):
+                        mode = stat.S_IFDIR | 0o777
+                    return SimpleNamespace(st_uid=uid, st_gid=0, st_mode=mode, st_nlink=2)
+                fixture.metadata.side_effect = metadata
+                def trusted(path, mode=None, *, directory=False):
+                    if path == acceptance.LEDGER:
+                        production.trusted(path, mode, directory=directory)
+                fixture.production.trusted.side_effect = trusted
+                with self.assertRaises((FileNotFoundError, production.ProductionError)):
+                    acceptance.validate_fixed_installation(fixture.production)
+                self.assertEqual(acceptance._CURRENT_STAGE, "S18L")
+                fixture.production.require_installation.assert_not_called()
+                output = fixture.errors.getvalue()
+                for node in ("var", "var-lib", "ledger-root"):
+                    self.assertIn(f"node={node}", output)
+                self.assertNotIn("private", output)
+                if problem == "missing":
+                    self.assertIn("metadata=unavailable errno=2", output)
+
+    def test_ledger_preflight_and_real_admin_initialization_remain_in_order(self):
+        source = inspect.getsource(acceptance.acceptance)
+        self.assertLess(source.index("LEDGER.mkdir(mode=0o700)"), source.index('label="docker-start"'))
+        self.assertLess(source.index("validate_fixed_installation(production)"),
+                        source.index('label="ledger-initialize"'))
+        self.assertIn('run(["/usr/local/sbin/project1-migration-admin", "initialize"], '
+                      'label="ledger-initialize")', source)
+        self.assertNotIn("ledger.initialize()", source)
+
     def test_ci_directory_modes_are_explicit_after_restrictive_umask(self):
         # Exercise the actual setup sequence with simulated POSIX umask masking;
         # intercept all filesystem/process mutations. Never install locally.
         modes, events = {}, []
         def mkdir(path, mode=0o777, **options):
+            events.append(("mkdir", path, mode, options))
             modes[path] = mode & ~0o077
         def chmod(path, mode):
             events.append(("chmod", path, mode))
@@ -497,6 +567,7 @@ class AcceptanceInstallationTests(unittest.TestCase):
             events.append(("chown", path, uid, gid))
         def child(arguments, **options):
             if options["label"] == "docker-start":
+                self.assertEqual(modes[acceptance.LEDGER], 0o700)
                 raise acceptance.CommandFailure("docker-start", "exit-status", exit_code=1)
             return b""
         absent = mock.Mock(side_effect=KeyError)
@@ -527,7 +598,11 @@ class AcceptanceInstallationTests(unittest.TestCase):
         self.assertFalse(any(event[1] == Path("/opt") for event in events))
         self.assertEqual(modes, {acceptance.ROOT: 0o755, acceptance.CONFIG: 0o700,
                                 acceptance.CONFIG / "approvals": 0o700,
-                                acceptance.BACKUPS: 0o750, acceptance.STAGING: 0o700})
+                                acceptance.LEDGER: 0o700, acceptance.BACKUPS: 0o750,
+                                acceptance.STAGING: 0o700})
+        self.assertIn(("mkdir", acceptance.LEDGER, 0o700, {}), events)
+        self.assertLess(events.index(("chown", acceptance.LEDGER, 0, 0)),
+                        events.index(("chmod", acceptance.LEDGER, 0o700)))
         self.assertLess(events.index(("chown", acceptance.BACKUPS, 0, 10001)),
                         events.index(("chmod", acceptance.BACKUPS, 0o750)))
 

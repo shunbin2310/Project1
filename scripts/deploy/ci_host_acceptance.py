@@ -58,6 +58,7 @@ STAGES = {
     "S18C": "validate-installation-config", "S18R": "validate-installation-root-home",
     "S18H": "validate-installation-host-directory", "S18F": "validate-installation-host-dependencies",
     "S18D": "validate-installation-host-dll", "S18T": "validate-installation-dotnet",
+    "S18L": "validate-installation-ledger-directory",
     "S20": "fixed-stdio-lock-and-backup", "S21": "cross-batch-rollback",
     "S22": "verify-synthetic-artifact", "S23": "check-sudo-execute-authorization",
     "S24": "check-default-off", "S25": "register-fixture-approval", "S26": "sudo-describe-binding",
@@ -93,6 +94,7 @@ INSTALLATION_NODES = {
     RUNTIME: "runtime-root", RUNTIME / "dotnet": "runtime-launcher",
     Path("/usr/bin/dotnet"): "system-dotnet", CONFIG: "config", HOST: "host-root",
     HOST / "Project1.MigrationHost.dll": "host-dll",
+    Path("/var"): "var", Path("/var/lib"): "var-lib", LEDGER: "ledger-root",
 }
 
 
@@ -146,6 +148,8 @@ def validate_fixed_installation(production):
     check(HOST / "Project1.MigrationHost.dll", 0o644)
     set_stage("S18T")
     check(Path("/usr/bin/dotnet").resolve(strict=True))
+    set_stage("S18L")
+    check(LEDGER, 0o700, directory=True)
     # Keep the original authoritative check, including its Linux/root boundary.
     set_stage("S18")
     production.require_installation(enabled=False)
@@ -475,6 +479,11 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
     CONFIG.chmod(0o700)
     (CONFIG / "approvals").mkdir(mode=0o700)
     (CONFIG / "approvals").chmod(0o700)
+    # The real admin initializer creates ledger files, never its parent directory.
+    # S01 already refuses any existing installation, including this directory.
+    LEDGER.mkdir(mode=0o700)
+    os.chown(LEDGER, 0, 0)
+    LEDGER.chmod(0o700)
     BACKUPS.mkdir(mode=0o750)
     os.chown(BACKUPS, 0, 10001)
     BACKUPS.chmod(0o750)
