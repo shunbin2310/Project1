@@ -7,6 +7,7 @@ import io
 import inspect
 import os
 from pathlib import Path
+import re
 import sys
 import tempfile
 import subprocess
@@ -732,6 +733,121 @@ class AcceptanceDiagnosticTests(unittest.TestCase):
             self.assertEqual(acceptance.main(["a", "b", "c", "d"]), 1)
         self.assertIn("ERROR [S12] start-disposable-sql-container", output.getvalue())
         self.assertIn("command=docker-start reason=exit-status exit_code=125", output.getvalue())
+
+
+class AcceptanceFixtureDiagnosticTests(unittest.TestCase):
+    def command(self, label="fixture-initialize"):
+        return ["/usr/bin/dotnet", "exec", str(acceptance.FIXTURE / "Project1.MigrationHost.Acceptance.dll"),
+                acceptance.FIXTURE_COMMANDS[label]]
+
+    def report(self, body, label="fixture-initialize", arguments=None):
+        with mock.patch("sys.stderr", io.StringIO()) as output:
+            acceptance.report_fixture_diagnostics(self.command(label) if arguments is None else arguments, label, body)
+            return output.getvalue()
+
+    def test_fixed_stages_categories_and_numbers_are_reconstructed_without_raw_text(self):
+        body = (b"CI-FIXTURE stage=F01 event=begin\n"
+                b"CI-FIXTURE stage=F07 event=error category=sql number=-2\n"
+                b"CI-FIXTURE stage=F10 event=error category=sql number=18456\n"
+                b"CI-FIXTURE stage=F11 event=error category=cancelled\n"
+                b"private password; raw SQL\n::error::injected\n")
+        output = self.report(body)
+        self.assertIn("stage=F01 operation=connect event=begin", output)
+        self.assertIn("stage=F07 operation=migrate-baseline event=error category=sql sql_number=-2", output)
+        self.assertIn("stage=F10 operation=verifier-and-backup event=error category=sql sql_number=18456", output)
+        self.assertIn("stage=F11 operation=verify-backup event=error category=cancelled", output)
+        self.assertNotIn("private", output)
+        self.assertNotIn("::error::", output)
+
+    def test_unknown_or_malformed_lines_cannot_inject_diagnostics(self):
+        for body in (b"CI-FIXTURE stage=F99 event=begin", b"CI-FIXTURE stage=F01 event=unknown",
+                     b"CI-FIXTURE stage=F01 event=begin category=sql number=1",
+                     b"CI-FIXTURE stage=F01 event=error category=secret",
+                     b"CI-FIXTURE stage=F01 event=error category=sql",
+                     b"CI-FIXTURE stage=F01 event=error category=cancelled number=1",
+                     b"CI-FIXTURE stage=F01 event=error", b"CI-FIXTURE stage=F01 event=error category=sql number=2147483648",
+                     b"CI-FIXTURE stage=F01 event=error category=sql number=-2147483649",
+                     b"CI-FIXTURE stage=F01 event=error category=sql number=9999999999999999999",
+                     b"CI-FIXTURE stage=F01 event=error category=sql number=1 secret",
+                     b" CI-FIXTURE stage=F01 event=begin", b"CI-FIXTURE stage=F01 event=begin\x1b[31m",
+                     "CI-FIXTURE stage=F01 event=begin", None):
+            with self.subTest(body=body):
+                self.assertEqual(self.report(body), "")
+
+    def test_only_exact_fixed_fixture_invocations_are_classified(self):
+        body = b"CI-FIXTURE stage=F01 event=begin\n"
+        for label in acceptance.FIXTURE_COMMANDS:
+            self.assertIn(f"command={label}", self.report(body, label))
+            for arguments in ([], self.command(label) + ["secret"], ["/untrusted/dotnet", *self.command(label)[1:]],
+                              ["/usr/bin/dotnet", "exec", "/untrusted/fixture.dll", acceptance.FIXTURE_COMMANDS[label]]):
+                self.assertEqual(self.report(body, label, arguments), "")
+        with mock.patch("sys.stderr", io.StringIO()) as output:
+            acceptance.report_fixture_diagnostics(self.command(), "docker-start", body)
+            self.assertEqual(output.getvalue(), "")
+
+    def test_bounded_input_and_output_and_sql_integer_extremes(self):
+        line = b"CI-FIXTURE stage=F07 event=error category=sql number=-2147483648\r\n"
+        self.assertEqual(len(self.report(line * 100).splitlines()), 64)
+        self.assertEqual(self.report(line * 2000), "")
+        self.assertIn("sql_number=-2147483648", self.report(line))
+        self.assertIn("sql_number=2147483647", self.report(line.replace(b"-2147483648", b"2147483647")))
+
+    def test_crash_retains_last_stage_without_leaking_stack_or_accepting_failure(self):
+        child = subprocess.CompletedProcess([], -6, b"private SQL/provenance", b"CI-FIXTURE stage=F08 event=begin\nprivate crash stack\n")
+        with mock.patch.object(acceptance.subprocess, "run", return_value=child), \
+                mock.patch("sys.stderr", io.StringIO()) as output:
+            with self.assertRaises(acceptance.CommandFailure) as caught:
+                acceptance.run(self.command(), label="fixture-initialize")
+            acceptance.report_failure(caught.exception)
+            self.assertIn("stage=F08 operation=seed-data", output.getvalue())
+            self.assertIn("exit_code=-6", output.getvalue())
+            self.assertNotIn("private", output.getvalue())
+
+    def test_success_payload_is_unchanged_and_diagnostics_do_not_imply_success(self):
+        body = b"CI-FIXTURE stage=F14 event=begin\n"
+        for code in (0, 1):
+            child = subprocess.CompletedProcess([], code, b"exact verified payload", body)
+            with self.subTest(code=code), mock.patch.object(acceptance.subprocess, "run", return_value=child), \
+                    mock.patch("sys.stderr", io.StringIO()):
+                if code == 0:
+                    self.assertEqual(acceptance.run(self.command(), label="fixture-initialize"), b"exact verified payload")
+                else:
+                    with self.assertRaises(acceptance.CommandFailure):
+                        acceptance.run(self.command(), label="fixture-initialize")
+
+    def test_timeout_reports_only_partial_safe_diagnostics_and_still_fails(self):
+        error = subprocess.TimeoutExpired(["private argv"], 300, output=b"private SQL",
+            stderr=b"CI-FIXTURE stage=F01 event=begin\nprivate password\n")
+        with mock.patch.object(acceptance.subprocess, "run", side_effect=error), \
+                mock.patch("sys.stderr", io.StringIO()) as output:
+            with self.assertRaises(acceptance.CommandFailure) as caught:
+                acceptance.run(self.command(), label="fixture-initialize", timeout=acceptance.FIXTURE_TIMEOUT_SECONDS)
+            self.assertEqual(caught.exception.reason, "timeout")
+            self.assertIn("operation=connect", output.getvalue())
+            self.assertNotIn("private", output.getvalue())
+
+    def test_csharp_stage_protocol_and_timeout_budget_match_python(self):
+        directory = Path(__file__).resolve().parents[3] / "tests/Project1.MigrationHost.Acceptance"
+        diagnostics = (directory / "CiFixtureDiagnostics.cs").read_text(encoding="utf-8")
+        program = (directory / "Program.cs").read_text(encoding="utf-8")
+        enum = re.search(r"enum FixtureStage\s*\{([^}]+)\}", diagnostics).group(1)
+        names = [name.strip() for name in enum.split(",") if name.strip()]
+        snake = [re.sub(r"(?<!^)(?=[A-Z])", "-", name).lower() for name in names]
+        self.assertEqual(tuple(snake), acceptance.FIXTURE_STAGES)
+        minutes = int(re.search(r"CancellationTokenSource\(TimeSpan.FromMinutes\(([0-9]+)\)", program).group(1))
+        self.assertGreater(acceptance.FIXTURE_TIMEOUT_SECONDS, minutes * 60)
+        tree = ast.parse(Path(acceptance.__file__).read_text(encoding="utf-8"))
+        found = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name) or node.func.id != "run":
+                continue
+            keywords = {item.arg: item.value for item in node.keywords}
+            label = keywords.get("label")
+            if isinstance(label, ast.Constant) and label.value in acceptance.FIXTURE_COMMANDS:
+                self.assertIsInstance(keywords.get("timeout"), ast.Name)
+                self.assertEqual(keywords["timeout"].id, "FIXTURE_TIMEOUT_SECONDS")
+                found.append(label.value)
+        self.assertEqual(set(found), set(acceptance.FIXTURE_COMMANDS))
 
 
 if __name__ == "__main__":

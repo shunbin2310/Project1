@@ -36,6 +36,9 @@ MODULES = (
 ROOT = Path("/usr/local/libexec/project1-migration")
 HOST = Path("/usr/local/libexec/project1-migration-host")
 RUNTIME = Path("/root/project1-host-acceptance-dotnet")
+FIXTURE = Path("/usr/local/libexec/project1-host-acceptance-fixture")
+# The C# fixture has a four-minute cancellation deadline; retain cleanup margin.
+FIXTURE_TIMEOUT_SECONDS = 300
 CONFIG = Path("/etc/project1-migration-execution")
 BACKUPS = Path("/var/lib/project1-migration-backups")
 LEDGER = Path("/var/lib/project1-migration-ledger")
@@ -75,6 +78,13 @@ COMMAND_LABELS = frozenset({
     "private-write-denial", "credential-read-denial", "fixture-after", "sudo-consumed-describe",
     "sudo-consumed-execute", "docker-cleanup",
 })
+FIXTURE_COMMANDS = {"fixture-initialize": "initialize", "fixture-before": "before", "fixture-after": "after"}
+FIXTURE_STAGES = (
+    "guard", "connect", "identity", "credentials", "existing-database", "create-database",
+    "migration-profile", "migrate-baseline", "seed-data", "execution-account", "verifier-and-backup",
+    "verify-backup", "generate-sql", "verify-data", "complete",
+)
+FIXTURE_CATEGORIES = frozenset({"sql", "cancelled", "timeout", "invalid-operation", "invalid-input", "io", "unexpected"})
 _CURRENT_STAGE = "S00"
 VISUDO_CHECKS = {
     "visudo-baseline": ("/usr/sbin/visudo", "-c"),
@@ -319,19 +329,62 @@ def run(arguments, *, label, body=None, succeeds=True, environment=None, timeout
     try:
         result = subprocess.run(arguments, input=body, capture_output=True, timeout=timeout,
                                 env=environment)
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as error:
+        report_fixture_diagnostics(arguments, label, error.stderr)
         raise CommandFailure(label, "timeout") from None
     except OSError as error:
         raise CommandFailure(label, "launch-error", errno=error.errno) from None
+    report_fixture_diagnostics(arguments, label, result.stderr)
     if (result.returncode == 0) != succeeds:
         # ONLY exact, read-only visudo invocations get classified diagnostics.
-        # All other children (SQL, Docker, credentials, etc.) remain opaque.
+        # Other raw child output remains opaque; the fixed CI fixture protocol
+        # above is separately reconstructed from allowlisted fields only.
         if (label in VISUDO_CHECKS and tuple(arguments) == VISUDO_CHECKS[label]
                 and body is None and environment is None and succeeds):
             report_visudo_failure(label, result.stdout, result.stderr)
         # Never echo arbitrary child output (possibly credential-bearing SQL errors).
         raise CommandFailure(label, "exit-status", exit_code=result.returncode)
     return result.stdout
+
+
+def report_fixture_diagnostics(arguments, label, stderr):
+    """Only fixed CI fixture invocations may emit a bounded, reconstructed protocol.
+
+    Raw stdout is SQL/provenance data and is NEVER parsed or echoed. Unknown
+    stderr, including runtime crash stacks, SQL text and messages, stays opaque.
+    Diagnostics never decide whether a command succeeded.
+    """
+    action = FIXTURE_COMMANDS.get(label)
+    expected = ("/usr/bin/dotnet", "exec", str(FIXTURE / "Project1.MigrationHost.Acceptance.dll"), action)
+    if action is None or tuple(arguments) != expected or not isinstance(stderr, bytes) or len(stderr) > 65536:
+        return
+    count = 0
+    for line in stderr.splitlines():
+        match = re.fullmatch(rb"CI-FIXTURE stage=F([0-9]{2}) event=(begin|error)"
+                             rb"(?: category=([a-z-]+)(?: number=(-?(?:0|[1-9][0-9]{0,9})))?)?", line)
+        if match is None:
+            continue
+        index = int(match[1])
+        if index >= len(FIXTURE_STAGES):
+            continue
+        event = match[2].decode("ascii")
+        category = match[3].decode("ascii") if match[3] else None
+        number = int(match[4]) if match[4] else None
+        if ((event == "begin" and category is not None)
+                or (event == "error" and category not in FIXTURE_CATEGORIES)
+                or (category == "sql" and number is None)
+                or (category != "sql" and number is not None)
+                or (number is not None and not -(2 ** 31) <= number < 2 ** 31)):
+            continue
+        detail = f"FIXTURE command={label} stage=F{index:02d} operation={FIXTURE_STAGES[index]} event={event}"
+        if category is not None:
+            detail += f" category={category}"
+        if number is not None:
+            detail += f" sql_number={number}"
+        print(detail, file=sys.stderr, flush=True)
+        count += 1
+        if count >= 64:
+            break
 
 
 def write_private(path, body):
@@ -446,7 +499,7 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
     system_dotnet.symlink_to(runtime / "dotnet")
     set_stage("S04")
     copy_tree(published_host, HOST)
-    fixture_root = Path("/usr/local/libexec/project1-host-acceptance-fixture")
+    fixture_root = FIXTURE
     set_stage("S05")
     copy_tree(published_fixture, fixture_root)
     set_stage("S06")
@@ -527,6 +580,7 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
         set_stage("S16")
         fixture = json.loads(run(fixture_command + ["initialize"], environment=child_env,
                                  label="fixture-initialize",
+                                 timeout=FIXTURE_TIMEOUT_SECONDS,
                                  body=json.dumps({"execution_password": execution, "verifier_password": verifier}).encode() + b"\n"))
         set_stage("S17")
         source = STAGING / "project1-host-acceptance.bak"
@@ -572,7 +626,7 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
             raise AssertionError("Injected SQL failure was accepted.")
         except production.ProductionError:
             pass
-        run(fixture_command + ["before"], environment=child_env, label="fixture-before")
+        run(fixture_command + ["before"], environment=child_env, label="fixture-before", timeout=FIXTURE_TIMEOUT_SECONDS)
         print("PASS: real stdio identity, SQL lock, scoped backup verifier, cross-batch rollback", flush=True)
         set_stage("S22")
         client = FixtureClient(package_files(fixture))
@@ -641,7 +695,7 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
         if result["phase"] != "succeeded" or ledger.inspect()["entries"][approval_id]["phase"] != "succeeded":
             raise RuntimeError("Durable terminal result differed.")
         set_stage("S30")
-        run(fixture_command + ["after"], environment=child_env, label="fixture-after")
+        run(fixture_command + ["after"], environment=child_env, label="fixture-after", timeout=FIXTURE_TIMEOUT_SECONDS)
         set_stage("S31")
         run(sudo + [wrapper, "--describe", approval_id], succeeds=False, label="sudo-consumed-describe")
         run(sudo + [wrapper, approval_id], succeeds=False, label="sudo-consumed-execute")
