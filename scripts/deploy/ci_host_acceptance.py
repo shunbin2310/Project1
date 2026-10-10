@@ -35,6 +35,7 @@ MODULES = (
 )
 ROOT = Path("/usr/local/libexec/project1-migration")
 HOST = Path("/usr/local/libexec/project1-migration-host")
+RUNTIME = Path("/root/project1-host-acceptance-dotnet")
 CONFIG = Path("/etc/project1-migration-execution")
 BACKUPS = Path("/var/lib/project1-migration-backups")
 LEDGER = Path("/var/lib/project1-migration-ledger")
@@ -89,8 +90,7 @@ INSTALLATION_NODES = {
     Path("/"): "filesystem-root", Path("/etc"): "etc", Path("/root"): "root-home",
     Path("/usr"): "usr", Path("/usr/local"): "usr-local",
     Path("/usr/local/libexec"): "libexec", Path("/usr/bin"): "usr-bin", Path("/opt"): "opt",
-    Path("/opt/project1-host-acceptance-dotnet"): "runtime-root",
-    Path("/opt/project1-host-acceptance-dotnet/dotnet"): "runtime-launcher",
+    RUNTIME: "runtime-root", RUNTIME / "dotnet": "runtime-launcher",
     Path("/usr/bin/dotnet"): "system-dotnet", CONFIG: "config", HOST: "host-root",
     HOST / "Project1.MigrationHost.dll": "host-dll",
 }
@@ -408,7 +408,7 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
     import grp
     import pwd
     set_stage("S01")
-    fixed = (ROOT, HOST, CONFIG, BACKUPS, LEDGER, STAGING,
+    fixed = (ROOT, HOST, RUNTIME, CONFIG, BACKUPS, LEDGER, STAGING,
              Path("/usr/local/sbin/project1-migration-execute"),
              Path("/usr/local/sbin/project1-migration-admin"),
              SUDOERS)
@@ -428,8 +428,9 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
     run(["/usr/sbin/visudo", "-c"], label="visudo-baseline")
     os.umask(0o077)
     print("BEGIN: disposable root installation and real sudoers validation", flush=True)
-    # Copy runtime to root-managed storage rather than trusting the runner's writable SDK.
-    runtime = Path("/opt/project1-host-acceptance-dotnet")
+    # Keep every runtime ancestor root-managed; the hosted runner's /opt can be writable.
+    # Do not change shared /opt permissions or relax the production trust checks.
+    runtime = RUNTIME
     set_stage("S02")
     copy_tree(dotnet.resolve(strict=True).parent, runtime)
     set_stage("S03")

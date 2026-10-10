@@ -16,6 +16,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import ci_host_acceptance as acceptance
+import production_migration as production
 from verify_migration_artifact import verify
 from test_migration_precheck import files_fixture, IDS
 
@@ -312,7 +313,7 @@ class AcceptanceInstallationTests(unittest.TestCase):
         production = SimpleNamespace(trusted=mock.Mock(), require_installation=mock.Mock())
         members = [acceptance.HOST / "Project1.MigrationHost.dll",
                    acceptance.HOST / "private_dependency.dll", acceptance.HOST / "runtimes"]
-        runtime = Path("/opt/project1-host-acceptance-dotnet/dotnet")
+        runtime = acceptance.RUNTIME / "dotnet"
         with ExitStack() as stack:
             stack.enter_context(mock.patch.dict(os.environ, AcceptanceGuardTests().environment(), clear=True))
             stack.enter_context(mock.patch.object(acceptance.sys, "platform", "linux"))
@@ -428,6 +429,60 @@ class AcceptanceInstallationTests(unittest.TestCase):
             fixture.production.require_installation.assert_called_once_with(enabled=False)
             self.assertIn("host_dependencies=0", fixture.output.getvalue())
 
+    def test_runtime_diagnostics_identify_root_home_and_new_runtime(self):
+        with self.installation() as fixture:
+            acceptance.report_installation_metadata(fixture.runtime)
+            output = fixture.errors.getvalue()
+            for node in ("filesystem-root", "root-home", "runtime-root", "runtime-launcher"):
+                self.assertIn(f"node={node}", output)
+            self.assertNotIn("node=opt", output)
+            self.assertNotIn(str(fixture.runtime), output)
+
+    def test_real_trust_accepts_root_runtime_but_still_rejects_writable_ancestors(self):
+        # Simulate POSIX metadata only; exercise the unmodified production check
+        # on Windows too, without installing a runtime or changing permissions.
+        launcher = acceptance.RUNTIME / "dotnet"
+        old_launcher = Path("/opt/project1-host-acceptance-dotnet/dotnet")
+        self.assertEqual(acceptance.RUNTIME.parent, Path("/root"))
+        def metadata(path):
+            if path in (launcher, old_launcher):
+                return SimpleNamespace(st_uid=0, st_mode=stat.S_IFREG | 0o755, st_nlink=1)
+            mode = 0o777 if path == Path("/opt") else 0o700 if path == Path("/root") else 0o755
+            return SimpleNamespace(st_uid=0, st_mode=stat.S_IFDIR | mode, st_nlink=2)
+        with mock.patch.object(Path, "is_absolute", return_value=True), \
+                mock.patch.object(Path, "lstat", autospec=True, side_effect=metadata) as read:
+            production.trusted(launcher)
+            self.assertEqual([call.args[0] for call in read.call_args_list],
+                             [Path("/"), Path("/root"), acceptance.RUNTIME, launcher])
+            with self.assertRaisesRegex(production.ProductionError, "exclusively root-managed"):
+                production.trusted(old_launcher)
+            read.assert_called_with(Path("/opt"))
+            with mock.patch.object(Path, "lstat", return_value=SimpleNamespace(
+                    st_uid=0, st_mode=stat.S_IFDIR | 0o777, st_nlink=2)), \
+                    self.assertRaises(production.ProductionError):
+                production.trusted(launcher)
+
+    def test_existing_runtime_file_directory_or_symlink_refused_before_mutations(self):
+        # lexists includes dangling symlinks, not just existing directories.
+        modules = {"grp": SimpleNamespace(), "pwd": SimpleNamespace()}
+        with mock.patch.dict(sys.modules, modules), \
+                mock.patch.object(acceptance, "require_ci"), \
+                mock.patch.object(acceptance.os, "geteuid", return_value=0, create=True), \
+                mock.patch.object(acceptance.os.path, "lexists",
+                                  side_effect=lambda path: path == acceptance.RUNTIME), \
+                mock.patch.object(acceptance, "normalize_runner_sudoers") as normalize, \
+                mock.patch.object(acceptance, "copy_tree") as copy_tree, \
+                mock.patch.object(acceptance.os, "umask") as umask, \
+                mock.patch.object(acceptance, "run") as child, \
+                mock.patch.object(acceptance, "_CURRENT_STAGE", "S00"), \
+                mock.patch("sys.stdout", io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, "Never overwrite"):
+                acceptance.acceptance(*(Path("unused") for _ in range(4)))
+            normalize.assert_not_called()
+            copy_tree.assert_not_called()
+            umask.assert_not_called()
+            child.assert_not_called()
+
     def test_ci_directory_modes_are_explicit_after_restrictive_umask(self):
         # Exercise the actual setup sequence with simulated POSIX umask masking;
         # intercept all filesystem/process mutations. Never install locally.
@@ -457,8 +512,9 @@ class AcceptanceInstallationTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(acceptance.Path, "mkdir", autospec=True, side_effect=mkdir))
             stack.enter_context(mock.patch.object(acceptance.Path, "chmod", autospec=True, side_effect=chmod))
             stack.enter_context(mock.patch.object(acceptance.Path, "resolve", return_value=Path("/unused/dotnet")))
-            stack.enter_context(mock.patch.object(acceptance.Path, "symlink_to"))
-            for name in ("normalize_runner_sudoers", "copy_tree", "verify_sudoers_metadata", "write_private"):
+            link = stack.enter_context(mock.patch.object(acceptance.Path, "symlink_to", autospec=True))
+            copies = stack.enter_context(mock.patch.object(acceptance, "copy_tree"))
+            for name in ("normalize_runner_sudoers", "verify_sudoers_metadata", "write_private"):
                 stack.enter_context(mock.patch.object(acceptance, name))
             stack.enter_context(mock.patch.object(acceptance.shutil, "copyfile"))
             stack.enter_context(mock.patch.object(acceptance, "run", side_effect=child))
@@ -466,6 +522,9 @@ class AcceptanceInstallationTests(unittest.TestCase):
             stack.enter_context(mock.patch("sys.stdout", io.StringIO()))
             with self.assertRaises(acceptance.CommandFailure):
                 acceptance.acceptance(*(Path("unused") for _ in range(4)))
+        self.assertEqual(copies.call_args_list[0], mock.call(Path("/unused"), acceptance.RUNTIME))
+        link.assert_called_once_with(Path("/usr/bin/dotnet"), acceptance.RUNTIME / "dotnet")
+        self.assertFalse(any(event[1] == Path("/opt") for event in events))
         self.assertEqual(modes, {acceptance.ROOT: 0o755, acceptance.CONFIG: 0o700,
                                 acceptance.CONFIG / "approvals": 0o700,
                                 acceptance.BACKUPS: 0o750, acceptance.STAGING: 0o700})
