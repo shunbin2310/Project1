@@ -92,6 +92,46 @@ jobs:
           --logger "trx;LogFileName=migrations.trx"
           --results-directory artifacts/backend-test-results
 
+      - name: Generate reviewable migration SQL (no database access)
+        # Generate only: never apply SQL or use deployment credentials.
+        # Explicit non-Development settings avoid local user secrets.
+        env:
+          ConnectionStrings__DefaultConnection: 'Server=tcp:127.0.0.1,1;Database=Project1CiScript;User Id=ci_script;Password=ci-script-not-a-real-password;Encrypt=True;TrustServerCertificate=False;Connect Timeout=1'
+          Jwt__SigningKey: 'CI-migration-script-only-not-for-authentication-000000000000'
+          Jwt__Issuer: 'Project1.CI.MigrationScript'
+          Jwt__Audience: 'Project1.CI.MigrationScript'
+        run: |
+          mkdir -p artifacts/migrations
+          dotnet tool run dotnet-ef -- migrations script 0 --idempotent \
+            --project backend/Project1.Api \
+            --startup-project backend/Project1.Api \
+            --configuration Release --no-build --context AppDbContext \
+            --output artifacts/migrations/migrations.sql \
+            -- --environment CiMigrationScript
+          test -s artifacts/migrations/migrations.sql
+          printf '%s\n' \
+            "Repository: $GITHUB_REPOSITORY" \
+            "Commit SHA: $GITHUB_SHA" \
+            "Checked-out commit: $(git rev-parse HEAD)" \
+            "CI run ID: $GITHUB_RUN_ID" \
+            "CI run attempt: $GITHUB_RUN_ATTEMPT" \
+            "Event: $GITHUB_EVENT_NAME" \
+            "Ref: $GITHUB_REF" \
+            "Run URL: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            'Migration range: 0 to latest migration in this commit; idempotent SQL Server script.' \
+            'REVIEW ONLY: not executed by CI or CD. Review, test and back up before manual use.' \
+            > artifacts/migrations/build-info.txt
+          cd artifacts/migrations
+          sha256sum migrations.sql build-info.txt > SHA256SUMS
+
+      - name: Save reviewable migration SQL
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: project1-migrations-sql-${{ github.sha }}
+          path: artifacts/migrations/
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Show migration SQL Server logs on failure
         if: ${{ failure() }}
         run: docker logs "${{ job.services.migration-sqlserver.id }}"
