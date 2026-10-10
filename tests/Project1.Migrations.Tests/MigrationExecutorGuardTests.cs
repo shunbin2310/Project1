@@ -55,4 +55,27 @@ public sealed class MigrationExecutorGuardTests
         Assert.Throws<InvalidOperationException>(() => CiMigrationAccount.GrantSql(
             $"Project1CiExecutor_{Guid.NewGuid():N}", (CiMigrationPermissionProfile)123));
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void PermissionCheckAcceptsOnlyTheExpectedValue(int expected)
+    {
+        MigrationExecutorSqlIntegrationTests.AssertPermissionValue("History.INSERT", expected, expected);
+    }
+
+    [Theory]
+    [InlineData(null, 0)]
+    [InlineData(1, 0)]
+    [InlineData(0, 1)]
+    [InlineData(2, 0)]
+    public void PermissionCheckRejectsUnknownOrUnexpectedValuesWithNamedDiagnostics(int? actual, int expected)
+    {
+        var error = Assert.ThrowsAny<Xunit.Sdk.XunitException>(() =>
+            MigrationExecutorSqlIntegrationTests.AssertPermissionValue("Server.CONTROL SERVER", actual, expected));
+
+        Assert.Contains("Server.CONTROL SERVER", error.Message);
+        Assert.Contains($"expected {expected}", error.Message);
+        Assert.Contains(actual.HasValue ? $"returned {actual}" : "returned NULL (unknown)", error.Message);
+    }
 }
