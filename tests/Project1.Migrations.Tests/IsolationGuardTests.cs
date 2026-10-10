@@ -40,6 +40,24 @@ public sealed class IsolationGuardTests
     }
 
     [Theory]
+    [InlineData("master")]
+    [InlineData("fresh")]
+    [InlineData("upgrade")]
+    public void ConnectionTimeoutIsBoundedForAdminAndOwnedDatabases(string scenario)
+    {
+        var settings = new CiSqlServerSettings("disposable-ci-password");
+        var database = scenario == "master"
+            ? "master"
+            : $"Project1CiMigration_{Guid.NewGuid():N}_{scenario}";
+        var connection = new SqlConnectionStringBuilder(settings.ConnectionString(database));
+
+        Assert.Equal(15, connection.ConnectTimeout);
+        Assert.Equal("tcp:127.0.0.1,14333", connection.DataSource);
+        Assert.Equal(database, connection.InitialCatalog);
+        Assert.False(connection.Pooling);
+    }
+
+    [Theory]
     [InlineData("homelab-server", 17)]
     [InlineData("localhost", 17)]
     [InlineData("project1-ci-sqlserver", 16)]
