@@ -1,5 +1,13 @@
 # CI 数据库迁移测试
 
+另有独立的 **Isolated Ubuntu migration host acceptance** job，在 GitHub-hosted 临时 Ubuntu 机器安装未经改写的固定宿主和 sudoers。
+它测试真实 stdio、受限备份验证、事务清理、批准账本和 sudo 边界；不连接 homelab、不读取生产 secrets，也不使用 Tailscale/SSH。
+该验收专用容器使用宿主要求的同名测试数据库 `Project1Db` 和 loopback 1433；现有随机数据库测试继续使用独立 job 的 14333，不放宽原有隔离校验。
+GitHub client 仅在 root 验收 harness 中替换为内存 fixture，生产入口没有测试开关；真实在线来源及 wrapper SQL 提交不在此用例覆盖范围。
+详见[固定宿主验收与生产启用边界](PRODUCTION_MIGRATION_CD.md#失败和验证边界)。请勿在本机或生产服务器运行 `ci_host_acceptance.py` 或其 SQL provisioner。
+原来的必需后端检查等待该验收，并通过 `always()` 下的显式结果检查拒绝失败/取消/跳过的验收；避免依赖 job 被跳过却仍满足分支规则。
+因此不需要更改现有必需检查名称，后端发布只会在隔离验收成功后开始；前端仍可并行运行。
+
 ## 五种检查
 
 - `Check that model changes have a migration`：比较 EF 模型和迁移快照，发现忘记生成迁移的情况。不连接数据库。

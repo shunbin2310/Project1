@@ -18,6 +18,10 @@ concurrency:
 jobs:
   backend:
     name: Backend tests and Linux publish
+    needs: migration-host-acceptance
+    # An ordinary skipped dependent job can count as successful for branch rules.
+    # Always run the explicit gate so the EXISTING required backend check fails closed.
+    if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
@@ -37,6 +41,11 @@ jobs:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
     steps:
+      - name: Require isolated host acceptance before backend publication
+        env:
+          ACCEPTANCE_RESULT: ${{ needs.migration-host-acceptance.result }}
+        run: test "$ACCEPTANCE_RESULT" = success
+
       - name: Check out code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -215,6 +224,59 @@ jobs:
             !artifacts/api/appsettings.Development.json
           if-no-files-found: error
           retention-days: 14
+
+  migration-host-acceptance:
+    name: Isolated Ubuntu migration host acceptance
+    # A separate disposable VM: never use a self-hosted/production runner here.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - name: Check out code without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish unchanged fixed host and CI-only SQL provisioner
+        run: |
+          dotnet publish scripts/deploy/dotnet/Project1.MigrationHost/Project1.MigrationHost.csproj \
+            --configuration Release --runtime linux-x64 --self-contained false \
+            --output artifacts/host-acceptance/host
+          dotnet publish tests/Project1.MigrationHost.Acceptance/Project1.MigrationHost.Acceptance.csproj \
+            --configuration Release --runtime linux-x64 --self-contained false \
+            --output artifacts/host-acceptance/fixture
+
+      - name: Accept root installation, actual stdio host, sudo and durable execution in disposable VM
+        # Explicit minimal environment: no deployment secrets, token, SSH or Tailscale.
+        # Script creates its OWN pinned SQL container bound only to runner loopback.
+        run: |
+          sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/root \
+            GITHUB_ACTIONS=true GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_JOB=migration-host-acceptance \
+            RUNNER_ENVIRONMENT="$RUNNER_ENVIRONMENT" \
+            PROJECT1_HOST_ACCEPTANCE=disposable-github-runner-v1 \
+            /usr/bin/python3 -I scripts/deploy/ci_host_acceptance.py \
+            scripts/deploy artifacts/host-acceptance/host artifacts/host-acceptance/fixture \
+            "$(command -v dotnet)"
+
+      - name: Explain acceptance boundary
+        if: ${{ success() }}
+        run: |
+          printf '%s\n' \
+            '## Isolated Ubuntu host acceptance passed' \
+            'Tested real root files, sudo restrictions, fixed stdio host, scoped backup verifier, SQL lock, rollback, reviewed SQL bytes and durable approval consumption.' \
+            'Artifact provenance is synthetic in this fixture; production online registration and wrapper SQL submission are NOT exercised.' \
+            'No homelab access, production secrets, SSH, Tailscale or service restart. Production migration remains off.' \
+            >> "$GITHUB_STEP_SUMMARY"
 
   frontend:
     name: Frontend checks and production build

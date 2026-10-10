@@ -119,7 +119,21 @@ SSH 输出丢失或超时不能解释为 SQL 没运行；必须由管理员检�
 
 本地测试仅验证固定目标、参数拒绝、来源重查、备份哈希前后比对、登记/执行顺序、脱敏及 transport 不重试。
 GitHub 临时 SQL 用例复用真实宿主的 BackupInspector，验证 HEADERONLY、原始 UTC 时间与 CHECKSUM VERIFYONLY。
-**固定生产 stdio 宿主/完整 sudo 安装需要 Ubuntu 隔离环境验收，未在本机或生产执行。**
+固定 stdio 宿主/实际 sudo 安装由 `ci.yml` 的独立 **Isolated Ubuntu migration host acceptance** job 验收。
+该 job 仅在 GitHub-hosted Ubuntu 临时机器运行；不安装 Docker 到 homelab，不连接 SSH/Tailscale，不读取生产凭据。
+`ci_host_acceptance.py` 在任何安装或 SQL 操作前要求专用 CI 标记、指定 job、GitHub-hosted 身份和 Linux root；拒绝覆盖已有生产工具/账号。
+它自行创建固定镜像的 SQL 容器，只绑定临时机器 `127.0.0.1:1433`；容器内的同名服务器/数据库是测试数据，不是生产实例。
+
+验收安装未经改写的 Python 入口、.NET 宿主和 sudoers，生成独立测试密码，检查真实 stdio、SQL 身份/锁、受限备份验证账号、
+真实 COPY_ONLY/CHECKSUM 备份、跨 GO 批次失败回滚，以及现有产品保留和实际 root 账本的领取/成功/防重放。
+sudo 测试通过真实 wrapper 验证 describe、默认关闭、参数正则、NOSETENV、管理员入口拒绝和文件不可由部署用户读取/写入。
+备份生成目录可由 SQL 服务写入，但最终 root:mssql 备份目录只读挂载到容器；不赋予 SQL 服务修改已归档备份的权限。
+
+**边界：GitHub client 是内存测试 fixture，不调用真实 GitHub API。** 测试管理员只在临时机器写入测试启用标记和合成批准，
+root 验收 harness 在进程内调用实际安装入口登记/执行；入口、协调器、文件信任检查和固定宿主均未经改写。
+sudo wrapper 的 describe/拒绝用例由真实子进程测试，但 SQL 成功路径不是通过 wrapper 子进程提交。
+因此该 job 不声称验证了真实在线管理员登记/产物下载/SSH 全链路，也不代表允许安装、授权或执行生产迁移。
+Windows 本机不能运行该验收；其真实 Ubuntu 结果必须以新 CI job 为准，未在生产执行。
 CI 必须通过后才讨论服务器安装，不能将“本地编译通过”说成“生产已启用”。
 
 参考：[HEADERONLY 结果与时区](https://learn.microsoft.com/en-us/sql/t-sql/statements/restore-statements-headeronly-transact-sql?view=sql-server-ver17)、
