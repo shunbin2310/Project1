@@ -49,7 +49,7 @@ internal sealed record CiSqlServerSettings(string Password)
         Password = Password,
         Encrypt = true,
         TrustServerCertificate = true, // Only the isolated, self-signed CI container.
-        ConnectTimeout = 2,
+        ConnectTimeout = 15, // Bounded CI login tolerance; does not retry migration execution.
         Pooling = false,
         ApplicationName = "Project1.CI.Migrations"
     }.ConnectionString;

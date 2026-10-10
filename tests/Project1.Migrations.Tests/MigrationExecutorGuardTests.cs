@@ -30,6 +30,7 @@ public sealed class MigrationExecutorGuardTests
         Assert.Equal(database, connection.InitialCatalog);
         Assert.Equal(login, connection.UserID);
         Assert.Equal("account-disposable-password", connection.Password);
+        Assert.Equal(15, connection.ConnectTimeout);
         Assert.False(connection.IntegratedSecurity);
         Assert.False(connection.Pooling);
         Assert.Throws<InvalidOperationException>(() => settings.AccountConnectionString("Project1Db", login, "test"));
