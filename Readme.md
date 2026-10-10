@@ -115,6 +115,27 @@ $env:ConnectionStrings__DefaultConnection = "your-connection-string"
 ### 2. Apply database migrations
 
 ```powershell
+
+dotnet tool run dotnet-ef -- migrations add xxxx `
+  --project backend/Project1.Api `
+  --startup-project backend/Project1.Api `
+  -- --environment Development
+
+check which migration file status
+dotnet tool run dotnet-ef -- migrations list `
+  --project backend/Project1.Api `
+  --startup-project backend/Project1.Api `
+  --connection "$LocalDb" `
+  -- --environment Development
+
+$LocalDb = "Server=localhost;Database=Project1Db;Trusted_Connection=True;TrustServerCertificate=True"
+
+dotnet tool run dotnet-ef -- database update 20261009164508_AddProductExampleAttr `
+  --project backend/Project1.Api `
+  --startup-project backend/Project1.Api `
+  --connection "$LocalDb" `
+  -- --environment Development
+
 dotnet tool run dotnet-ef database update `
   --project backend/Project1.Api `
   --startup-project backend/Project1.Api
