@@ -18,7 +18,7 @@
 
 CI 从同一次构建的 EF 程序集，用 `migrations list --no-connect --json --prefix-output` 生成清单。
 非 Development 环境及占位配置与 SQL 生成步骤一致，不连接本地或正式数据库、不读取本地 user secrets。
-三个 SQL 集成用例执行前，也核对清单与该次编译的迁移一致；全部通过并重新核对哈希后才上传。
+四个生成 SQL 集成用例执行前，也核对清单与该次编译的迁移一致；全部通过并重新核对哈希后才上传。
 **旧 CI 包缺少清单或仍带旧的自动执行批准说明时会被拒绝；请选清理变更合并后产生的新 main/push CI。**
 
 ## 三种手动运行方式
@@ -121,7 +121,7 @@ dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj --c
 ```
 
 Python 测试只使用虚构 ZIP、GitHub 响应和模拟 SSH/sqlcmd。Linux 专用文件测试只使用临时目录；
-Windows 跳过这些用例。普通电脑上的五个 SQL 集成测试跳过；实际 SQL Server 验证必须等待 GitHub 临时容器测试。生产预检查始终不执行迁移。
+Windows 跳过这些用例。普通电脑上的六个 SQL 集成测试跳过；实际 SQL Server 验证必须等待 GitHub 临时容器测试。生产预检查始终不执行迁移。
 工作流应使用 actionlint 校验；本地 Windows 无法代替 Ubuntu 上的 visudo 或真实 sqlcmd/只读账号验收。
 
 参考：[EF CLI 的迁移清单和 --no-connect](https://learn.microsoft.com/en-us/ef/core/cli/dotnet#dotnet-ef-migrations-list)、

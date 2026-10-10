@@ -19,6 +19,7 @@ public sealed class MigrationSqlIntegrationTests
 
         await AssertAllMigrationsAppliedAsync(context);
         await AssertNoteColumnAsync(database);
+        await AssertPracticeNoteColumnAsync(database);
         Assert.Empty(await context.Products.AsNoTracking().ToListAsync());
     }
 
@@ -37,7 +38,9 @@ public sealed class MigrationSqlIntegrationTests
 
         await AssertAllMigrationsAppliedAsync(context);
         await AssertNoteColumnAsync(database);
+        await AssertPracticeNoteColumnAsync(database);
         await AssertProductAsync(context, productId, null);
+        Assert.Null((await context.Products.AsNoTracking().SingleAsync()).CicdPracticeNote);
         var product = await context.Products.SingleAsync();
         product.Note = "Note saved after executing generated SQL";
         await context.SaveChangesAsync();
@@ -65,7 +68,46 @@ public sealed class MigrationSqlIntegrationTests
         Assert.Equal(history, (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         await AssertAllMigrationsAppliedAsync(context);
         await AssertNoteColumnAsync(database);
+        await AssertPracticeNoteColumnAsync(database);
         await AssertProductAsync(context, productId, product.Note);
+    }
+
+    [SqlServerCiFact]
+    public async Task GeneratedSql_CurrentDatabaseUpgradePreservesBusinessNoteAndPracticeValue()
+    {
+        var batches = MigrationSqlScript.ReadFromCiWorkspace();
+        await using var database = await CiDatabase.CreateAsync("upgrade");
+        await using var context = database.CreateContext();
+        await context.GetService<IMigrator>().MigrateAsync(AddNote);
+        var productId = await InsertPreMigrationProductAsync(database);
+        // Arrange with raw SQL: the latest EF model already expects the new column.
+        await using (var connection = database.CreateConnection())
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE dbo.Products SET Note = N'Existing business note';";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await database.ExecuteScriptAsync(batches);
+
+        await AssertAllMigrationsAppliedAsync(context);
+        await AssertNoteColumnAsync(database);
+        await AssertPracticeNoteColumnAsync(database);
+        await AssertProductAsync(context, productId, "Existing business note");
+        var product = await context.Products.SingleAsync();
+        Assert.Null(product.CicdPracticeNote);
+        product.CicdPracticeNote = new string('x', 100);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        Assert.Equal(new string('x', 100), (await context.Products.SingleAsync()).CicdPracticeNote);
+
+        await database.ExecuteScriptAsync(batches);
+
+        context.ChangeTracker.Clear();
+        await AssertAllMigrationsAppliedAsync(context);
+        await AssertProductAsync(context, productId, "Existing business note");
+        Assert.Equal(new string('x', 100), (await context.Products.AsNoTracking().SingleAsync()).CicdPracticeNote);
     }
 
     private static async Task AssertProductAsync(AppDbContext context, int productId, string? note)

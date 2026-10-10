@@ -39,6 +39,7 @@ const visibleProducts = computed(() => {
       product.code,
       product.name,
       product.description ?? '',
+      product.cicdPracticeNote ?? '',
       product.productCategoryCode,
       product.productCategoryName,
       product.unitOfMeasureCode,
@@ -100,6 +101,7 @@ async function saveProduct(values: ProductFormValues) {
       const product = await productService.create({
         name: values.name,
         description: values.description,
+        cicdPracticeNote: values.cicdPracticeNote,
         productCategoryId: values.productCategoryId,
         unitOfMeasureId: values.unitOfMeasureId,
         defaultUnitPrice: values.defaultUnitPrice,
@@ -142,6 +144,7 @@ async function reactivateProduct(product: Product) {
     await productService.update(product.id, {
       name: product.name,
       description: product.description,
+      cicdPracticeNote: product.cicdPracticeNote,
       productCategoryId: product.productCategoryId,
       unitOfMeasureId: product.unitOfMeasureId,
       defaultUnitPrice: product.defaultUnitPrice,
@@ -276,6 +279,7 @@ function formatQuantity(value: number) {
               <th>Unit</th>
               <th>Default unit price</th>
               <th>Reorder level</th>
+              <th>CI/CD practice note</th>
               <th>Status</th>
               <th><span class="sr-only">Actions</span></th>
             </tr>
@@ -305,6 +309,7 @@ function formatQuantity(value: number) {
               </td>
               <td>{{ formatCurrency(product.defaultUnitPrice) }}</td>
               <td>{{ formatQuantity(product.reorderLevel) }} {{ product.unitOfMeasureCode }}</td>
+              <td>{{ product.cicdPracticeNote || '—' }}</td>
               <td>
                 <span class="status-badge" :class="product.isActive ? 'is-active' : 'is-inactive'">
                   <span aria-hidden="true"></span>

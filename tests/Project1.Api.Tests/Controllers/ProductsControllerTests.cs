@@ -93,6 +93,7 @@ public sealed class ProductsControllerTests
             5m,
             true,
             DateTimeOffset.UtcNow,
+            null,
             null);
 
     private sealed class FakeProductService : IProductService

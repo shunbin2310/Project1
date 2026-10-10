@@ -15,4 +15,5 @@ public sealed record ProductResponse(
     decimal ReorderLevel,
     bool IsActive,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? UpdatedAtUtc);
+    DateTimeOffset? UpdatedAtUtc,
+    string? CicdPracticeNote);

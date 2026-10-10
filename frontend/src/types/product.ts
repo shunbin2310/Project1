@@ -3,6 +3,7 @@ export interface Product {
   code: string
   name: string
   description: string | null
+  cicdPracticeNote: string | null
   productCategoryId: number
   productCategoryCode: string
   productCategoryName: string
@@ -19,6 +20,7 @@ export interface Product {
 export interface CreateProductRequest {
   name: string
   description: string | null
+  cicdPracticeNote?: string | null
   productCategoryId: number
   unitOfMeasureId: number
   defaultUnitPrice: number

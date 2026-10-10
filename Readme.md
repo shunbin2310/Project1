@@ -366,6 +366,10 @@ production migration is manual, not part of application CD. See
 [read-only precheck](docs/MIGRATION_PRECHECK.md), and
 [manual migration checklist](docs/MANUAL_MIGRATIONS.md).
 
+For the nullable product-note exercise, follow the
+[CI and manual migration practice checklist](docs/CICD_PRACTICE.md).
+Apply and verify the reviewed database migration before deploying the new API.
+
 Keep database/SMTP passwords and JWT signing keys out of tracked configuration and
 build artifacts. `/etc/project1/project1.env` remains on Ubuntu. Do not upload it, PC
 User Secrets, or `.env.local` files. The workflow uses a read-only repository token

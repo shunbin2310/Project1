@@ -7,6 +7,7 @@ const productResponse = {
   code: 'ITEM-0001',
   name: 'A4 Paper',
   description: null,
+  cicdPracticeNote: 'Deployment practice',
   productCategoryId: 1,
   productCategoryCode: 'CAT-0001',
   productCategoryName: 'Office Supplies',
@@ -53,6 +54,7 @@ describe('productService', () => {
     await productService.create({
       name: 'A4 Paper',
       description: null,
+      cicdPracticeNote: 'Deployment practice',
       productCategoryId: 1,
       unitOfMeasureId: 1,
       defaultUnitPrice: 18.9,
@@ -61,7 +63,11 @@ describe('productService', () => {
 
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as Record<string, unknown>
     expect(body).not.toHaveProperty('code')
-    expect(body).toMatchObject({ productCategoryId: 1, unitOfMeasureId: 1 })
+    expect(body).toMatchObject({
+      productCategoryId: 1,
+      unitOfMeasureId: 1,
+      cicdPracticeNote: 'Deployment practice',
+    })
   })
 
   it('does not send a product code when updating', async () => {
@@ -76,6 +82,7 @@ describe('productService', () => {
     await productService.update(1, {
       name: 'A4 Paper',
       description: null,
+      cicdPracticeNote: null,
       productCategoryId: 1,
       unitOfMeasureId: 1,
       defaultUnitPrice: 18.9,
@@ -86,6 +93,7 @@ describe('productService', () => {
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as Record<string, unknown>
     expect(body).not.toHaveProperty('code')
     expect(body.isActive).toBe(true)
+    expect(body.cicdPracticeNote).toBeNull()
   })
 
   it('uses related-record error details returned by the API', async () => {

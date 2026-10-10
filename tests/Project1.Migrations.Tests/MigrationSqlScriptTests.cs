@@ -9,6 +9,36 @@ namespace Project1.Migrations.Tests;
 public sealed class MigrationSqlScriptTests
 {
     [Fact]
+    public void PracticeMigration_OnlyAddsOptionalBoundedColumnAndSnapshotMatchesModel()
+    {
+        var migration = new Project1.Api.Migrations.AddProductCicdPracticeNote();
+        var add = Assert.IsType<Microsoft.EntityFrameworkCore.Migrations.Operations.AddColumnOperation>(
+            Assert.Single(migration.UpOperations));
+        Assert.Equal("Products", add.Table);
+        Assert.Equal("CicdPracticeNote", add.Name);
+        Assert.Equal("nvarchar(100)", add.ColumnType);
+        Assert.Equal(100, add.MaxLength);
+        Assert.True(add.IsNullable);
+        var drop = Assert.IsType<Microsoft.EntityFrameworkCore.Migrations.Operations.DropColumnOperation>(
+            Assert.Single(migration.DownOperations));
+        Assert.Equal("Products", drop.Table);
+        Assert.Equal("CicdPracticeNote", drop.Name);
+
+        using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlServer("Server=tcp:127.0.0.1,1;Database=CiPracticeModel;User Id=ci;Password=not-a-real-password;Connect Timeout=1")
+            .Options);
+        Assert.False(context.Database.HasPendingModelChanges());
+        var latest = context.Database.GetMigrations().Last();
+        Assert.EndsWith("_AddProductCicdPracticeNote", latest);
+        var sql = context.GetService<IMigrator>().GenerateScript(
+            MigrationIntegrationTests.AddNote, latest, MigrationsSqlGenerationOptions.Idempotent);
+        Assert.Contains("ADD [CicdPracticeNote] nvarchar(100) NULL", sql);
+        Assert.DoesNotContain("DROP COLUMN", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("UPDATE [Products]", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.NotEmpty(SqlBatchParser.SplitBatches(sql));
+    }
+
+    [Fact]
     public void RawArtifactBatchCommandPreservesSqlWithoutExecutorWrapper()
     {
         const string batch = "BEGIN TRANSACTION;\r\nSELECT N'first\r\nsecond'; -- original";

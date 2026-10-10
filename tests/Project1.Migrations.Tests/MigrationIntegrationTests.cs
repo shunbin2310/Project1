@@ -21,6 +21,7 @@ public sealed class MigrationIntegrationTests
 
         await AssertAllMigrationsAppliedAsync(context);
         await AssertNoteColumnAsync(database);
+        await AssertPracticeNoteColumnAsync(database);
         Assert.Empty(await context.Products.AsNoTracking().ToListAsync());
     }
 
@@ -41,6 +42,7 @@ public sealed class MigrationIntegrationTests
 
         await AssertAllMigrationsAppliedAsync(context);
         await AssertNoteColumnAsync(database);
+        await AssertPracticeNoteColumnAsync(database);
         Assert.Equal(1, await context.Products.CountAsync());
         var product = await context.Products.SingleAsync();
         Assert.Equal(productId, product.Id);
@@ -52,10 +54,12 @@ public sealed class MigrationIntegrationTests
         Assert.Equal(FixtureCreatedAt, product.CreatedAtUtc);
         Assert.True(product.IsActive);
         Assert.Null(product.Note);
+        Assert.Null(product.CicdPracticeNote);
         Assert.Equal("CI-CATEGORY", (await context.ProductCategories.SingleAsync()).Code);
         Assert.Equal("CI-UNIT", (await context.UnitsOfMeasure.SingleAsync()).Code);
 
         product.Note = "Note written after the CI migration";
+        product.CicdPracticeNote = new string('x', 100);
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
         Assert.Equal("Note written after the CI migration", (await context.Products.SingleAsync()).Note);
@@ -64,6 +68,7 @@ public sealed class MigrationIntegrationTests
         await context.Database.MigrateAsync();
         await AssertAllMigrationsAppliedAsync(context);
         Assert.Equal(1, await context.Products.CountAsync());
+        Assert.Equal(new string('x', 100), (await context.Products.AsNoTracking().SingleAsync()).CicdPracticeNote);
     }
 
     internal static async Task AssertAllMigrationsAppliedAsync(Project1.Api.Data.AppDbContext context)
@@ -84,6 +89,20 @@ public sealed class MigrationIntegrationTests
             JOIN sys.types AS t ON c.user_type_id = t.user_type_id
             WHERE c.object_id = OBJECT_ID(N'dbo.Products') AND c.name = N'Note'
               AND t.name = N'nvarchar' AND c.max_length = -1 AND c.is_nullable = 1;
+            """;
+        Assert.Equal(1, Convert.ToInt32(await command.ExecuteScalarAsync()));
+    }
+
+    internal static async Task AssertPracticeNoteColumnAsync(CiDatabase database)
+    {
+        await using var connection = database.CreateConnection();
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT COUNT(*) FROM sys.columns AS c
+            JOIN sys.types AS t ON c.user_type_id = t.user_type_id
+            WHERE c.object_id = OBJECT_ID(N'dbo.Products') AND c.name = N'CicdPracticeNote'
+              AND t.name = N'nvarchar' AND c.max_length = 200 AND c.is_nullable = 1;
             """;
         Assert.Equal(1, Convert.ToInt32(await command.ExecuteScalarAsync()));
     }
