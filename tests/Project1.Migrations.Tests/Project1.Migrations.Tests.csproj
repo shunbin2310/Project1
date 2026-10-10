@@ -13,5 +13,6 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <ProjectReference Include="..\..\backend\Project1.Api\Project1.Api.csproj" />
+    <ProjectReference Include="..\..\scripts\deploy\dotnet\Project1.MigrationExecutor\Project1.MigrationExecutor.csproj" />
   </ItemGroup>
 </Project>

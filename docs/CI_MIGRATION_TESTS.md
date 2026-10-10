@@ -1,13 +1,14 @@
 # CI 数据库迁移测试
 
-## 四种检查
+## 五种检查
 
 - `Check that model changes have a migration`：比较 EF 模型和迁移快照，发现忘记生成迁移的情况。不连接数据库。
 - `Test fresh database and existing database migrations on SQL Server`：在一次性 SQL Server 2025 Express 中实际执行迁移，发现 SQL 执行错误。
 - `Test generated SQL on disposable SQL Server databases`：读取 CI 刚生成的同一份 `artifacts/migrations/migrations.sql`，直接执行 SQL 文件，测试下载脚本的路径。
 - `Test restricted migration account on disposable SQL Server databases`：改用独立的受限 SQL 登录执行同一份脚本，检查本次 `Note` 升级需要的权限和失败行为。
+- `Test coordinated execution and real backups on disposable SQL Server`：把受限 SQL 会话、数据库锁、真实临时库备份校验和持久批准账本串起来；见[执行流程 CI 验证](MIGRATION_EXECUTION.md)。
 
-四步都属于原来的 `Backend tests and Linux publish` 作业。迁移测试失败会阻止后端发布；SQL 文件或受限账号测试失败也不会上传 SQL。因此现有必需检查仍能阻止合并，不需要另加一个必需作业。
+五步都属于原来的 `Backend tests and Linux publish` 作业。迁移测试失败会阻止后端发布；SQL 文件、受限账号或执行流程测试失败也不会上传 SQL。因此现有必需检查仍能阻止合并，不需要另加一个必需作业。
 
 ## 测试内容
 
@@ -84,22 +85,22 @@ SQL 用例不会通过 `MigrateAsync()` 来完成被测试的升级；EF 只用�
 
 ## 本地检查
 
-需要 SQL Server 的十五个用例只在 CI 的专门步骤执行。即使测试项目加入解决方案，普通电脑上的测试也不会连接 SQL Server。CI 的普通后端测试步骤明确运行原来的业务测试项目；EF 迁移与纯代码检查排除 SQL 文件和受限账号用例，生成文件后再分别执行三个 SQL 文件用例、十个受限账号用例。分别保存 `backend.trx`、`migrations.trx`、`migration-sql.trx` 和 `migration-executor.trx`，避免报告相互覆盖。
+需要 SQL Server 的二十一个用例只在 CI 的专门步骤执行。即使测试项目加入解决方案，普通电脑上的测试也不会连接 SQL Server。CI 的普通后端测试步骤明确运行原来的业务测试项目；EF 迁移与纯代码检查排除 SQL 文件、受限账号和执行流程用例，生成文件后再分别执行三个 SQL 文件用例、十个受限账号用例和六个执行流程用例。分别保存 `backend.trx`、`migrations.trx`、`migration-sql.trx`、`migration-executor.trx` 和 `migration-workflow.trx`，避免报告相互覆盖。
 
 ```powershell
 dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj --configuration Release
 ```
 
-电脑上会执行纯代码的隔离保护、权限模板、执行命令构造、错误分类、SQL 分段器和当前 EF 脚本生成检查；十五个需要 SQL Server 的测试会标记为跳过。在 GitHub 上这十五个测试必须实际执行；缺少明确启用参数、密码、工作区或生成的文件会失败，不会静默跳过。
+电脑上会执行纯代码的隔离保护、权限模板、执行命令构造、错误分类、SQL 分段器和当前 EF 脚本生成检查；二十一个需要 SQL Server 的测试会标记为跳过。在 GitHub 上这二十一个测试必须实际执行；缺少明确启用参数、密码、工作区或生成的文件会失败，不会静默跳过。
 
-不要在 Ubuntu 上运行这个项目，也不要通过伪造 GitHub 环境变量让它连接电脑或正式数据库。真正的迁移执行结果请查看 PR 的 CI 日志和 `backend-test-results` 中的三个迁移 TRX 报告。
+不要在 Ubuntu 上运行这个项目，也不要通过伪造 GitHub 环境变量让它连接电脑或正式数据库。真正的迁移执行结果请查看 PR 的 CI 日志和 `backend-test-results` 中的四个迁移 TRX 报告。
 
 正式数据库迁移仍然由管理员备份、审阅 SQL 后手动执行。CD 现在另有可选的只读历史预检查，
 但不会执行迁移；原正式部署 helper 不变。见 [只读迁移预检查](MIGRATION_PRECHECK.md)。
 
 ## 下载可审阅的迁移 SQL
 
-后端业务测试、模型检查和 EF 迁移测试通过后，CI 执行 `Generate reviewable migration SQL (no database access)`。然后执行离线部署工具测试、三个 SQL 文件测试和十个受限账号测试，核对 SQL、版本说明及迁移清单的校验值没有改变，最后通过 `Save reviewable migration SQL` 上传文件。生成、测试、校验或上传失败都会让后端作业失败。只有 SQL 集成测试步骤会执行 SQL，而且只在临时容器中；不使用正式连接字符串或部署 secrets。前端作业独立执行，因此下载正式上线用文件前仍要确认整次 CI 成功。
+后端业务测试、模型检查和 EF 迁移测试通过后，CI 执行 `Generate reviewable migration SQL (no database access)`。然后执行离线部署工具测试、三个 SQL 文件测试、十个受限账号测试和六个执行流程测试，核对 SQL、版本说明及迁移清单的校验值没有改变，最后通过 `Save reviewable migration SQL` 上传文件。生成、测试、校验或上传失败都会让后端作业失败。只有 SQL 集成测试步骤会执行 SQL，而且只在临时容器中；不使用正式连接字符串或部署 secrets。前端作业独立执行，因此下载正式上线用文件前仍要确认整次 CI 成功。
 
 1. 合并 PR 后，打开 GitHub → Actions → **Project1 CI**。
 2. 选择对应代码版本、事件为 **push**、分支为 **main** 的成功运行。不要用运行序号代替 run ID。
