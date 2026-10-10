@@ -39,13 +39,16 @@ CONFIG = Path("/etc/project1-migration-execution")
 BACKUPS = Path("/var/lib/project1-migration-backups")
 LEDGER = Path("/var/lib/project1-migration-ledger")
 STAGING = Path("/var/lib/project1-host-acceptance-staging")
+SUDOERS = Path("/etc/sudoers.d/project1-migration-execute")
 SHA, RUN, WORKFLOW = "a" * 40, 42, 17  # Fabricated provenance, never a real approval.
 STAGES = {
     "S00": "ci-guard-and-inputs", "S01": "existing-installation-check",
+    "S01B": "validate-existing-sudoers",
     "S02": "copy-root-runtime", "S03": "validate-system-dotnet-link",
     "S04": "copy-fixed-host", "S05": "copy-ci-provisioner", "S06": "install-python-and-wrappers",
     "S07": "create-archive-group", "S08": "create-deploy-user", "S09": "validate-sudoers-template",
     "S10": "install-and-validate-sudoers", "S11": "prepare-private-test-files",
+    "S10F": "validate-installed-sudoers-file",
     "S12": "start-disposable-sql-container", "S13": "check-container-isolation",
     "S14": "check-sql-service-uid", "S15": "check-sql-service-groups",
     "S16": "provision-disposable-sql-baseline", "S17": "archive-checksum-backup",
@@ -58,7 +61,8 @@ STAGES = {
     "S31": "reject-consumed-approval", "S99": "remove-owned-container",
 }
 COMMAND_LABELS = frozenset({
-    "groupadd", "useradd", "visudo-template", "visudo-installed", "docker-start",
+    "groupadd", "useradd", "visudo-template", "visudo-baseline", "visudo-file",
+    "visudo-installed", "docker-start",
     "docker-inspect", "docker-uid", "docker-groups", "fixture-initialize", "ledger-initialize",
     "fixture-before", "sudo-execute-authorization", "sudo-default-off", "sudo-describe",
     "sudo-invalid-arguments", "sudo-forbidden-command", "sudo-environment-injection",
@@ -66,6 +70,71 @@ COMMAND_LABELS = frozenset({
     "sudo-consumed-execute", "docker-cleanup",
 })
 _CURRENT_STAGE = "S00"
+VISUDO_CHECKS = {
+    "visudo-baseline": ("/usr/sbin/visudo", "-c"),
+    "visudo-file": ("/usr/sbin/visudo", "-c", "-O", "-P", "-f", str(SUDOERS)),
+    "visudo-installed": ("/usr/sbin/visudo", "-c"),
+}
+VISUDO_FILES = {
+    "/etc/sudoers": "main", "/etc/sudoers.d/project1-migration-execute": "migration-execute",
+    "/etc/sudoers.d/runner": "runner",
+    "/etc/sudoers.d/90-cloud-init-users": "cloud-init",
+    "/etc/sudoers.d/README": "readme",
+}
+
+
+def classify_visudo_output(stdout, stderr):
+    """Recognize complete diagnostic lines; NEVER return any child text/path.
+
+    Unknown/localized/truncated messages remain unclassified. Even include
+    filenames can contain sensitive data, so only fixed file identifiers leave
+    this function. This classification does not affect acceptance/rejection.
+    """
+    findings = set()
+    path = r"(/etc/sudoers(?:\.d/[A-Za-z0-9_-]+)?)"
+    for body in (stdout, stderr):
+        if not isinstance(body, bytes) or len(body) > 131072:
+            continue
+        for line in body.decode("utf-8", errors="replace").splitlines():
+            category = None
+            match = re.fullmatch(path + r": bad permissions, should be mode 0[0-7]{3,4}", line)
+            if match:
+                category = "bad-permissions"
+            else:
+                match = re.fullmatch(path + r": wrong owner \(uid, gid\) should be \([0-9]{1,10}, [0-9]{1,10}\)", line)
+                if match:
+                    category = "wrong-owner"
+                else:
+                    match = re.fullmatch(path + r":[0-9]{1,6}(?::[0-9]{1,6})?: syntax error", line)
+                    if match:
+                        category = "syntax-error"
+                    else:
+                        match = re.fullmatch(r"visudo: (?:unable to open )?" + path
+                                             + r": (?:Permission denied|No such file or directory)", line)
+                        if match:
+                            category = "file-unavailable"
+            if category:
+                findings.add((VISUDO_FILES.get(match.group(1), "other-include"), category))
+    return sorted(findings)
+
+
+def report_visudo_failure(label, stdout, stderr):
+    if label not in VISUDO_CHECKS:
+        raise ValueError("Unknown visudo check.")
+    findings = classify_visudo_output(stdout, stderr)
+    for file_id, category in findings or [("unknown", "unclassified")]:
+        print(f"VISUDO command={label} file={file_id} category={category}", file=sys.stderr)
+
+
+def verify_sudoers_metadata(path):
+    info = path.lstat()
+    # Numeric metadata only; never print the supplied path or file contents.
+    print(f"SUDOERS-METADATA file=migration-execute uid={info.st_uid} gid={info.st_gid} "
+          f"mode={stat.S_IMODE(info.st_mode):04o} links={info.st_nlink} "
+          f"regular={str(stat.S_ISREG(info.st_mode)).lower()}", flush=True)
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_gid != 0
+            or stat.S_IMODE(info.st_mode) != 0o440 or info.st_nlink != 1):
+        raise RuntimeError("Installed sudoers metadata rejected.")
 
 
 def set_stage(identifier):
@@ -146,6 +215,11 @@ def run(arguments, *, label, body=None, succeeds=True, environment=None, timeout
     except OSError as error:
         raise CommandFailure(label, "launch-error", errno=error.errno) from None
     if (result.returncode == 0) != succeeds:
+        # ONLY exact, read-only visudo invocations get classified diagnostics.
+        # All other children (SQL, Docker, credentials, etc.) remain opaque.
+        if (label in VISUDO_CHECKS and tuple(arguments) == VISUDO_CHECKS[label]
+                and body is None and environment is None and succeeds):
+            report_visudo_failure(label, result.stdout, result.stderr)
         # Never echo arbitrary child output (possibly credential-bearing SQL errors).
         raise CommandFailure(label, "exit-status", exit_code=result.returncode)
     return result.stdout
@@ -232,7 +306,7 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
     fixed = (ROOT, HOST, CONFIG, BACKUPS, LEDGER, STAGING,
              Path("/usr/local/sbin/project1-migration-execute"),
              Path("/usr/local/sbin/project1-migration-admin"),
-             Path("/etc/sudoers.d/project1-migration-execute"))
+             SUDOERS)
     if any(os.path.lexists(path) for path in fixed):
         raise RuntimeError("Never overwrite an existing migration installation.")
     for kind, name in ((pwd, "project1_deploy"), (grp, "mssql")):
@@ -241,6 +315,9 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
         except KeyError:
             continue
         raise RuntimeError("Refuse existing acceptance account/group.")
+    # Reject a broken runner baseline before copying/installing any test files.
+    set_stage("S01B")
+    run(["/usr/sbin/visudo", "-c"], label="visudo-baseline")
     os.umask(0o077)
     print("BEGIN: disposable root installation and real sudoers validation", flush=True)
     # Copy runtime to root-managed storage rather than trusting the runner's writable SDK.
@@ -275,10 +352,13 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
     candidate = scripts / "project1-migration-execute.sudoers"
     set_stage("S09")
     run(["/usr/sbin/visudo", "-cf", str(candidate)], label="visudo-template")
-    set_stage("S10")
-    sudoers = Path("/etc/sudoers.d/project1-migration-execute")
+    set_stage("S10F")
+    sudoers = SUDOERS
     shutil.copyfile(candidate, sudoers)
     sudoers.chmod(0o440)
+    verify_sudoers_metadata(sudoers)
+    run(["/usr/sbin/visudo", "-c", "-O", "-P", "-f", str(SUDOERS)], label="visudo-file")
+    set_stage("S10")
     run(["/usr/sbin/visudo", "-c"], label="visudo-installed")
     set_stage("S11")
     CONFIG.mkdir(mode=0o700)

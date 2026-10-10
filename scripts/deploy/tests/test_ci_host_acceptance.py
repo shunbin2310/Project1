@@ -8,6 +8,8 @@ from pathlib import Path
 import sys
 import tempfile
 import subprocess
+import stat
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -71,6 +73,118 @@ class AcceptanceGuardTests(unittest.TestCase):
             executable = "\n".join(line for line in job.splitlines() if not line.lstrip().startswith("#"))
             self.assertNotIn(forbidden, executable)
         self.assertNotIn("ci_host_acceptance", (Path(__file__).resolve().parents[3] / ".github/workflows/deploy-manual.yml").read_text(encoding="utf-8"))
+
+
+class AcceptanceSudoersTests(unittest.TestCase):
+    def test_classifies_owner_permissions_syntax_and_missing_file_without_raw_text(self):
+        messages = (
+            b"/etc/sudoers: bad permissions, should be mode 0440\n"
+            b"/etc/sudoers.d/runner: wrong owner (uid, gid) should be (0, 0)\n",
+            b"/etc/sudoers.d/project1-migration-execute:3:18: syntax error\n"
+            b"visudo: unable to open /etc/sudoers.d/90-cloud-init-users: No such file or directory\n",
+        )
+        self.assertEqual(acceptance.classify_visudo_output(*messages), [
+            ("cloud-init", "file-unavailable"), ("main", "bad-permissions"),
+            ("migration-execute", "syntax-error"), ("runner", "wrong-owner"),
+        ])
+
+    def test_unknown_filenames_duplicate_lines_and_injection_cannot_leak(self):
+        secret = b"private_password"
+        line = b"/etc/sudoers.d/" + secret + b": bad permissions, should be mode 0440\n"
+        stderr = line + line + b"::error::secret\nraw SQL\n/etc/sudoers:1: syntax error EXTRA secret\n"
+        output = io.StringIO()
+        with mock.patch("sys.stderr", output):
+            acceptance.report_visudo_failure("visudo-installed", b"credential raw stdout", stderr)
+        self.assertEqual(output.getvalue(),
+                         "VISUDO command=visudo-installed file=other-include category=bad-permissions\n")
+        for forbidden in (secret.decode(), "raw SQL", "::error::", "/etc/sudoers", "credential"):
+            self.assertNotIn(forbidden, output.getvalue())
+
+    def test_unknown_localized_oversized_or_nonbyte_output_is_unclassified(self):
+        for body in (b"unknown secret message", "raw string", None,
+                     b"x" * 131073, b"\xff secret", b"visudo: localized error"):
+            with self.subTest(body_type=type(body).__name__):
+                output = io.StringIO()
+                with mock.patch("sys.stderr", output):
+                    acceptance.report_visudo_failure("visudo-baseline", body, body)
+                self.assertEqual(output.getvalue(),
+                                 "VISUDO command=visudo-baseline file=unknown category=unclassified\n")
+
+    def test_only_exact_visudo_checks_are_classified_and_failure_still_raised(self):
+        child = subprocess.CompletedProcess([], 1, b"secret stdout",
+                    b"/etc/sudoers: bad permissions, should be mode 0440\nsecret stderr")
+        for label, arguments in acceptance.VISUDO_CHECKS.items():
+            with self.subTest(label=label), mock.patch.object(acceptance.subprocess, "run", return_value=child), \
+                    mock.patch("sys.stderr", io.StringIO()) as output, \
+                    self.assertRaises(acceptance.CommandFailure) as caught:
+                acceptance.run(list(arguments), label=label)
+            self.assertEqual(caught.exception.exit_code, 1)
+            self.assertIn("file=main category=bad-permissions", output.getvalue())
+            self.assertNotIn("secret", output.getvalue())
+        for arguments, options in ((["private SQL child"], {}),
+                                   (["/usr/sbin/visudo", "-c"], {"body": b"secret stdin"}),
+                                   (["/usr/sbin/visudo", "-c"], {"environment": {"SECRET": "private"}})):
+            with mock.patch.object(acceptance.subprocess, "run", return_value=child), \
+                    mock.patch("sys.stderr", io.StringIO()) as output, \
+                    self.assertRaises(acceptance.CommandFailure):
+                acceptance.run(arguments, label="visudo-installed", **options)
+            self.assertEqual(output.getvalue(), "")
+        with self.assertRaises(ValueError):
+            acceptance.report_visudo_failure("secret\n::error::", b"", b"")
+
+    def test_success_and_expected_denial_do_not_emit_visudo_diagnostics(self):
+        for code, succeeds in ((0, True), (1, False)):
+            with mock.patch.object(acceptance.subprocess, "run", return_value=
+                    subprocess.CompletedProcess([], code, b"unchanged", b"secret")), \
+                    mock.patch("sys.stderr", io.StringIO()) as output:
+                self.assertEqual(acceptance.run(["/usr/sbin/visudo", "-c"],
+                                 label="visudo-installed", succeeds=succeeds), b"unchanged")
+            self.assertEqual(output.getvalue(), "")
+
+    def test_installed_metadata_requires_root_regular_single_link_and_exact_mode(self):
+        expected = dict(st_uid=0, st_gid=0, st_mode=stat.S_IFREG | 0o440, st_nlink=1)
+        path = mock.Mock()
+        path.lstat.return_value = SimpleNamespace(**expected)
+        with mock.patch("sys.stdout", io.StringIO()) as output:
+            acceptance.verify_sudoers_metadata(path)
+        self.assertIn("uid=0 gid=0 mode=0440 links=1 regular=true", output.getvalue())
+        for field, value in (("st_uid", 1000), ("st_gid", 1000), ("st_nlink", 2),
+                             ("st_mode", stat.S_IFREG | 0o640),
+                             ("st_mode", stat.S_IFLNK | 0o440), ("st_mode", stat.S_IFDIR | 0o440)):
+            changed = dict(expected, **{field: value})
+            path.lstat.return_value = SimpleNamespace(**changed)
+            with self.subTest(field=field, value=value), mock.patch("sys.stdout", io.StringIO()), \
+                    self.assertRaises(RuntimeError):
+                acceptance.verify_sudoers_metadata(path)
+
+    def test_baseline_failure_happens_before_any_installation_or_runtime_copy(self):
+        absent = mock.Mock(side_effect=KeyError)
+        modules = {"grp": SimpleNamespace(getgrnam=absent), "pwd": SimpleNamespace(getpwnam=absent)}
+        with mock.patch.dict(sys.modules, modules), mock.patch.object(acceptance, "require_ci"), \
+                mock.patch.object(acceptance.os, "geteuid", return_value=0, create=True), \
+                mock.patch.object(acceptance.os.path, "lexists", return_value=False), \
+                mock.patch.object(acceptance.os, "umask") as umask, \
+                mock.patch.object(acceptance, "copy_tree") as copy_tree, \
+                mock.patch.object(acceptance.shutil, "copyfile") as copyfile, \
+                mock.patch.object(acceptance, "run", side_effect=acceptance.CommandFailure(
+                    "visudo-baseline", "exit-status", exit_code=1)) as child, \
+                mock.patch.object(acceptance, "_CURRENT_STAGE", "S00"), \
+                mock.patch("sys.stdout", io.StringIO()), self.assertRaises(acceptance.CommandFailure):
+            acceptance.acceptance(*(Path("unused") for _ in range(4)))
+            self.fail("Baseline rejection must abort.")
+        child.assert_called_once_with(["/usr/sbin/visudo", "-c"], label="visudo-baseline")
+        umask.assert_not_called()
+        copy_tree.assert_not_called()
+        copyfile.assert_not_called()
+
+    def test_strict_file_check_and_global_check_remain_in_order_before_database_setup(self):
+        source = Path(acceptance.__file__).read_text(encoding="utf-8").split("def acceptance(", 1)[1]
+        self.assertLess(source.index('label="visudo-baseline"'), source.index("copy_tree("))
+        self.assertLess(source.index("verify_sudoers_metadata(sudoers)"), source.index('label="visudo-file"'))
+        self.assertLess(source.index('label="visudo-file"'), source.index('label="visudo-installed"'))
+        self.assertLess(source.index('label="visudo-installed"'), source.index("CONFIG.mkdir"))
+        self.assertEqual(acceptance.VISUDO_CHECKS["visudo-file"],
+                         ("/usr/sbin/visudo", "-c", "-O", "-P", "-f", str(acceptance.SUDOERS)))
 
 
 class AcceptanceDiagnosticTests(unittest.TestCase):
