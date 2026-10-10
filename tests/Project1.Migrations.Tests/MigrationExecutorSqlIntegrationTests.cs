@@ -52,8 +52,10 @@ public sealed class MigrationExecutorSqlIntegrationTests
             database, CiMigrationPermissionProfile.HistoryReadOnly);
         await AssertPermissionsAsync(account, database.Name, alterProducts: false, insertHistory: false);
 
+        await AssertTableExistsAsync(database, "dbo.Products");
+
         var error = await Assert.ThrowsAsync<SqlException>(() => account.ExecuteScriptAsync(batches));
-        AssertPermissionError(error);
+        AssertPermissionError(error, verifiedHiddenObject: "Products");
 
         await AssertOldDatabaseUnchangedAsync(database, history, productId);
     }
@@ -90,23 +92,27 @@ public sealed class MigrationExecutorSqlIntegrationTests
             database, CiMigrationPermissionProfile.ProductNoteExecutor);
         await AssertPermissionsAsync(account, database.Name, alterProducts: true, insertHistory: true);
 
-        string[] deniedSql =
+        // 1088 may hide an existing object from the restricted caller. Verify existence
+        // with the fixture admin first; never accept a genuinely missing table as proof.
+        await AssertTableExistsAsync(database, "dbo.Products");
+        await AssertTableExistsAsync(database, "dbo.Departments");
+        (string Sql, string? HiddenObject)[] deniedSql =
         [
-            "SELECT COUNT(*) FROM dbo.Products;",
-            "INSERT INTO dbo.Products DEFAULT VALUES;",
-            "UPDATE dbo.Products SET Name = N'Forbidden' WHERE 1 = 0;",
-            "DELETE FROM dbo.Products WHERE 1 = 0;",
-            "UPDATE dbo.__EFMigrationsHistory SET ProductVersion = N'Forbidden' WHERE 1 = 0;",
-            "DELETE FROM dbo.__EFMigrationsHistory WHERE 1 = 0;",
-            "ALTER TABLE dbo.Departments ADD CiForbidden int NULL;",
-            "CREATE TABLE dbo.CiForbidden (Id int NULL);",
-            "GRANT SELECT ON OBJECT::dbo.Products TO public;",
-            $"ALTER ROLE db_owner ADD MEMBER [{account.Name}];"
+            ("SELECT COUNT(*) FROM dbo.Products;", "Products"),
+            ("INSERT INTO dbo.Products DEFAULT VALUES;", "Products"),
+            ("UPDATE dbo.Products SET Name = N'Forbidden' WHERE 1 = 0;", "Products"),
+            ("DELETE FROM dbo.Products WHERE 1 = 0;", "Products"),
+            ("UPDATE dbo.__EFMigrationsHistory SET ProductVersion = N'Forbidden' WHERE 1 = 0;", null),
+            ("DELETE FROM dbo.__EFMigrationsHistory WHERE 1 = 0;", null),
+            ("ALTER TABLE dbo.Departments ADD CiForbidden int NULL;", "Departments"),
+            ("CREATE TABLE dbo.CiForbidden (Id int NULL);", null),
+            ("GRANT SELECT ON OBJECT::dbo.Products TO public;", "Products"),
+            ($"ALTER ROLE db_owner ADD MEMBER [{account.Name}];", null)
         ];
-        foreach (var sql in deniedSql)
+        foreach (var (sql, hiddenObject) in deniedSql)
         {
             var error = await Assert.ThrowsAsync<SqlException>(() => account.ExecuteScriptAsync([sql]));
-            AssertPermissionError(error);
+            AssertPermissionError(error, hiddenObject);
         }
 
         var crossDatabaseError = await Assert.ThrowsAsync<SqlException>(() =>
@@ -147,15 +153,132 @@ public sealed class MigrationExecutorSqlIntegrationTests
         Assert.Equal(51051, error.Number);
 
         await AssertOldDatabaseUnchangedAsync(database, history, productId);
-        // Closing an unpooled connection rolled back ONLY the open transaction, not prior commits.
+        // The SQL guard rolls back ONLY the open transaction, not prior commits.
         await account.ExecuteScriptAsync(MigrationSqlScript.ReadFromCiWorkspace());
         await AssertAllMigrationsAppliedAsync(context);
         await AssertNoteColumnAsync(database);
         await AssertProductAsync(context, productId, null);
     }
 
-    private static void AssertPermissionError(SqlException error) =>
-        Assert.Contains(error.Errors.Cast<SqlError>(), item => item.Number is 229 or 262 or 2760 or 4902 or 15151 or 15247);
+    [SqlServerCiFact]
+    public async Task ScopedAccount_RuntimeErrorInSameBatchCannotCommitDdlHistoryOrLaterStatements()
+    {
+        await using var database = await CiDatabase.CreateAsync("upgrade");
+        await using var context = database.CreateContext();
+        await context.GetService<IMigrator>().MigrateAsync(BeforeNote);
+        var productId = await InsertPreMigrationProductAsync(database);
+        var history = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
+        await using var account = await CiMigrationAccount.CreateAsync(
+            database, CiMigrationPermissionProfile.ProductNoteExecutor);
+
+        // Unlike THROW, a conversion error can otherwise allow a raw batch to continue.
+        var error = await Assert.ThrowsAsync<SqlException>(() => account.ExecuteScriptAsync(
+        [
+            $"""
+            BEGIN TRANSACTION;
+            ALTER TABLE dbo.Products ADD Note nvarchar(max) NULL;
+            INSERT INTO dbo.__EFMigrationsHistory (MigrationId, ProductVersion)
+                VALUES (N'{AddNote}', N'CI same-batch rollback probe');
+            DECLARE @invalidNumber nvarchar(64) = N'CI deliberate conversion error';
+            SELECT CONVERT(int, @invalidNumber);
+            COMMIT;
+            INSERT INTO dbo.__EFMigrationsHistory (MigrationId, ProductVersion)
+                VALUES (N'20990101000000_CiMustNotContinue', N'CI same-batch stop probe');
+            """,
+            "INSERT INTO dbo.__EFMigrationsHistory (MigrationId, ProductVersion) VALUES (N'20990101000001_CiLaterBatch', N'CI later-batch probe');"
+        ]));
+        Assert.Equal(245, error.Number);
+        await AssertOldDatabaseUnchangedAsync(database, history, productId);
+    }
+
+    [SqlServerCiFact]
+    public async Task ScopedAccount_ObjectPermissionErrorCannotCommitAnOpenTransactionFromAnEarlierBatch()
+    {
+        await using var database = await CiDatabase.CreateAsync("upgrade");
+        await using var context = database.CreateContext();
+        await context.GetService<IMigrator>().MigrateAsync(BeforeNote);
+        var productId = await InsertPreMigrationProductAsync(database);
+        var history = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
+        await AssertTableExistsAsync(database, "dbo.Departments");
+        await using var account = await CiMigrationAccount.CreateAsync(
+            database, CiMigrationPermissionProfile.ProductNoteExecutor);
+
+        var error = await Assert.ThrowsAsync<SqlException>(() => account.ExecuteScriptAsync(
+        [
+            $"""
+            BEGIN TRANSACTION;
+            ALTER TABLE dbo.Products ADD Note nvarchar(max) NULL;
+            INSERT INTO dbo.__EFMigrationsHistory (MigrationId, ProductVersion)
+                VALUES (N'{AddNote}', N'CI object-error rollback probe');
+            """,
+            """
+            ALTER TABLE dbo.Departments ADD CiForbidden int NULL;
+            COMMIT;
+            INSERT INTO dbo.__EFMigrationsHistory (MigrationId, ProductVersion)
+                VALUES (N'20990101000000_CiMustNotContinue', N'CI object-error stop probe');
+            """
+        ]));
+        AssertPermissionError(error, verifiedHiddenObject: "Departments");
+        await AssertOldDatabaseUnchangedAsync(database, history, productId);
+    }
+
+    [SqlServerCiFact]
+    public async Task ScopedAccount_FailureRollsBackOnlyOpenWorkAndPreservesEarlierCommit()
+    {
+        await using var database = await CiDatabase.CreateAsync("upgrade");
+        await using var context = database.CreateContext();
+        await context.GetService<IMigrator>().MigrateAsync(BeforeNote);
+        var productId = await InsertPreMigrationProductAsync(database);
+        await using var account = await CiMigrationAccount.CreateAsync(
+            database, CiMigrationPermissionProfile.ProductNoteExecutor);
+
+        var error = await Assert.ThrowsAsync<SqlException>(() => account.ExecuteScriptAsync(
+        [
+            $"""
+            BEGIN TRANSACTION;
+            ALTER TABLE dbo.Products ADD Note nvarchar(max) NULL;
+            INSERT INTO dbo.__EFMigrationsHistory (MigrationId, ProductVersion)
+                VALUES (N'{AddNote}', N'CI committed migration probe');
+            COMMIT;
+            """,
+            """
+            BEGIN TRANSACTION;
+            INSERT INTO dbo.__EFMigrationsHistory (MigrationId, ProductVersion)
+                VALUES (N'20990101000000_CiMustNotContinue', N'CI uncommitted probe');
+            DECLARE @invalidNumber nvarchar(64) = N'CI deliberate conversion error';
+            SELECT CONVERT(int, @invalidNumber);
+            COMMIT;
+            """
+        ]));
+        Assert.Equal(245, error.Number);
+        await AssertAllMigrationsAppliedAsync(context);
+        await AssertNoteColumnAsync(database);
+        await AssertProductAsync(context, productId, null);
+    }
+
+    internal static bool IsPermissionErrorNumber(int number, bool verifiedExistingObject) =>
+        number is 229 or 262 or 2760 or 4902 or 15151 or 15247 ||
+        (number == 1088 && verifiedExistingObject);
+
+    private static void AssertPermissionError(SqlException error, string? verifiedHiddenObject = null)
+    {
+        var errors = error.Errors.Cast<SqlError>().ToArray();
+        Assert.True(errors.Any(item => IsPermissionErrorNumber(item.Number,
+                verifiedHiddenObject is not null && item.Message.Contains(verifiedHiddenObject, StringComparison.Ordinal))),
+            "Expected a permission rejection; actual SQL errors: " +
+            string.Join("; ", errors.Select(item => $"{item.Number}: {item.Message}")));
+    }
+
+    private static async Task AssertTableExistsAsync(CiDatabase database, string tableName)
+    {
+        await using var connection = database.CreateConnection();
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandTimeout = 10;
+        command.CommandText = "SELECT COUNT(*) FROM sys.tables WHERE object_id = OBJECT_ID(@tableName, N'U');";
+        command.Parameters.Add("@tableName", System.Data.SqlDbType.NVarChar, 128).Value = tableName;
+        Assert.Equal(1, Convert.ToInt32(await command.ExecuteScalarAsync()));
+    }
 
     private static async Task AssertPermissionsAsync(
         CiMigrationAccount account, string databaseName, bool alterProducts, bool insertHistory)
@@ -250,7 +373,7 @@ public sealed class MigrationExecutorSqlIntegrationTests
         command.Parameters.Add("@createdAt", System.Data.SqlDbType.DateTimeOffset).Value = FixtureCreatedAt;
         await using var reader = await command.ExecuteReaderAsync();
         Assert.True(await reader.ReadAsync());
-        Assert.Equal(0, reader.GetInt32(0));
+        Assert.True(reader.GetInt32(0) == 0, "Failed migration left a Products.Note column behind.");
         Assert.True(await reader.NextResultAsync());
         Assert.True(await reader.ReadAsync());
         Assert.Equal(1, reader.GetInt32(0));

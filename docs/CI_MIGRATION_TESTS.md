@@ -21,7 +21,7 @@
 2. 旧库：用 EF 准备 `Note` 之前的结构和虚构产品，再用 SQL 文件升级。检查原有产品字段保持不变、旧 `Note` 为 NULL、新备注能够保存。
 3. 重复执行：用 SQL 文件建立结构，插入虚构产品并保存备注，再执行同一份 SQL。检查迁移记录、产品和备注都不变。
 
-SQL 用例不会通过 `MigrateAsync()` 来完成被测试的升级；EF 只用于准备旧结构和查询结果。文件按 `GO` 分段，在同一个 SQL 连接上顺序执行，保留跨段事务和会话状态；遇到第一条错误立即停止。分段器支持 EF 生成的普通 `GO` 行和 `GO -- 注释`，识别字符串、标识符和嵌套注释，不会误拆其中的 `GO`。它不是通用 sqlcmd 工具，不支持 `GO 2`、`:r`、`:connect` 或 shell 指令；碰到这些格式会让 CI 失败。
+SQL 用例不会通过 `MigrateAsync()` 来完成被测试的升级；EF 只用于准备旧结构和查询结果。文件按 `GO` 分段，在同一个 SQL 连接上顺序执行，保留跨段事务和会话状态；客户端收到错误后不再发送后续分段。注意：这本身不保证发生错误的分段会立即停止，SQL Server 可能继续执行同一段中的后续语句，包括 COMMIT。受限账号的额外保护见下一节。分段器支持 EF 生成的普通 `GO` 行和 `GO -- 注释`，识别字符串、标识符和嵌套注释，不会误拆其中的 `GO`。它不是通用 sqlcmd 工具，不支持 `GO 2`、`:r`、`:connect` 或 shell 指令；碰到这些格式会让 CI 失败。
 
 这是 `Note` 升级场景的回归测试，不代表覆盖所有历史版本的升级路径，也不能代替正式上线前的 SQL 审阅、备份和业务检查。以后有新的数据库变化，应补充对应的升级测试；不要为了让 CI 变绿而删除已执行的历史迁移。
 
@@ -44,13 +44,22 @@ SQL 用例不会通过 `MigrateAsync()` 来完成被测试的升级；EF 只用�
 | `dbo.__EFMigrationsHistory` | SELECT、INSERT | 读取已完成迁移、记录新迁移 |
 | `dbo.Products` | ALTER | 增加可空的 `Note` 列 |
 
-五个实际 SQL 测试检查：
+受限账号通过固定的执行保护层运行每个原始分段：设置 `XACT_ABORT ON`，在 `TRY...CATCH` 中用参数化 `sys.sp_executesql` 执行原始 SQL；捕获错误时回滚仍打开的事务，再用 `THROW` 保留错误并停止客户端循环。下层执行作用域使对象名称解析等错误也能被外层 CATCH 捕获。SQL 文件和参数中的原始分段不被修改；原来的三个 SQL 文件测试仍直接执行原始分段，不使用这个保护层。
+
+这是 CI 测试执行策略，不是“下载 SQL 后随便执行就会自动回滚”的保证，也没有安装到 Ubuntu 或加入 CD。没有新增包住整个文件的外层事务，之前已提交的迁移不会被撤销。`sp_executesql` 有独立的变量和局部临时对象作用域；当前测试验证本次生成文件及所列场景，不保证任意跨 GO 的变量/临时对象脚本兼容。
+
+八个实际 SQL 测试检查：
 
 1. 受限账号执行 CI 生成的原始 SQL 文件，升级成功、原产品不变；管理员保存备注后，同一账号再次执行不重复迁移、不清空备注。
 2. 只授予历史表 SELECT 的只读账号无法升级，结构、历史和旧产品保持不变。
 3. 有 Products ALTER、但缺少历史表 INSERT 的账号也必须失败，不留下已完成迁移记录或未提交的 Note 列。
 4. 执行账号不能直接读取、插入、更新或删除产品数据，不能修改/删除历史记录，不能修改其他表、创建表、授予权限、加入 db_owner，不能进入另一个随机测试库。也检查自身没有服务器控制、修改登录、创建数据库或模拟其他登录的权限。
-5. 人为在未提交的改表和历史 INSERT 之后抛出错误，必须立即停止后续分段；关闭连接后检查该事务回滚，随后用真实生成文件仍可正常升级。
+5. 人为在未提交的改表和历史 INSERT 之后抛出错误，保护层回滚事务且停止后续分段；随后用真实生成文件仍可正常升级。
+6. 同一分段中，在改表和写历史之后触发转换错误；后面的 COMMIT、同段历史标记和下一段历史标记都不能生效，旧结构和数据保持不变。
+7. 前一分段打开事务并修改 Products，后一分段尝试修改没有权限的 Departments；即使同段后面有 COMMIT，也必须回滚仍打开的事务。
+8. 前一分段已成功提交 Note 迁移，后一分段失败；只撤销后一段未提交的历史标记，已提交的 Note 和正式迁移记录仍保留。
+
+权限拒绝检查记录 SQL 错误编号及消息。`1088` 可能表示对象不存在或不可见：只在管理员连接先确认目标表存在、且错误消息包含该表名称时接受它。其他运行/语法错误不能当作权限拒绝。
 
 **重要边界：ALTER 是表级权限，不是“只能新增 Note”的权限。** 它也允许对 Products 做其他结构修改，可能影响数据；
 历史表 INSERT 也不是由数据库权限自动审核迁移编号。这里只验证本次 SQL 所需的权限，不是可直接复制到生产的通用权限方案。
@@ -77,7 +86,7 @@ SQL 用例不会通过 `MigrateAsync()` 来完成被测试的升级；EF 只用�
 dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj --configuration Release
 ```
 
-电脑上会执行纯代码的隔离保护、权限模板、SQL 分段器和当前 EF 脚本生成检查；十个需要 SQL Server 的测试会标记为跳过。在 GitHub 上这十个测试必须实际执行；缺少明确启用参数、密码、工作区或生成的文件会失败，不会静默跳过。
+电脑上会执行纯代码的隔离保护、权限模板、执行命令参数、错误分类、SQL 分段器和当前 EF 脚本生成检查；十三个需要 SQL Server 的测试会标记为跳过。在 GitHub 上这十三个测试必须实际执行；缺少明确启用参数、密码、工作区或生成的文件会失败，不会静默跳过。
 
 不要在 Ubuntu 上运行这个项目，也不要通过伪造 GitHub 环境变量让它连接电脑或正式数据库。真正的迁移执行结果请查看 PR 的 CI 日志和 `backend-test-results` 中的三个迁移 TRX 报告。
 
@@ -114,3 +123,5 @@ PR 中也会生成文件供审阅，但其 SHA 通常是 GitHub 测试用的合�
 参考：[GitHub 服务容器](https://docs.github.com/en/actions/tutorials/use-containerized-services/use-docker-service-containers)、[微软 SQL Server 容器说明](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/quickstart-install-docker?view=sql-server-linux-ver17)、[EF Core 迁移脚本与正式迁移说明](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying)、[SQL Server 的 GO 分段说明](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/sql-server-utilities-statements-go?view=sql-server-ver17)。
 
 权限设计参考：[对象级 GRANT](https://learn.microsoft.com/en-us/sql/t-sql/statements/grant-object-permissions-transact-sql?view=sql-server-ver17)、[ALTER TABLE 所需权限](https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql?view=sql-server-ver17#permissions)。
+
+执行保护参考：[SET XACT_ABORT](https://learn.microsoft.com/en-us/sql/t-sql/statements/set-xact-abort-transact-sql?view=sql-server-ver17)、[TRY...CATCH 与下层执行错误](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/try-catch-transact-sql?view=sql-server-ver17)、[SQL Server 错误码 1088](https://learn.microsoft.com/en-us/sql/relational-databases/errors-events/database-engine-events-and-errors-1000-to-1999?view=sql-server-ver17)。

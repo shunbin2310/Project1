@@ -88,7 +88,7 @@ internal sealed class CiMigrationAccount : IAsyncDisposable
     internal async Task ExecuteScriptAsync(IReadOnlyList<string> batches)
     {
         await using var connection = CreateConnection();
-        await CiDatabase.ExecuteScriptAsync(connection, batches);
+        await CiDatabase.ExecuteScriptAsync(connection, batches, guardTransactions: true);
     }
 
     public async ValueTask DisposeAsync()

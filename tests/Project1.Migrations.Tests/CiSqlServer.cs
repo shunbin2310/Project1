@@ -158,7 +158,8 @@ internal sealed class CiDatabase : IAsyncDisposable
         await ExecuteScriptAsync(connection, batches);
     }
 
-    internal static async Task ExecuteScriptAsync(SqlConnection connection, IReadOnlyList<string> batches)
+    internal static async Task ExecuteScriptAsync(
+        SqlConnection connection, IReadOnlyList<string> batches, bool guardTransactions = false)
     {
         _ = CiSqlServerSettings.Load(Environment.GetEnvironmentVariable);
         var databaseName = new SqlConnectionStringBuilder(connection.ConnectionString).InitialCatalog;
@@ -171,14 +172,41 @@ internal sealed class CiDatabase : IAsyncDisposable
             throw new InvalidOperationException("Unexpected CI database identity.");
         }
         // One connection preserves session state and transactions across GO batches.
-        // Stop at the first error; closing this unpooled connection rolls back an open transaction.
+        // Raw artifact tests retain their original execution path. Restricted-account tests
+        // additionally guard errors INSIDE a batch, before a later COMMIT can execute.
         foreach (var batch in batches)
         {
-            await using var command = connection.CreateCommand();
-            command.CommandTimeout = 60;
-            command.CommandText = batch;
+            await using var command = CreateScriptBatchCommand(connection, batch, guardTransactions);
             await command.ExecuteNonQueryAsync(timeout.Token);
         }
+    }
+
+    internal static SqlCommand CreateScriptBatchCommand(
+        SqlConnection connection, string batch, bool guardTransactions)
+    {
+        var command = connection.CreateCommand();
+        command.CommandTimeout = 60;
+        if (!guardTransactions)
+        {
+            command.CommandText = batch;
+            return command;
+        }
+
+        // Keep the original batch unchanged as a parameter, not interpolated SQL.
+        // The lower execution scope lets CATCH handle name-resolution/compile errors too.
+        // No outer transaction is added: previously committed migrations stay committed.
+        command.CommandText = """
+            SET XACT_ABORT ON;
+            BEGIN TRY
+                EXEC sys.sp_executesql @migrationBatch;
+            END TRY
+            BEGIN CATCH
+                IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+                THROW;
+            END CATCH;
+            """;
+        command.Parameters.Add("@migrationBatch", System.Data.SqlDbType.NVarChar, -1).Value = batch;
+        return command;
     }
 
     internal static async Task ValidateServerAsync(SqlConnection connection)

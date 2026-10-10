@@ -78,4 +78,55 @@ public sealed class MigrationExecutorGuardTests
         Assert.Contains($"expected {expected}", error.Message);
         Assert.Contains(actual.HasValue ? $"returned {actual}" : "returned NULL (unknown)", error.Message);
     }
+
+    [Theory]
+    [InlineData(1088, false, false)]
+    [InlineData(1088, true, true)]
+    [InlineData(229, false, true)]
+    [InlineData(207, true, false)]
+    [InlineData(245, true, false)]
+    [InlineData(102, true, false)]
+    [InlineData(916, true, false)]
+    public void HiddenObjectErrorRequiresVerifiedExistenceAndOtherErrorsAreNotPermissionErrors(
+        int number, bool verifiedExistingObject, bool expected)
+    {
+        Assert.Equal(expected, MigrationExecutorSqlIntegrationTests.IsPermissionErrorNumber(number, verifiedExistingObject));
+    }
+
+    [Fact]
+    public void GuardedCommandKeepsOriginalSqlInAnUnmodifiedParameterAndRethrowsAfterRollback()
+    {
+        const string batch = "SELECT N'quoted '' text\r\nGO\r\n'; -- not executable command text";
+        using var connection = new SqlConnection();
+        using var command = CiDatabase.CreateScriptBatchCommand(connection, batch, guardTransactions: true);
+
+        Assert.Equal("""
+            SET XACT_ABORT ON;
+            BEGIN TRY
+                EXEC sys.sp_executesql @migrationBatch;
+            END TRY
+            BEGIN CATCH
+                IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+                THROW;
+            END CATCH;
+            """.ReplaceLineEndings("\n"), command.CommandText.ReplaceLineEndings("\n"));
+        Assert.DoesNotContain(batch, command.CommandText);
+        var parameter = Assert.IsType<SqlParameter>(Assert.Single(command.Parameters.Cast<SqlParameter>()));
+        Assert.Equal("@migrationBatch", parameter.ParameterName);
+        Assert.Equal(System.Data.SqlDbType.NVarChar, parameter.SqlDbType);
+        Assert.Equal(-1, parameter.Size);
+        Assert.Equal(batch, parameter.Value);
+        Assert.Equal(60, command.CommandTimeout);
+    }
+
+    [Fact]
+    public void RawArtifactCommandStillExecutesOriginalBatchWithoutAWrapper()
+    {
+        const string batch = "SELECT N'unchanged raw artifact';";
+        using var connection = new SqlConnection();
+        using var command = CiDatabase.CreateScriptBatchCommand(connection, batch, guardTransactions: false);
+
+        Assert.Equal(batch, command.CommandText);
+        Assert.Empty(command.Parameters.Cast<SqlParameter>());
+    }
 }
