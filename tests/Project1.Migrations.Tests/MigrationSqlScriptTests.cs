@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -7,6 +8,28 @@ namespace Project1.Migrations.Tests;
 
 public sealed class MigrationSqlScriptTests
 {
+    [Fact]
+    public void ManifestMatchesCompiledMigrationsWithoutDatabaseAccess()
+    {
+        using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlServer("Server=tcp:127.0.0.1,1;Database=CiManifestTest;User Id=ci;Password=not-a-real-password;Connect Timeout=1")
+            .Options);
+        var ids = context.Database.GetMigrations().ToArray();
+        MigrationSqlScript.ValidateManifest(JsonSerializer.Serialize(new { schema = 1, migrations = ids }));
+        Assert.Throws<InvalidOperationException>(() => MigrationSqlScript.ValidateManifest(
+            JsonSerializer.Serialize(new { schema = 1, migrations = ids.Skip(1).ToArray() })));
+    }
+
+    [Theory]
+    [InlineData("{\"schema\":2,\"migrations\":[]}")]
+    [InlineData("{\"schema\":1,\"migrations\":[],\"extra\":true}")]
+    [InlineData("{\"schema\":1,\"schema\":1,\"migrations\":[]}")]
+    [InlineData("{\"schema\":1,\"migrations\":[]}")]
+    public void WrongManifestSchemaOrMigrationListIsRejected(string json)
+    {
+        Assert.Throws<InvalidOperationException>(() => MigrationSqlScript.ValidateManifest(json));
+    }
+
     [Theory]
     [InlineData("GO")]
     [InlineData(" go ")]

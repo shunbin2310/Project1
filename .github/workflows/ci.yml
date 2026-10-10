@@ -110,6 +110,14 @@ jobs:
             --output artifacts/migrations/migrations.sql \
             -- --environment CiMigrationScript
           test -s artifacts/migrations/migrations.sql
+          dotnet tool run dotnet-ef -- migrations list --no-connect --json --prefix-output \
+            --project backend/Project1.Api \
+            --startup-project backend/Project1.Api \
+            --configuration Release --no-build --context AppDbContext \
+            -- --environment CiMigrationScript > "$RUNNER_TEMP/project1-migration-list.txt"
+          python3 scripts/deploy/migration_package.py \
+            --ef-list "$RUNNER_TEMP/project1-migration-list.txt" \
+            --directory artifacts/migrations
           printf '%s\n' \
             "Repository: $GITHUB_REPOSITORY" \
             "Commit SHA: $GITHUB_SHA" \
@@ -124,7 +132,10 @@ jobs:
             'Review, test against the target schema and back up before manual production use.' \
             > artifacts/migrations/build-info.txt
           cd artifacts/migrations
-          sha256sum migrations.sql build-info.txt > SHA256SUMS
+          sha256sum migrations.sql build-info.txt migration-manifest.json > SHA256SUMS
+
+      - name: Test deployment and read-only migration tooling without server access
+        run: python3 -m unittest discover -s scripts/deploy/tests -v
 
       - name: Test generated SQL on disposable SQL Server databases
         # Execute the exact file that will be uploaded, never SQL on the production server.
