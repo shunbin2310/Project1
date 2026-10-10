@@ -40,6 +40,89 @@ BACKUPS = Path("/var/lib/project1-migration-backups")
 LEDGER = Path("/var/lib/project1-migration-ledger")
 STAGING = Path("/var/lib/project1-host-acceptance-staging")
 SHA, RUN, WORKFLOW = "a" * 40, 42, 17  # Fabricated provenance, never a real approval.
+STAGES = {
+    "S00": "ci-guard-and-inputs", "S01": "existing-installation-check",
+    "S02": "copy-root-runtime", "S03": "validate-system-dotnet-link",
+    "S04": "copy-fixed-host", "S05": "copy-ci-provisioner", "S06": "install-python-and-wrappers",
+    "S07": "create-archive-group", "S08": "create-deploy-user", "S09": "validate-sudoers-template",
+    "S10": "install-and-validate-sudoers", "S11": "prepare-private-test-files",
+    "S12": "start-disposable-sql-container", "S13": "check-container-isolation",
+    "S14": "check-sql-service-uid", "S15": "check-sql-service-groups",
+    "S16": "provision-disposable-sql-baseline", "S17": "archive-checksum-backup",
+    "S18": "validate-fixed-installation", "S19": "initialize-root-ledger",
+    "S20": "fixed-stdio-lock-and-backup", "S21": "cross-batch-rollback",
+    "S22": "verify-synthetic-artifact", "S23": "check-sudo-execute-authorization",
+    "S24": "check-default-off", "S25": "register-fixture-approval", "S26": "sudo-describe-binding",
+    "S27": "reject-sudo-arguments-and-environment", "S28": "check-private-file-access",
+    "S29": "execute-approved-fixture", "S30": "verify-schema-history-and-product",
+    "S31": "reject-consumed-approval", "S99": "remove-owned-container",
+}
+COMMAND_LABELS = frozenset({
+    "groupadd", "useradd", "visudo-template", "visudo-installed", "docker-start",
+    "docker-inspect", "docker-uid", "docker-groups", "fixture-initialize", "ledger-initialize",
+    "fixture-before", "sudo-execute-authorization", "sudo-default-off", "sudo-describe",
+    "sudo-invalid-arguments", "sudo-forbidden-command", "sudo-environment-injection",
+    "private-write-denial", "credential-read-denial", "fixture-after", "sudo-consumed-describe",
+    "sudo-consumed-execute", "docker-cleanup",
+})
+_CURRENT_STAGE = "S00"
+
+
+def set_stage(identifier):
+    global _CURRENT_STAGE
+    if identifier not in STAGES:
+        raise ValueError("Unknown diagnostic stage.")
+    _CURRENT_STAGE = identifier
+    print(f"BEGIN [{identifier}] {STAGES[identifier]}", flush=True)
+
+
+class CommandFailure(RuntimeError):
+    """Only allowlisted labels/numeric status are reported, never raw child context."""
+    def __init__(self, label, reason, *, exit_code=None, errno=None):
+        if (label not in COMMAND_LABELS or reason not in {"exit-status", "timeout", "launch-error"}
+                or (exit_code is not None and type(exit_code) is not int)
+                or (errno is not None and type(errno) is not int)):
+            raise ValueError("Invalid diagnostic fields.")
+        super().__init__("Acceptance command failed.")
+        self.label, self.reason, self.exit_code, self.errno = label, reason, exit_code, errno
+
+
+def report_failure(error):
+    # No repr(error), traceback, argv, stdin, env, stdout or stderr. Even an
+    # exception's message/type could be derived from sensitive child inputs.
+    detail = "operation-failed"
+    if (isinstance(error, CommandFailure) and error.label in COMMAND_LABELS
+            and error.reason in {"exit-status", "timeout", "launch-error"}
+            and (error.exit_code is None or type(error.exit_code) is int)
+            and (error.errno is None or type(error.errno) is int)):
+        detail = f"command={error.label} reason={error.reason}"
+        if error.exit_code is not None:
+            detail += f" exit_code={error.exit_code}"
+        if error.errno is not None:
+            detail += f" errno={error.errno}"
+    elif isinstance(error, OSError):
+        detail = "filesystem-error"
+        if type(error.errno) is int:
+            detail += f" errno={error.errno}"
+    print(f"ERROR [{_CURRENT_STAGE}] {STAGES[_CURRENT_STAGE]}: {detail}; no production access.", file=sys.stderr)
+
+
+def cleanup_container(identifier, *, already_failing):
+    global _CURRENT_STAGE
+    # Delete ONLY the exact container created by this invocation; no host path cleanup.
+    if not identifier or not re.fullmatch(r"[0-9a-f]{64}", identifier):
+        return
+    original_stage = _CURRENT_STAGE
+    try:
+        set_stage("S99")
+        run(["/usr/bin/docker", "rm", "--force", identifier], label="docker-cleanup")
+    except Exception as cleanup_error:
+        if not already_failing:
+            raise
+        report_failure(cleanup_error)
+    finally:
+        if already_failing:
+            _CURRENT_STAGE = original_stage
 
 
 def require_ci(environment, platform, uid):
@@ -52,12 +135,19 @@ def require_ci(environment, platform, uid):
         raise RuntimeError("Only the explicit disposable GitHub-hosted job is allowed.")
 
 
-def run(arguments, *, body=None, succeeds=True, environment=None, timeout=180):
-    result = subprocess.run(arguments, input=body, capture_output=True, timeout=timeout,
-                            env=environment)
+def run(arguments, *, label, body=None, succeeds=True, environment=None, timeout=180):
+    if label not in COMMAND_LABELS:
+        raise ValueError("Unknown diagnostic command label.")
+    try:
+        result = subprocess.run(arguments, input=body, capture_output=True, timeout=timeout,
+                                env=environment)
+    except subprocess.TimeoutExpired:
+        raise CommandFailure(label, "timeout") from None
+    except OSError as error:
+        raise CommandFailure(label, "launch-error", errno=error.errno) from None
     if (result.returncode == 0) != succeeds:
         # Never echo arbitrary child output (possibly credential-bearing SQL errors).
-        raise RuntimeError("Acceptance child returned an unexpected exit status.")
+        raise CommandFailure(label, "exit-status", exit_code=result.returncode)
     return result.stdout
 
 
@@ -138,6 +228,7 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
     require_ci(os.environ, sys.platform, os.geteuid())
     import grp
     import pwd
+    set_stage("S01")
     fixed = (ROOT, HOST, CONFIG, BACKUPS, LEDGER, STAGING,
              Path("/usr/local/sbin/project1-migration-execute"),
              Path("/usr/local/sbin/project1-migration-admin"),
@@ -154,16 +245,21 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
     print("BEGIN: disposable root installation and real sudoers validation", flush=True)
     # Copy runtime to root-managed storage rather than trusting the runner's writable SDK.
     runtime = Path("/opt/project1-host-acceptance-dotnet")
+    set_stage("S02")
     copy_tree(dotnet.resolve(strict=True).parent, runtime)
+    set_stage("S03")
     system_dotnet = Path("/usr/bin/dotnet")
     if os.path.lexists(system_dotnet):
         if not system_dotnet.is_symlink() or system_dotnet.resolve() != dotnet.resolve():
             raise RuntimeError("Unexpected existing system runtime.")
         system_dotnet.unlink()
     system_dotnet.symlink_to(runtime / "dotnet")
+    set_stage("S04")
     copy_tree(published_host, HOST)
     fixture_root = Path("/usr/local/libexec/project1-host-acceptance-fixture")
+    set_stage("S05")
     copy_tree(published_fixture, fixture_root)
+    set_stage("S06")
     ROOT.mkdir(mode=0o755, parents=True)
     for name in MODULES:
         shutil.copyfile(scripts / name, ROOT / name)
@@ -172,14 +268,19 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
         destination = Path("/usr/local/sbin") / name
         shutil.copyfile(scripts / name, destination)
         destination.chmod(0o755)
-    run(["/usr/sbin/groupadd", "--gid", "10001", "mssql"])
-    run(["/usr/sbin/useradd", "--no-create-home", "--shell", "/usr/sbin/nologin", "project1_deploy"])
+    set_stage("S07")
+    run(["/usr/sbin/groupadd", "--gid", "10001", "mssql"], label="groupadd")
+    set_stage("S08")
+    run(["/usr/sbin/useradd", "--no-create-home", "--shell", "/usr/sbin/nologin", "project1_deploy"], label="useradd")
     candidate = scripts / "project1-migration-execute.sudoers"
-    run(["/usr/sbin/visudo", "-cf", str(candidate)])
+    set_stage("S09")
+    run(["/usr/sbin/visudo", "-cf", str(candidate)], label="visudo-template")
+    set_stage("S10")
     sudoers = Path("/etc/sudoers.d/project1-migration-execute")
     shutil.copyfile(candidate, sudoers)
     sudoers.chmod(0o440)
-    run(["/usr/sbin/visudo", "-c"])
+    run(["/usr/sbin/visudo", "-c"], label="visudo-installed")
+    set_stage("S11")
     CONFIG.mkdir(mode=0o700)
     (CONFIG / "approvals").mkdir(mode=0o700)
     BACKUPS.mkdir(mode=0o750)
@@ -192,6 +293,7 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
     # Own isolated SQL container, loopback-only; SQL cannot write the root backup archive.
     identifier = None
     try:
+        set_stage("S12")
         identifier = run(["/usr/bin/docker", "run", "--detach", "--hostname", "homelab-server",
                           "--memory", "3g", "--group-add", "10001", "--publish", "127.0.0.1:1433:1433",
                           "--env", "ACCEPT_EULA=Y", "--env", "MSSQL_PID=Express",
@@ -199,16 +301,19 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
                           "--env", "MSSQL_MEMORY_LIMIT_MB=2048",
                           "--mount", f"type=bind,src={STAGING},dst=/var/opt/mssql/backup",
                           "--mount", f"type=bind,src={BACKUPS},dst={BACKUPS},readonly",
-                          IMAGE], timeout=300).decode().strip()
+                          IMAGE], label="docker-start", timeout=300).decode().strip()
         if not re.fullmatch(r"[0-9a-f]{64}", identifier):
             raise RuntimeError("Unexpected disposable container ID.")
-        inspect = json.loads(run(["/usr/bin/docker", "inspect", identifier]))[0]
+        set_stage("S13")
+        inspect = json.loads(run(["/usr/bin/docker", "inspect", identifier], label="docker-inspect"))[0]
         if (inspect["Config"]["Image"] != IMAGE or inspect["Config"]["Hostname"] != "homelab-server"
                 or inspect["HostConfig"]["PortBindings"] != {"1433/tcp": [{"HostIp": "127.0.0.1", "HostPort": "1433"}]}):
             raise RuntimeError("Unexpected disposable container isolation.")
-        if run(["/usr/bin/docker", "exec", identifier, "id", "-u"]).strip() != b"10001":
+        set_stage("S14")
+        if run(["/usr/bin/docker", "exec", identifier, "id", "-u"], label="docker-uid").strip() != b"10001":
             raise RuntimeError("SQL service must use the non-root fixture UID.")
-        if b"10001" not in run(["/usr/bin/docker", "exec", identifier, "id", "-G"]).split():
+        set_stage("S15")
+        if b"10001" not in run(["/usr/bin/docker", "exec", identifier, "id", "-G"], label="docker-groups").split():
             raise RuntimeError("SQL service cannot read the immutable archive group.")
         child_env = {key: os.environ[key] for key in
                      ("GITHUB_ACTIONS", "GITHUB_REPOSITORY", "PROJECT1_HOST_ACCEPTANCE",
@@ -216,8 +321,11 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
         child_env.update(PATH="/usr/bin:/bin", DOTNET_CLI_TELEMETRY_OPTOUT="1", HOME="/root")
         fixture_command = [str(system_dotnet), "exec", str(fixture_root / "Project1.MigrationHost.Acceptance.dll")]
         print("BEGIN: disposable SQL baseline, scoped accounts and checksum backup", flush=True)
+        set_stage("S16")
         fixture = json.loads(run(fixture_command + ["initialize"], environment=child_env,
+                                 label="fixture-initialize",
                                  body=json.dumps({"execution_password": execution, "verifier_password": verifier}).encode() + b"\n"))
+        set_stage("S17")
         source = STAGING / "project1-host-acceptance.bak"
         if not stat.S_ISREG(source.lstat().st_mode) or source.lstat().st_nlink != 1:
             raise RuntimeError("Unexpected fixture backup type.")
@@ -233,10 +341,13 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
         from migration_approval_ledger import ApprovalLedger, canonical
         import production_entry as entrypoint
         from verify_migration_artifact import verify
+        set_stage("S18")
         production.require_installation(enabled=False)
-        run(["/usr/local/sbin/project1-migration-admin", "initialize"])
+        set_stage("S19")
+        run(["/usr/local/sbin/project1-migration-admin", "initialize"], label="ledger-initialize")
         print("BEGIN: actual fixed stdio host, independent verifier and failure cleanup", flush=True)
         # Actual stdio, fixed identity, least-privilege verifier and real checksum verification.
+        set_stage("S20")
         with production.HostSession() as session:
             session.assert_before()
             status = session.status()
@@ -251,6 +362,7 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
             except production.ProductionError:
                 pass
         # A failed later GO batch must roll back earlier uncommitted DDL.
+        set_stage("S21")
         failure = b"BEGIN TRANSACTION;\nALTER TABLE dbo.Products ADD CiUncommitted int NULL;\nGO\nTHROW 51055, 'CI failure', 1;\nGO\nCOMMIT;\nGO\n"
         try:
             with production.HostSession() as session:
@@ -258,8 +370,9 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
             raise AssertionError("Injected SQL failure was accepted.")
         except production.ProductionError:
             pass
-        run(fixture_command + ["before"], environment=child_env)
+        run(fixture_command + ["before"], environment=child_env, label="fixture-before")
         print("PASS: real stdio identity, SQL lock, scoped backup verifier, cross-batch rollback", flush=True)
+        set_stage("S22")
         client = FixtureClient(package_files(fixture))
         directory = Path("/root/project1-host-acceptance-package")
         manifest = verify(client, RUN, SHA, directory, 1)
@@ -276,12 +389,14 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
         ledger = ApprovalLedger(LEDGER, target=production.TARGET)
         sudo = ["/usr/bin/sudo", "-u", "project1_deploy", "--", "/usr/bin/sudo", "-n", "--"]
         wrapper = "/usr/local/sbin/project1-migration-execute"
+        set_stage("S23")
         # Check authorization separately: a refusal must come from the disabled
         # production entry, not from a broken sudo execute regex.
         run(["/usr/bin/sudo", "-u", "project1_deploy", "--", "/usr/bin/sudo", "-n", "-l",
-             "--", wrapper, approval_id])
+             "--", wrapper, approval_id], label="sudo-execute-authorization")
         # Valid sudo ID is allowed, but the actual entry must refuse while disabled.
-        run(sudo + [wrapper, approval_id], succeeds=False)
+        set_stage("S24")
+        run(sudo + [wrapper, approval_id], succeeds=False, label="sudo-default-off")
         write_private(CONFIG / "enabled", production.ENABLED)
         write_private(CONFIG / "github-token", b"acceptance-fixture-not-a-real-token\n")
         write_private(CONFIG / "approvals" / (approval_id + ".json"), canonical(record))
@@ -294,51 +409,58 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
             if code != 0:
                 raise RuntimeError("Actual installed entrypoint refused the fixture.")
             return json.loads(output.getvalue())
+        set_stage("S25")
         registration = invoke_entry(["admin", "register", approval_id])
         if registration["registered"] is not True or registration["sql_executed"] is not False:
             raise RuntimeError("Registration unexpectedly executed SQL.")
-        description = json.loads(run(sudo + [wrapper, "--describe", approval_id]))
+        set_stage("S26")
+        description = json.loads(run(sudo + [wrapper, "--describe", approval_id], label="sudo-describe"))
         if description["sql_sha256"] != manifest["sql_sha256"] or description["sql_executed"] is not False:
             raise RuntimeError("Actual sudo describe binding differed.")
+        set_stage("S27")
         for args in ([], [approval_id, "extra"], [approval_id.upper()], ["--sql", "/tmp/anything.sql"],
                      ["--describe", approval_id, "extra"], [";id"], ["admin", "initialize"]):
-            run(sudo + [wrapper, *args], succeeds=False)
+            run(sudo + [wrapper, *args], succeeds=False, label="sudo-invalid-arguments")
         for command in (["/usr/local/sbin/project1-migration-admin", "inspect"],
                         ["/usr/bin/python3", "-c", "pass"], ["/usr/bin/dotnet", "--info"]):
-            run(sudo + command, succeeds=False)
+            run(sudo + command, succeeds=False, label="sudo-forbidden-command")
         run(["/usr/bin/sudo", "-u", "project1_deploy", "--", "/usr/bin/sudo", "-n",
-             "PYTHONPATH=/tmp", wrapper, "--describe", approval_id], succeeds=False)
+             "PYTHONPATH=/tmp", wrapper, "--describe", approval_id], succeeds=False, label="sudo-environment-injection")
+        set_stage("S28")
         for path in (ROOT / "production_migration.py", CONFIG / "execution-password",
                      LEDGER, archived, HOST / "Project1.MigrationHost.dll"):
-            run(["/usr/bin/sudo", "-u", "project1_deploy", "--", "/usr/bin/test", "-w", str(path)], succeeds=False)
+            run(["/usr/bin/sudo", "-u", "project1_deploy", "--", "/usr/bin/test", "-w", str(path)], succeeds=False, label="private-write-denial")
         run(["/usr/bin/sudo", "-u", "project1_deploy", "--", "/usr/bin/test", "-r",
-             str(CONFIG / "execution-password")], succeeds=False)
+             str(CONFIG / "execution-password")], succeeds=False, label="credential-read-denial")
         print("PASS: actual sudo regex/describe, invalid arguments, NOSETENV, private root files, default-off", flush=True)
         # Actual installed entry/coordinator/root ledger/fixed host; only GitHub is a fixture.
+        set_stage("S29")
         result = invoke_entry(["execute", approval_id])
         if result["phase"] != "succeeded" or ledger.inspect()["entries"][approval_id]["phase"] != "succeeded":
             raise RuntimeError("Durable terminal result differed.")
-        run(fixture_command + ["after"], environment=child_env)
-        run(sudo + [wrapper, "--describe", approval_id], succeeds=False)
-        run(sudo + [wrapper, approval_id], succeeds=False)
+        set_stage("S30")
+        run(fixture_command + ["after"], environment=child_env, label="fixture-after")
+        set_stage("S31")
+        run(sudo + [wrapper, "--describe", approval_id], succeeds=False, label="sudo-consumed-describe")
+        run(sudo + [wrapper, approval_id], succeeds=False, label="sudo-consumed-execute")
         print("PASS: real approved SQL bytes, preserved product, durable success and replay rejection", flush=True)
         print("CI ONLY: fabricated artifact provenance; no production wrapper SQL submission, API, SSH or server access.", flush=True)
     finally:
-        # Delete ONLY the exact container created by this invocation; no host path cleanup.
-        if identifier and re.fullmatch(r"[0-9a-f]{64}", identifier):
-            run(["/usr/bin/docker", "rm", "--force", identifier])
+        # Cleanup errors must not mask the original diagnostic stage/failure.
+        cleanup_container(identifier, already_failing=sys.exc_info()[0] is not None)
 
 
 def main(arguments=None):
     arguments = sys.argv[1:] if arguments is None else arguments
     try:
+        set_stage("S00")
         require_ci(os.environ, sys.platform, os.geteuid() if hasattr(os, "geteuid") else -1)
         if len(arguments) != 4:
             raise RuntimeError("Expected reviewed CI build locations.")
         acceptance(*(Path(value).resolve(strict=True) for value in arguments))
         return 0
     except Exception as error:
-        print(f"ERROR: Disposable host acceptance failed ({type(error).__name__}); no production access.", file=sys.stderr)
+        report_failure(error)
         return 1
 
 
