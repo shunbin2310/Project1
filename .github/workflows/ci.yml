@@ -61,6 +61,9 @@ jobs:
       - name: Restore pinned EF Core CLI tool
         run: dotnet tool restore
 
+      - name: Build fixed production SQL host without production access
+        run: dotnet build scripts/deploy/dotnet/Project1.MigrationHost/Project1.MigrationHost.csproj --configuration Release --no-restore
+
       - name: Build and test backend
         # Keep business tests and their TRX separate from the SQL migration test project.
         run: dotnet test tests/Project1.Api.Tests/Project1.Api.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=backend.trx" --results-directory artifacts/backend-test-results
@@ -128,7 +131,7 @@ jobs:
             "Ref: $GITHUB_REF" \
             "Run URL: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
             'Migration range: 0 to latest migration in this commit; idempotent SQL Server script.' \
-            'REVIEW ONLY: CI tests this SQL only in disposable databases. CD never executes it.' \
+            'REVIEW REQUIRED: production execution needs a separately registered administrator approval.' \
             'Review, test against the target schema and back up before manual production use.' \
             > artifacts/migrations/build-info.txt
           cd artifacts/migrations

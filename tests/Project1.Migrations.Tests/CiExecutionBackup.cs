@@ -2,6 +2,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Project1.MigrationExecutor;
 
 namespace Project1.Migrations.Tests;
 
@@ -73,25 +74,9 @@ internal sealed class CiExecutionBackup(CiDatabase database)
         await using var connection = database.CreateConnection();
         await connection.OpenAsync();
         await CiDatabase.ValidateServerAsync(connection);
-        await using (var header = connection.CreateCommand())
-        {
-            header.CommandTimeout = 60;
-            header.CommandText = "RESTORE HEADERONLY FROM DISK = @path;";
-            header.Parameters.Add("@path", SqlDbType.NVarChar, 4000).Value = path;
-            await using var reader = await header.ExecuteReaderAsync();
-            if (!await reader.ReadAsync() || reader.GetString(reader.GetOrdinal("DatabaseName")) != database.Name ||
-                reader.GetString(reader.GetOrdinal("ServerName")) != CiSqlServerSettings.ServerName ||
-                !reader.GetBoolean(reader.GetOrdinal("HasBackupChecksums")) ||
-                !reader.GetBoolean(reader.GetOrdinal("IsCopyOnly")) || await reader.ReadAsync())
-                throw new InvalidOperationException("Unexpected CI backup header or checksum options.");
-        }
-        await using (var verify = connection.CreateCommand())
-        {
-            verify.CommandTimeout = 60;
-            verify.CommandText = "RESTORE VERIFYONLY FROM DISK = @path WITH CHECKSUM, STOP_ON_ERROR;";
-            verify.Parameters.Add("@path", SqlDbType.NVarChar, 4000).Value = path;
-            await verify.ExecuteNonQueryAsync();
-        }
+        // Exercise the SAME SQL header/VERIFYONLY implementation as the uninstalled host.
+        _ = await BackupInspector.VerifyAsync(connection, path, CiSqlServerSettings.ServerName,
+            database.Name, CancellationToken.None);
         if (await HashAsync() != Digest) throw new InvalidOperationException("CI backup changed during verification.");
         // The fixture observes completion time; it does not infer UTC from a local header timestamp.
         return new { server = CiSqlServerSettings.ServerName, database = database.Name, sha256 = Digest,

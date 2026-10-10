@@ -1,9 +1,9 @@
-"""Uninstalled execution coordinator, with no CLI or production adapter.
+"""Execution coordinator library, never itself a sudo command or CLI.
 
 The trusted host supplies the ledger, online provenance checker, independent
 backup verifier and a database session which holds a session-owned SQL lock.
-These are NOT callbacks or JSON that a deployment user may choose. This stage
-exercises those boundaries on disposable CI databases only.
+These are NOT callbacks or JSON that a deployment user may choose. Disposable CI
+fixtures and the separately reviewed root-managed host supply distinct adapters.
 """
 
 from __future__ import annotations
@@ -73,7 +73,7 @@ class ExecutionServices(Protocol):
 def check_backup(evidence: dict, approval: dict, target: ReviewTarget, now: datetime):
     """Evidence comes from an independent trusted verifier, not request JSON.
 
-    A future production adapter must hash the actual private backup, inspect its
+    The production adapter must hash the actual private backup, inspect its
     database/header and run CHECKSUM VERIFYONLY itself. Boolean input is no proof.
     """
     exact_fields(evidence, {"server", "database", "sha256", "completed_at", "checked_at",

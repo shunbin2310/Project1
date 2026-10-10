@@ -6,6 +6,29 @@ namespace Project1.Migrations.Tests;
 public sealed class MigrationExecutionSessionGuardTests
 {
     [Fact]
+    public void BackupFinishUsesOriginalUtcHeaderAndRefusesUnknownOrLocalOffsets()
+    {
+        var time = new DateTime(2026, 10, 10, 1, 2, 3, DateTimeKind.Unspecified);
+        Assert.Equal(DateTimeKind.Utc, BackupInspector.ReadUtcFinish(time, 0).Kind);
+        Assert.Equal(time.Ticks, BackupInspector.ReadUtcFinish(time, "UTC").Ticks);
+        foreach (var zone in new object[] { DBNull.Value, 127, 8, "+08:00", "unknown" })
+            Assert.Throws<InvalidOperationException>(() => BackupInspector.ReadUtcFinish(time, zone));
+    }
+    [Fact]
+    public void ProductionConnectionPinsExecutionIdentityWithoutChangingReadonlyOrCiAccounts()
+    {
+        var value = new SqlConnectionStringBuilder(SqlMigrationSession.ProductionConnectionString("P1!" + new string('a', 64)));
+        Assert.Equal("tcp:127.0.0.1,1433", value.DataSource);
+        Assert.Equal("Project1Db", value.InitialCatalog);
+        Assert.Equal("project1_execute", value.UserID);
+        Assert.False(value.Pooling);
+        Assert.False(value.IntegratedSecurity);
+        Assert.Equal(0, value.ConnectRetryCount);
+        Assert.Equal(15, value.ConnectTimeout);
+        Assert.Throws<InvalidOperationException>(() => SqlMigrationSession.ProductionConnectionString("password;User ID=sa"));
+        Assert.Throws<InvalidOperationException>(() => SqlMigrationSession.ProductionConnectionString("P1!" + new string('a', 64) + "\n"));
+    }
+    [Fact]
     public void SqlEvidenceClockUsesSixDigitUtcPrecisionAcceptedByThePythonValidator()
     {
         var text = CiExecutionBackup.UtcText(DateTimeOffset.UtcNow);
