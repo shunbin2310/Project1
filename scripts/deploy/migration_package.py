@@ -86,10 +86,8 @@ def read_package(archive: Path, run_id: int, commit: str, attempt: int) -> dict:
                   f"Run URL: https://github.com/{REPOSITORY}/actions/runs/{run_id}"]
     if (lines[:8] != provenance or len(lines) != 11 or
             lines[8] != "Migration range: 0 to latest migration in this commit; idempotent SQL Server script." or
-            lines[9] not in {
-                "REVIEW ONLY: CI tests this SQL only in disposable databases. CD never executes it.",
-                "REVIEW REQUIRED: production execution needs a separately registered administrator approval.",
-            } or lines[10] != "Review, test against the target schema and back up before manual production use."):
+            lines[9] != "REVIEW ONLY: CI tests this SQL only in disposable databases. CD never executes it." or
+            lines[10] != "Review, test against the target schema and back up before manual production use."):
         raise VerificationError("Migration build information does not match the selected CI attempt.")
     ids = manifest_ids(files["migration-manifest.json"])
     check_sql_ids(files["migrations.sql"], ids)

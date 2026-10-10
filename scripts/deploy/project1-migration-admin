@@ -1,4 +1,0 @@
-#!/bin/sh
-# Administrator ONLY. Never grant this wrapper to project1_deploy in sudoers.
-set -eu
-exec /usr/bin/python3 -I /usr/local/libexec/project1-migration/production_entry.py admin "$@"

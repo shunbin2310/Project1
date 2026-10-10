@@ -1,3 +1,0 @@
-# REVIEW ONLY. Requires sudo >= 1.9.10 argument regex; visudo -cf BEFORE installation.
-# Never grant project1-migration-admin, python3, dotnet, shell or arbitrary SQL paths.
-project1_deploy ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/project1-migration-execute ^[0-9a-f]{32}$, /usr/local/sbin/project1-migration-execute ^--describe\ [0-9a-f]{32}$

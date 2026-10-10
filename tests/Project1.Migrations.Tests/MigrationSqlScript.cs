@@ -56,5 +56,5 @@ internal static class MigrationSqlScript
     }
 
     internal static IReadOnlyList<string> SplitBatches(string sql) =>
-        Project1.MigrationExecutor.SqlBatchParser.SplitBatches(sql);
+        SqlBatchParser.SplitBatches(sql);
 }

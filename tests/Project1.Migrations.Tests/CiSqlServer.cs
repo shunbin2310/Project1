@@ -70,30 +70,10 @@ internal sealed record CiSqlServerSettings(string Password)
             throw new InvalidOperationException("Refusing to create or drop a non-CI database.");
         }
     }
-
-    internal static void ValidateLoginName(string loginName)
-    {
-        if (!Regex.IsMatch(loginName, @"\AProject1CiExecutor_[0-9a-f]{32}\z"))
-        {
-            throw new InvalidOperationException("Refusing to create or drop a non-CI login.");
-        }
-    }
-
-    internal string AccountConnectionString(string databaseName, string loginName, string password)
-    {
-        ValidateDatabaseName(databaseName);
-        ValidateLoginName(loginName);
-        return new SqlConnectionStringBuilder(ConnectionString(databaseName))
-        {
-            UserID = loginName,
-            Password = password
-        }.ConnectionString;
-    }
 }
 
 internal sealed class CiDatabase : IAsyncDisposable
 {
-    internal const string RollbackOpenTransactionSql = "IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;";
     private readonly CiSqlServerSettings settings;
     private readonly SqlConnection admin;
 
@@ -150,9 +130,6 @@ internal sealed class CiDatabase : IAsyncDisposable
 
     internal SqlConnection CreateConnection() => new(settings.ConnectionString(Name));
 
-    internal SqlConnection CreateAccountConnection(string loginName, string password) =>
-        new(settings.AccountConnectionString(Name, loginName, password));
-
     internal async Task ExecuteScriptAsync(IReadOnlyList<string> batches)
     {
         await using var connection = CreateConnection();
@@ -160,7 +137,7 @@ internal sealed class CiDatabase : IAsyncDisposable
     }
 
     internal static async Task ExecuteScriptAsync(
-        SqlConnection connection, IReadOnlyList<string> batches, bool guardTransactions = false)
+        SqlConnection connection, IReadOnlyList<string> batches)
     {
         _ = CiSqlServerSettings.Load(Environment.GetEnvironmentVariable);
         var databaseName = new SqlConnectionStringBuilder(connection.ConnectionString).InitialCatalog;
@@ -172,68 +149,21 @@ internal sealed class CiDatabase : IAsyncDisposable
         {
             throw new InvalidOperationException("Unexpected CI database identity.");
         }
-        // One connection preserves session state and transactions across GO batches.
-        // Raw artifact tests retain their original execution path. Restricted-account tests
-        // additionally guard errors INSIDE a batch, before a later COMMIT can execute.
-        try
+        // Execute the exact generated SQL, on one unpooled connection across GO batches.
+        // A client error stops later batches; disposal closes any uncommitted transaction.
+        // This is a disposable CI fixture, not a production migration runner.
+        foreach (var batch in batches)
         {
-            foreach (var batch in batches)
-            {
-                await using var command = CreateScriptBatchCommand(connection, batch, guardTransactions);
-                await command.ExecuteNonQueryAsync(timeout.Token);
-            }
-        }
-        catch (Exception executionError) when (guardTransactions)
-        {
-            // Same-scope compile/name-resolution errors bypass SQL CATCH. Clean up
-            // on the client as well, with a fresh bounded timeout, and stop all batches.
-            try
-            {
-                try
-                {
-                    using var cleanupTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                    if (connection.State == System.Data.ConnectionState.Open)
-                    {
-                        await using var rollback = connection.CreateCommand();
-                        rollback.CommandTimeout = 10;
-                        rollback.CommandText = RollbackOpenTransactionSql;
-                        await rollback.ExecuteNonQueryAsync(cleanupTimeout.Token);
-                    }
-                }
-                finally
-                {
-                    // Unpooled: closing also terminates any remaining transaction.
-                    await connection.CloseAsync();
-                }
-            }
-            catch (Exception cleanupError)
-            {
-                // Do not hide a cleanup failure or replace the original error with it.
-                throw new AggregateException("CI migration failed and transaction cleanup also failed.",
-                    executionError, cleanupError);
-            }
-            throw;
+            await using var command = CreateScriptBatchCommand(connection, batch);
+            await command.ExecuteNonQueryAsync(timeout.Token);
         }
     }
 
-    internal static SqlCommand CreateScriptBatchCommand(
-        SqlConnection connection, string batch, bool guardTransactions)
+    internal static SqlCommand CreateScriptBatchCommand(SqlConnection connection, string batch)
     {
         var command = connection.CreateCommand();
         command.CommandTimeout = 60;
-        if (!guardTransactions)
-        {
-            command.CommandText = batch;
-            return command;
-        }
-
-        // Inline the trusted CI script without changing any character inside its batch.
-        // Do not EXEC it: entering/leaving EXEC with different transaction counts causes
-        // error 266 when BEGIN and COMMIT intentionally span separate GO batches.
-        // Newlines around the original text keep trailing -- comments from swallowing the guard.
-        // No outer transaction is added: previously committed migrations stay committed.
-        command.CommandText = "SET XACT_ABORT ON;\nBEGIN TRY\n" + batch +
-            "\nEND TRY\nBEGIN CATCH\n" + RollbackOpenTransactionSql + "\nTHROW;\nEND CATCH;";
+        command.CommandText = batch;
         return command;
     }
 
