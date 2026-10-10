@@ -44,11 +44,13 @@ SQL 用例不会通过 `MigrateAsync()` 来完成被测试的升级；EF 只用�
 | `dbo.__EFMigrationsHistory` | SELECT、INSERT | 读取已完成迁移、记录新迁移 |
 | `dbo.Products` | ALTER | 增加可空的 `Note` 列 |
 
-受限账号通过固定的执行保护层运行每个原始分段：设置 `XACT_ABORT ON`，在 `TRY...CATCH` 中用参数化 `sys.sp_executesql` 执行原始 SQL；捕获错误时回滚仍打开的事务，再用 `THROW` 保留错误并停止客户端循环。下层执行作用域使对象名称解析等错误也能被外层 CATCH 捕获。SQL 文件和参数中的原始分段不被修改；原来的三个 SQL 文件测试仍直接执行原始分段，不使用这个保护层。
+受限账号通过执行保护层运行每个原始分段：设置 `XACT_ABORT ON`，把原始 SQL 放进本段的 `TRY...CATCH`，在同一连接上直接执行，不再套一层 `EXEC/sp_executesql`。这样事务可以在一段 BEGIN、后续段 COMMIT，不会因为进入/退出 EXEC 时事务计数不同触发 266。SQL 捕获错误时回滚仍打开的事务，再用 `THROW` 保留错误。保护代码只加在原始分段前后，分段内部的字节和上传文件不被修改；追加换行避免末尾 `--` 注释吞掉保护代码。原来的三个 SQL 文件测试仍直接执行原始分段，不使用这个保护层。
 
-这是 CI 测试执行策略，不是“下载 SQL 后随便执行就会自动回滚”的保证，也没有安装到 Ubuntu 或加入 CD。没有新增包住整个文件的外层事务，之前已提交的迁移不会被撤销。`sp_executesql` 有独立的变量和局部临时对象作用域；当前测试验证本次生成文件及所列场景，不保证任意跨 GO 的变量/临时对象脚本兼容。
+同层的语法、编译及部分名称解析错误不会被 SQL CATCH 捕获，因此 C# 收到错误后还会用独立的 10 秒超时尝试回滚打开的事务，并关闭无连接池的连接，不发送后续分段。清理成功时重新抛出原始错误；清理也失败时报告包含两项错误的 AggregateException，不把清理失败伪装成正常权限拒绝。266 不被当作权限拒绝或可忽略的成功。
 
-八个实际 SQL 测试检查：
+这是 CI 测试执行策略，不是“下载 SQL 后随便执行就会自动回滚”的保证，也没有安装到 Ubuntu 或加入 CD。没有新增包住整个文件的外层事务，之前已提交的迁移不会被撤销。当前保护层验证本次生成文件及所列场景，不是通用 SQL 执行器：例如要求是批次第一条语句的 CREATE PROCEDURE 不能直接套这层 TRY。未来脚本必须重新审阅执行兼容性；不能为绕过失败忽略错误。
+
+十个实际 SQL 测试检查：
 
 1. 受限账号执行 CI 生成的原始 SQL 文件，升级成功、原产品不变；管理员保存备注后，同一账号再次执行不重复迁移、不清空备注。
 2. 只授予历史表 SELECT 的只读账号无法升级，结构、历史和旧产品保持不变。
@@ -58,6 +60,8 @@ SQL 用例不会通过 `MigrateAsync()` 来完成被测试的升级；EF 只用�
 6. 同一分段中，在改表和写历史之后触发转换错误；后面的 COMMIT、同段历史标记和下一段历史标记都不能生效，旧结构和数据保持不变。
 7. 前一分段打开事务并修改 Products，后一分段尝试修改没有权限的 Departments；即使同段后面有 COMMIT，也必须回滚仍打开的事务。
 8. 前一分段已成功提交 Note 迁移，后一分段失败；只撤销后一段未提交的历史标记，已提交的 Note 和正式迁移记录仍保留。
+9. 正常事务跨三个分段：先 BEGIN 和改表，再写历史，最后 COMMIT；检查每段事务计数以及成功提交的数据，并确认重新执行生成文件仍幂等。
+10. 前一分段有未提交的修改，后一分段出现语法错误；由客户端清理事务并关闭连接，保留原始 102 错误，不能运行后续段。
 
 权限拒绝检查记录 SQL 错误编号及消息。`1088` 可能表示对象不存在或不可见：只在管理员连接先确认目标表存在、且错误消息包含该表名称时接受它。其他运行/语法错误不能当作权限拒绝。
 
@@ -80,13 +84,13 @@ SQL 用例不会通过 `MigrateAsync()` 来完成被测试的升级；EF 只用�
 
 ## 本地检查
 
-需要 SQL Server 的十个用例只在 CI 的专门步骤执行。即使测试项目加入解决方案，普通电脑上的测试也不会连接 SQL Server。CI 的普通后端测试步骤明确运行原来的业务测试项目；EF 迁移与纯代码检查排除 SQL 文件和受限账号用例，生成文件后再分别执行三个 SQL 文件用例、五个受限账号用例。分别保存 `backend.trx`、`migrations.trx`、`migration-sql.trx` 和 `migration-executor.trx`，避免报告相互覆盖。
+需要 SQL Server 的十五个用例只在 CI 的专门步骤执行。即使测试项目加入解决方案，普通电脑上的测试也不会连接 SQL Server。CI 的普通后端测试步骤明确运行原来的业务测试项目；EF 迁移与纯代码检查排除 SQL 文件和受限账号用例，生成文件后再分别执行三个 SQL 文件用例、十个受限账号用例。分别保存 `backend.trx`、`migrations.trx`、`migration-sql.trx` 和 `migration-executor.trx`，避免报告相互覆盖。
 
 ```powershell
 dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj --configuration Release
 ```
 
-电脑上会执行纯代码的隔离保护、权限模板、执行命令参数、错误分类、SQL 分段器和当前 EF 脚本生成检查；十三个需要 SQL Server 的测试会标记为跳过。在 GitHub 上这十三个测试必须实际执行；缺少明确启用参数、密码、工作区或生成的文件会失败，不会静默跳过。
+电脑上会执行纯代码的隔离保护、权限模板、执行命令构造、错误分类、SQL 分段器和当前 EF 脚本生成检查；十五个需要 SQL Server 的测试会标记为跳过。在 GitHub 上这十五个测试必须实际执行；缺少明确启用参数、密码、工作区或生成的文件会失败，不会静默跳过。
 
 不要在 Ubuntu 上运行这个项目，也不要通过伪造 GitHub 环境变量让它连接电脑或正式数据库。真正的迁移执行结果请查看 PR 的 CI 日志和 `backend-test-results` 中的三个迁移 TRX 报告。
 
@@ -95,7 +99,7 @@ dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj --c
 
 ## 下载可审阅的迁移 SQL
 
-后端业务测试、模型检查和 EF 迁移测试通过后，CI 执行 `Generate reviewable migration SQL (no database access)`。然后执行离线部署工具测试、三个 SQL 文件测试和五个受限账号测试，核对 SQL、版本说明及迁移清单的校验值没有改变，最后通过 `Save reviewable migration SQL` 上传文件。生成、测试、校验或上传失败都会让后端作业失败。只有 SQL 集成测试步骤会执行 SQL，而且只在临时容器中；不使用正式连接字符串或部署 secrets。前端作业独立执行，因此下载正式上线用文件前仍要确认整次 CI 成功。
+后端业务测试、模型检查和 EF 迁移测试通过后，CI 执行 `Generate reviewable migration SQL (no database access)`。然后执行离线部署工具测试、三个 SQL 文件测试和十个受限账号测试，核对 SQL、版本说明及迁移清单的校验值没有改变，最后通过 `Save reviewable migration SQL` 上传文件。生成、测试、校验或上传失败都会让后端作业失败。只有 SQL 集成测试步骤会执行 SQL，而且只在临时容器中；不使用正式连接字符串或部署 secrets。前端作业独立执行，因此下载正式上线用文件前仍要确认整次 CI 成功。
 
 1. 合并 PR 后，打开 GitHub → Actions → **Project1 CI**。
 2. 选择对应代码版本、事件为 **push**、分支为 **main** 的成功运行。不要用运行序号代替 run ID。
@@ -124,4 +128,4 @@ PR 中也会生成文件供审阅，但其 SHA 通常是 GitHub 测试用的合�
 
 权限设计参考：[对象级 GRANT](https://learn.microsoft.com/en-us/sql/t-sql/statements/grant-object-permissions-transact-sql?view=sql-server-ver17)、[ALTER TABLE 所需权限](https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql?view=sql-server-ver17#permissions)。
 
-执行保护参考：[SET XACT_ABORT](https://learn.microsoft.com/en-us/sql/t-sql/statements/set-xact-abort-transact-sql?view=sql-server-ver17)、[TRY...CATCH 与下层执行错误](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/try-catch-transact-sql?view=sql-server-ver17)、[SQL Server 错误码 1088](https://learn.microsoft.com/en-us/sql/relational-databases/errors-events/database-engine-events-and-errors-1000-to-1999?view=sql-server-ver17)。
+执行保护参考：[SET XACT_ABORT](https://learn.microsoft.com/en-us/sql/t-sql/statements/set-xact-abort-transact-sql?view=sql-server-ver17)、[TRY...CATCH 的捕获边界](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/try-catch-transact-sql?view=sql-server-ver17)、[SQL Server 错误码 1088](https://learn.microsoft.com/en-us/sql/relational-databases/errors-events/database-engine-events-and-errors-1000-to-1999?view=sql-server-ver17)、[SQL Server 错误码 266](https://learn.microsoft.com/en-us/sql/relational-databases/errors-events/database-engine-events-and-errors-0-to-999?view=sql-server-ver17)。

@@ -87,6 +87,7 @@ public sealed class MigrationExecutorGuardTests
     [InlineData(245, true, false)]
     [InlineData(102, true, false)]
     [InlineData(916, true, false)]
+    [InlineData(266, true, false)]
     public void HiddenObjectErrorRequiresVerifiedExistenceAndOtherErrorsAreNotPermissionErrors(
         int number, bool verifiedExistingObject, bool expected)
     {
@@ -94,29 +95,25 @@ public sealed class MigrationExecutorGuardTests
     }
 
     [Fact]
-    public void GuardedCommandKeepsOriginalSqlInAnUnmodifiedParameterAndRethrowsAfterRollback()
+    public void GuardedCommandInlinesOriginalBatchWithoutExecuteAndRethrowsAfterRollback()
     {
-        const string batch = "SELECT N'quoted '' text\r\nGO\r\n'; -- not executable command text";
+        const string batch = "SELECT N'quoted '' text\r\nGO\r\n'; -- trailing comment without newline";
         using var connection = new SqlConnection();
         using var command = CiDatabase.CreateScriptBatchCommand(connection, batch, guardTransactions: true);
 
-        Assert.Equal("""
-            SET XACT_ABORT ON;
-            BEGIN TRY
-                EXEC sys.sp_executesql @migrationBatch;
-            END TRY
-            BEGIN CATCH
-                IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
-                THROW;
-            END CATCH;
-            """.ReplaceLineEndings("\n"), command.CommandText.ReplaceLineEndings("\n"));
-        Assert.DoesNotContain(batch, command.CommandText);
-        var parameter = Assert.IsType<SqlParameter>(Assert.Single(command.Parameters.Cast<SqlParameter>()));
-        Assert.Equal("@migrationBatch", parameter.ParameterName);
-        Assert.Equal(System.Data.SqlDbType.NVarChar, parameter.SqlDbType);
-        Assert.Equal(-1, parameter.Size);
-        Assert.Equal(batch, parameter.Value);
+        Assert.Equal("SET XACT_ABORT ON;\nBEGIN TRY\n" + batch +
+            "\nEND TRY\nBEGIN CATCH\nIF XACT_STATE() <> 0 ROLLBACK TRANSACTION;\nTHROW;\nEND CATCH;",
+            command.CommandText);
+        Assert.Contains(batch, command.CommandText); // Includes the original CRLF inside the literal.
+        Assert.DoesNotContain("sp_executesql", command.CommandText);
+        Assert.Empty(command.Parameters.Cast<SqlParameter>());
         Assert.Equal(60, command.CommandTimeout);
+    }
+
+    [Fact]
+    public void ClientCleanupOnlyRollsBackAnOpenTransactionAndNeverCommits()
+    {
+        Assert.Equal("IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;", CiDatabase.RollbackOpenTransactionSql);
     }
 
     [Fact]

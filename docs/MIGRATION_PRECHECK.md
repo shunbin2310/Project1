@@ -118,7 +118,7 @@ dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj --c
 ```
 
 Python 测试只使用虚构 ZIP、GitHub 响应和模拟 SSH/sqlcmd。Linux 专用文件测试只使用临时目录；
-Windows 跳过这些用例。普通电脑上的十三个 SQL 集成测试（含八个受限执行账号测试）仍跳过，实际 SQL Server 验证必须等待 GitHub 临时容器测试。
+Windows 跳过这些用例。普通电脑上的十五个 SQL 集成测试（含十个受限执行账号测试）仍跳过，实际 SQL Server 验证必须等待 GitHub 临时容器测试。
 工作流应使用 actionlint 校验；本地 Windows 无法代替 Ubuntu 上的 visudo 或真实 sqlcmd/只读账号验收。
 
 参考：[EF CLI 的迁移清单和 --no-connect](https://learn.microsoft.com/en-us/ef/core/cli/dotnet#dotnet-ef-migrations-list)、

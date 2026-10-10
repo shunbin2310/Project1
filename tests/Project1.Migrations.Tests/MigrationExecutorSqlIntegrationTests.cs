@@ -256,6 +256,72 @@ public sealed class MigrationExecutorSqlIntegrationTests
         await AssertProductAsync(context, productId, null);
     }
 
+    [SqlServerCiFact]
+    public async Task ScopedAccount_TransactionCanSpanBatchesAndCommitNormally()
+    {
+        await using var database = await CiDatabase.CreateAsync("upgrade");
+        await using var context = database.CreateContext();
+        await context.GetService<IMigrator>().MigrateAsync(BeforeNote);
+        var productId = await InsertPreMigrationProductAsync(database);
+        await using var account = await CiMigrationAccount.CreateAsync(
+            database, CiMigrationPermissionProfile.ProductNoteExecutor);
+
+        await account.ExecuteScriptAsync(
+        [
+            """
+            BEGIN TRANSACTION;
+            ALTER TABLE dbo.Products ADD Note nvarchar(max) NULL;
+            IF @@TRANCOUNT <> 1 THROW 51052, 'Expected one open transaction in the first batch.', 1;
+            """,
+            $"""
+            IF @@TRANCOUNT <> 1 THROW 51052, 'The transaction did not survive the batch boundary.', 1;
+            INSERT INTO dbo.__EFMigrationsHistory (MigrationId, ProductVersion)
+                VALUES (N'{AddNote}', N'CI cross-batch commit probe');
+            """,
+            """
+            IF @@TRANCOUNT <> 1 THROW 51052, 'Expected the original transaction before commit.', 1;
+            COMMIT;
+            IF @@TRANCOUNT <> 0 THROW 51052, 'Commit left an open transaction.', 1;
+            """
+        ]);
+
+        await AssertAllMigrationsAppliedAsync(context);
+        await AssertNoteColumnAsync(database);
+        await AssertProductAsync(context, productId, null);
+        await account.ExecuteScriptAsync(MigrationSqlScript.ReadFromCiWorkspace());
+        await AssertAllMigrationsAppliedAsync(context);
+        await AssertProductAsync(context, productId, null);
+    }
+
+    [SqlServerCiFact]
+    public async Task ScopedAccount_CompileErrorTriggersClientRollbackAndPreservesOriginalError()
+    {
+        await using var database = await CiDatabase.CreateAsync("upgrade");
+        await using var context = database.CreateContext();
+        await context.GetService<IMigrator>().MigrateAsync(BeforeNote);
+        var productId = await InsertPreMigrationProductAsync(database);
+        var history = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
+        await using var account = await CiMigrationAccount.CreateAsync(
+            database, CiMigrationPermissionProfile.ProductNoteExecutor);
+        await using var connection = account.CreateConnection();
+
+        // A syntax error cannot be caught by SQL TRY/CATCH at the same execution level.
+        var error = await Assert.ThrowsAsync<SqlException>(() => CiDatabase.ExecuteScriptAsync(connection,
+        [
+            $"""
+            BEGIN TRANSACTION;
+            ALTER TABLE dbo.Products ADD Note nvarchar(max) NULL;
+            INSERT INTO dbo.__EFMigrationsHistory (MigrationId, ProductVersion)
+                VALUES (N'{AddNote}', N'CI client-cleanup probe');
+            """,
+            "SELECT 1 +; COMMIT;",
+            "INSERT INTO dbo.__EFMigrationsHistory (MigrationId, ProductVersion) VALUES (N'20990101000000_CiMustNotContinue', N'CI compile-error stop probe');"
+        ], guardTransactions: true));
+        Assert.Equal(102, error.Number);
+        Assert.Equal(System.Data.ConnectionState.Closed, connection.State);
+        await AssertOldDatabaseUnchangedAsync(database, history, productId);
+    }
+
     internal static bool IsPermissionErrorNumber(int number, bool verifiedExistingObject) =>
         number is 229 or 262 or 2760 or 4902 or 15151 or 15247 ||
         (number == 1088 && verifiedExistingObject);
