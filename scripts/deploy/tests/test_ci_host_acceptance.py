@@ -1,6 +1,7 @@
 """Portable guard/fixture checks. Never install anything or open SQL locally."""
 import copy
 import ast
+from contextlib import contextmanager, ExitStack
 import errno
 import io
 import os
@@ -76,6 +77,120 @@ class AcceptanceGuardTests(unittest.TestCase):
 
 
 class AcceptanceSudoersTests(unittest.TestCase):
+    @contextmanager
+    def runner_file(self, *, before=None, after=None, parents=None, current=None):
+        before = before or SimpleNamespace(st_uid=0, st_gid=0, st_mode=stat.S_IFREG | 0o644,
+                                          st_nlink=1, st_dev=1, st_ino=2)
+        after = after or SimpleNamespace(**{**vars(before), "st_mode": stat.S_IFREG | 0o440})
+        directory = SimpleNamespace(st_uid=0, st_gid=0, st_mode=stat.S_IFDIR | 0o755)
+        parents = parents or [directory] * 3
+        with ExitStack() as stack:
+            stack.enter_context(mock.patch.dict(os.environ, AcceptanceGuardTests().environment(), clear=True))
+            stack.enter_context(mock.patch.object(acceptance.sys, "platform", "linux"))
+            stack.enter_context(mock.patch.object(acceptance.os, "geteuid", return_value=0, create=True))
+            # POSIX-only constants/functions are mocked for portable Windows tests.
+            for flag, fallback in (("O_NOFOLLOW", 0x100000), ("O_NONBLOCK", 0x200000), ("O_CLOEXEC", 0x400000)):
+                stack.enter_context(mock.patch.object(acceptance.os, flag, getattr(os, flag, fallback), create=True))
+            calls = {}
+            for name in ("open", "fstat", "fchmod", "close"):
+                calls[name] = stack.enter_context(mock.patch.object(acceptance.os, name, create=True))
+            calls["open"].return_value = 23
+            calls["fstat"].side_effect = [before, after]
+            calls["lstat"] = stack.enter_context(mock.patch.object(acceptance.Path, "lstat",
+                                                                  side_effect=[*parents, current or after]))
+            calls["output"] = stack.enter_context(mock.patch("sys.stdout", io.StringIO()))
+            yield SimpleNamespace(**calls)
+
+    def test_runner_mode_fix_uses_exact_path_safe_descriptor_and_no_content_write(self):
+        with self.runner_file() as calls:
+            acceptance.normalize_runner_sudoers()
+            calls.open.assert_called_once_with("/etc/sudoers.d/runner",
+                os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+            calls.fchmod.assert_called_once_with(23, 0o440)
+            calls.close.assert_called_once_with(23)
+            self.assertIn("before_mode=0644", calls.output.getvalue())
+            self.assertIn("after_mode=0440; rules unchanged", calls.output.getvalue())
+
+    def test_already_correct_runner_mode_is_not_modified(self):
+        before = SimpleNamespace(st_uid=0, st_gid=0, st_mode=stat.S_IFREG | 0o440,
+                                 st_nlink=1, st_dev=1, st_ino=2)
+        with self.runner_file(before=before) as calls:
+            acceptance.normalize_runner_sudoers()
+            calls.fchmod.assert_not_called()
+            calls.close.assert_called_once_with(23)
+
+    def test_runner_fix_rechecks_ci_boundary_before_any_filesystem_access(self):
+        for invalid in ({}, {**AcceptanceGuardTests().environment(), "RUNNER_ENVIRONMENT": "self-hosted"}):
+            with self.runner_file() as calls, mock.patch.dict(os.environ, invalid, clear=True), \
+                    self.assertRaises(RuntimeError):
+                acceptance.normalize_runner_sudoers()
+            calls.lstat.assert_not_called()
+            calls.open.assert_not_called()
+            calls.fchmod.assert_not_called()
+        with self.runner_file() as calls, mock.patch.object(acceptance.os, "geteuid", return_value=1000), \
+                self.assertRaises(RuntimeError):
+            acceptance.normalize_runner_sudoers()
+        calls.lstat.assert_not_called()
+        calls.open.assert_not_called()
+
+    def test_untrusted_runner_parent_is_rejected_before_open(self):
+        for field, value in (("st_uid", 1000), ("st_gid", 1000),
+                             ("st_mode", stat.S_IFLNK | 0o755),
+                             ("st_mode", stat.S_IFDIR | 0o775)):
+            parent = dict(st_uid=0, st_gid=0, st_mode=stat.S_IFDIR | 0o755)
+            parent[field] = value
+            with self.subTest(field=field), self.runner_file(parents=[SimpleNamespace(**parent)] * 3) as calls, \
+                    self.assertRaises(RuntimeError):
+                acceptance.normalize_runner_sudoers()
+            calls.open.assert_not_called()
+            calls.fchmod.assert_not_called()
+
+    def test_untrusted_runner_file_is_closed_without_chmod(self):
+        for field, value in (("st_uid", 1000), ("st_gid", 1000), ("st_nlink", 2),
+                             ("st_mode", stat.S_IFLNK | 0o644),
+                             ("st_mode", stat.S_IFDIR | 0o644), ("st_mode", stat.S_IFIFO | 0o644)):
+            metadata = dict(st_uid=0, st_gid=0, st_mode=stat.S_IFREG | 0o644,
+                            st_nlink=1, st_dev=1, st_ino=2)
+            metadata[field] = value
+            with self.subTest(field=field), self.runner_file(before=SimpleNamespace(**metadata)) as calls, \
+                    self.assertRaises(RuntimeError):
+                acceptance.normalize_runner_sudoers()
+            calls.fchmod.assert_not_called()
+            calls.close.assert_called_once_with(23)
+
+    def test_open_failure_or_chmod_failure_aborts_without_success_log(self):
+        with self.runner_file() as calls:
+            calls.open.side_effect = OSError(errno.ELOOP, "private path")
+            with self.assertRaises(OSError):
+                acceptance.normalize_runner_sudoers()
+            calls.fchmod.assert_not_called()
+            calls.close.assert_not_called()
+            self.assertEqual(calls.output.getvalue(), "")
+        with self.runner_file() as calls:
+            calls.fchmod.side_effect = OSError(errno.EPERM, "private path")
+            with self.assertRaises(OSError):
+                acceptance.normalize_runner_sudoers()
+            calls.close.assert_called_once_with(23)
+            self.assertNotIn("after_mode", calls.output.getvalue())
+            self.assertNotIn("private", calls.output.getvalue())
+
+    def test_post_chmod_metadata_and_path_identity_are_verified(self):
+        expected = dict(st_uid=0, st_gid=0, st_mode=stat.S_IFREG | 0o440,
+                        st_nlink=1, st_dev=1, st_ino=2)
+        for field, value in (("st_uid", 1000), ("st_gid", 1000), ("st_nlink", 2),
+                             ("st_mode", stat.S_IFREG | 0o644)):
+            changed = SimpleNamespace(**{**expected, field: value})
+            with self.subTest(field=field), self.runner_file(after=changed) as calls, self.assertRaises(RuntimeError):
+                acceptance.normalize_runner_sudoers()
+            calls.close.assert_called_once_with(23)
+            self.assertNotIn("after_mode", calls.output.getvalue())
+        for field, value in (("st_ino", 99), ("st_dev", 99), ("st_mode", stat.S_IFLNK | 0o440)):
+            changed = SimpleNamespace(**{**expected, field: value})
+            with self.subTest(field=field), self.runner_file(current=changed) as calls, self.assertRaises(RuntimeError):
+                acceptance.normalize_runner_sudoers()
+            calls.close.assert_called_once_with(23)
+            self.assertNotIn("after_mode", calls.output.getvalue())
+
     def test_classifies_owner_permissions_syntax_and_missing_file_without_raw_text(self):
         messages = (
             b"/etc/sudoers: bad permissions, should be mode 0440\n"
@@ -163,6 +278,7 @@ class AcceptanceSudoersTests(unittest.TestCase):
         with mock.patch.dict(sys.modules, modules), mock.patch.object(acceptance, "require_ci"), \
                 mock.patch.object(acceptance.os, "geteuid", return_value=0, create=True), \
                 mock.patch.object(acceptance.os.path, "lexists", return_value=False), \
+                mock.patch.object(acceptance, "normalize_runner_sudoers") as normalize, \
                 mock.patch.object(acceptance.os, "umask") as umask, \
                 mock.patch.object(acceptance, "copy_tree") as copy_tree, \
                 mock.patch.object(acceptance.shutil, "copyfile") as copyfile, \
@@ -173,12 +289,15 @@ class AcceptanceSudoersTests(unittest.TestCase):
             acceptance.acceptance(*(Path("unused") for _ in range(4)))
             self.fail("Baseline rejection must abort.")
         child.assert_called_once_with(["/usr/sbin/visudo", "-c"], label="visudo-baseline")
+        normalize.assert_called_once_with()
         umask.assert_not_called()
         copy_tree.assert_not_called()
         copyfile.assert_not_called()
 
     def test_strict_file_check_and_global_check_remain_in_order_before_database_setup(self):
         source = Path(acceptance.__file__).read_text(encoding="utf-8").split("def acceptance(", 1)[1]
+        self.assertLess(source.index("require_ci("), source.index("normalize_runner_sudoers()"))
+        self.assertLess(source.index("normalize_runner_sudoers()"), source.index('label="visudo-baseline"'))
         self.assertLess(source.index('label="visudo-baseline"'), source.index("copy_tree("))
         self.assertLess(source.index("verify_sudoers_metadata(sudoers)"), source.index('label="visudo-file"'))
         self.assertLess(source.index('label="visudo-file"'), source.index('label="visudo-installed"'))

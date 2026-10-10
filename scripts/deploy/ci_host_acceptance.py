@@ -43,6 +43,7 @@ SUDOERS = Path("/etc/sudoers.d/project1-migration-execute")
 SHA, RUN, WORKFLOW = "a" * 40, 42, 17  # Fabricated provenance, never a real approval.
 STAGES = {
     "S00": "ci-guard-and-inputs", "S01": "existing-installation-check",
+    "S01R": "normalize-disposable-runner-sudoers-mode",
     "S01B": "validate-existing-sudoers",
     "S02": "copy-root-runtime", "S03": "validate-system-dotnet-link",
     "S04": "copy-fixed-host", "S05": "copy-ci-provisioner", "S06": "install-python-and-wrappers",
@@ -204,6 +205,43 @@ def require_ci(environment, platform, uid):
         raise RuntimeError("Only the explicit disposable GitHub-hosted job is allowed.")
 
 
+def normalize_runner_sudoers():
+    """CI ONLY: fix mode on the one pre-existing hosted-runner include.
+
+    Do not edit rules, change ownership, follow links or repair any other file.
+    Recheck the CI boundary even if this helper is called independently.
+    """
+    require_ci(os.environ, sys.platform, os.geteuid() if hasattr(os, "geteuid") else -1)
+    for parent in (Path("/"), Path("/etc"), Path("/etc/sudoers.d")):
+        info = parent.lstat()
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_gid != 0
+                or stat.S_IMODE(info.st_mode) & 0o022):
+            raise RuntimeError("Runner sudoers parent rejected.")
+    # NONBLOCK prevents hanging on a special file before fstat rejects it.
+    descriptor = os.open("/etc/sudoers.d/runner", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    try:
+        before = os.fstat(descriptor)
+        print(f"RUNNER-SUDOERS file=runner uid={before.st_uid} gid={before.st_gid} "
+              f"before_mode={stat.S_IMODE(before.st_mode):04o} links={before.st_nlink} "
+              f"regular={str(stat.S_ISREG(before.st_mode)).lower()}", flush=True)
+        if (not stat.S_ISREG(before.st_mode) or before.st_uid != 0 or before.st_gid != 0
+                or before.st_nlink != 1):
+            raise RuntimeError("Runner sudoers file rejected.")
+        # fchmod changes only this validated open file's mode, never its content.
+        if stat.S_IMODE(before.st_mode) != 0o440:
+            os.fchmod(descriptor, 0o440)
+        after = os.fstat(descriptor)
+        current = Path("/etc/sudoers.d/runner").lstat()
+        if (not stat.S_ISREG(after.st_mode) or after.st_uid != 0 or after.st_gid != 0
+                or after.st_nlink != 1 or stat.S_IMODE(after.st_mode) != 0o440
+                or not stat.S_ISREG(current.st_mode)
+                or (current.st_dev, current.st_ino) != (after.st_dev, after.st_ino)):
+            raise RuntimeError("Runner sudoers mode verification failed.")
+        print("RUNNER-SUDOERS file=runner after_mode=0440; rules unchanged", flush=True)
+    finally:
+        os.close(descriptor)
+
+
 def run(arguments, *, label, body=None, succeeds=True, environment=None, timeout=180):
     if label not in COMMAND_LABELS:
         raise ValueError("Unknown diagnostic command label.")
@@ -315,7 +353,10 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
         except KeyError:
             continue
         raise RuntimeError("Refuse existing acceptance account/group.")
-    # Reject a broken runner baseline before copying/installing any test files.
+    # Only the pre-existing hosted-runner include gets mode normalization.
+    # All other baseline errors still fail the complete, strict visudo check.
+    set_stage("S01R")
+    normalize_runner_sudoers()
     set_stage("S01B")
     run(["/usr/sbin/visudo", "-c"], label="visudo-baseline")
     os.umask(0o077)
