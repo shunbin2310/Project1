@@ -39,6 +39,7 @@ const products: Product[] = [
     code: 'ITEM-0001',
     name: 'Dell Monitor',
     description: null,
+    cicdPracticeNote: null,
     productCategoryId: 1,
     productCategoryCode: 'CAT-0001',
     productCategoryName: 'Electronics',

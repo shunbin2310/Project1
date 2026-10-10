@@ -15,7 +15,8 @@
 3. `Generate reviewable migration SQL (no database access)`：生成幂等 SQL 和同次编译的迁移清单。
 4. `Test deployment and read-only migration tooling without server access`：离线验证部署和只读预检查工具。
 5. `Test generated SQL on disposable SQL Server databases`：
-   三个用例执行将被上传的同一份 SQL，验证空库、旧库升级和重复执行。
+   四个用例执行将被上传的同一份 SQL，验证空库、旧库升级和重复执行；
+   包括从已有 `Note` 的基线新增可空 `CicdPracticeNote`，保留原备注并验证 100 字符读写。
    随后重新核对文件哈希，才上传 SQL 产物。
 
 旧库场景从 `20260930150622_AddEmailAttachments` 升级，验证
@@ -47,7 +48,7 @@ python -m unittest discover -s scripts/deploy/tests -v
 dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj --configuration Release
 ```
 
-本地执行隔离保护、清单一致性、分段器和 EF 脚本生成检查；五个 SQL 集成用例跳过。
+本地执行隔离保护、清单一致性、分段器和 EF 脚本生成检查；六个 SQL 集成用例跳过。
 不要伪造 GitHub 环境变量在电脑或生产服务器运行 SQL 测试。实际 SQL 结果必须查看新的 GitHub CI。
 业务报告为 `backend.trx`，EF/纯代码检查为 `migrations.trx`，
 生成 SQL 用例为 `migration-sql.trx`，均收入 `backend-test-results-<sha>`。
