@@ -13,6 +13,7 @@ from migration_package import migration_ids, strict_json
 from precheck_migrations import compare_history
 from verify_ci_artifacts import REPOSITORY, REPOSITORY_ID, VerificationError
 from verify_migration_artifact import load_verified
+from migration_target import PRODUCTION_TARGET, ReviewTarget
 
 MAX_RECORD_BYTES = 180000
 MAX_APPROVAL_LIFETIME = timedelta(hours=1)
@@ -59,7 +60,7 @@ def read_record(path: Path) -> bytes:
 
 
 def validate_approval(approval_body: bytes | str, verified: dict, status_body: bytes | str,
-                      *, now: datetime) -> dict:
+                      *, now: datetime, target: ReviewTarget = PRODUCTION_TARGET) -> dict:
     """Compare a record to load_verified() output and a supplied status snapshot.
 
     Neither JSON nor local validation establishes an approver's identity. A future
@@ -75,7 +76,7 @@ def validate_approval(approval_body: bytes | str, verified: dict, status_body: b
     if (type(approval["schema"]) is not int or approval["schema"] != 1
             or approval["purpose"] != "migration-execution-review"
             or approval["repository"] != REPOSITORY
-            or approval["server"] != "homelab-server" or approval["database"] != "Project1Db"):
+            or approval["server"] != target.server or approval["database"] != target.database):
         raise VerificationError("Unexpected approval schema, purpose or target.")
     hex_value(approval["approval_id"], 32)
     hex_value(approval["commit"], 40)
@@ -94,8 +95,8 @@ def validate_approval(approval_body: bytes | str, verified: dict, status_body: b
         raise VerificationError("Approval does not match the selected verified CI package.")
     applied = migration_ids(approval["applied"], allow_empty=True)
     pending = migration_ids(approval["pending"])  # Empty approvals cannot authorize work.
-    target = migration_ids(verified["migrations"])
-    if applied + pending != target:
+    target_ids = migration_ids(verified["migrations"])
+    if applied + pending != target_ids:
         raise VerificationError("Approval history and pending migrations do not match the package.")
     approved, expires = timestamp(approval["approved_at"]), timestamp(approval["expires_at"])
     if not approved <= now < expires or not timedelta(0) < expires - approved <= MAX_APPROVAL_LIFETIME:
@@ -114,7 +115,7 @@ def validate_approval(approval_body: bytes | str, verified: dict, status_body: b
     checked = timestamp(status.get("checked_at"))
     if not timedelta(0) <= now - checked <= MAX_STATUS_AGE:
         raise VerificationError("History snapshot is stale or future-dated.")
-    report = compare_history(verified, json.dumps(status))
+    report = compare_history(verified, json.dumps(status), target=target)
     if report["applied"] != applied or report["pending"] != pending:
         raise VerificationError("Database history changed from the approved migration range.")
     return {"schema": 1, "approval_id": approval["approval_id"], "commit": approval["commit"],

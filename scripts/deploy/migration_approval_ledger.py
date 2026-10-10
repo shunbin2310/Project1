@@ -22,6 +22,7 @@ import uuid
 from migration_approval import (exact_fields, hex_value, timestamp, validate_approval)
 from migration_package import strict_json
 from verify_ci_artifacts import REPOSITORY_ID, VerificationError
+from migration_target import PRODUCTION_TARGET, ReviewTarget
 
 MAX_ENTRIES = 64
 MAX_LEDGER_BYTES = 16 * 1024 * 1024
@@ -56,7 +57,7 @@ def empty_state() -> dict:
     return {"schema": 1, "entries": {}}
 
 
-def validate_state(value: object) -> dict:
+def validate_state(value: object, *, target: ReviewTarget = PRODUCTION_TARGET) -> dict:
     """Check stored structure and internal consistency, NOT approver identity."""
     try:
         state = exact_fields(value, {"schema", "entries"}, "ledger")
@@ -81,9 +82,9 @@ def validate_state(value: object) -> dict:
                        "artifact": {"sha256": record.get("artifact_sha256")},
                        "migrations": record["applied"] + record["pending"]}
             snapshot = {"schema": 1, "server": record.get("server"), "database": record.get("database"),
-                        "login": "project1_migrate", "checked_at": registered.isoformat(),
+                        "login": target.login, "checked_at": registered.isoformat(),
                         "migrations": record["applied"]}
-            validate_approval(canonical(record), context, canonical(snapshot), now=registered)
+            validate_approval(canonical(record), context, canonical(snapshot), now=registered, target=target)
             if not isinstance(entry["phase"], str) or entry["phase"] not in PHASES:
                 raise LedgerError("Invalid ledger phase.")
             if entry["phase"] == "approved":
@@ -108,22 +109,22 @@ def validate_state(value: object) -> dict:
         raise LedgerError("Invalid or inconsistent ledger record; administrator review required.") from None
 
 
-def decode_state(body: bytes) -> dict:
+def decode_state(body: bytes, *, target: ReviewTarget = PRODUCTION_TARGET) -> dict:
     if not isinstance(body, bytes) or not 0 < len(body) <= MAX_LEDGER_BYTES:
         raise LedgerError("Invalid ledger file size.")
     try:
-        return validate_state(strict_json(body))
+        return validate_state(strict_json(body), target=target)
     except (VerificationError, ValueError, UnicodeError):
         raise LedgerError("Invalid ledger JSON; administrator review required.") from None
 
 
 def register_record(state: dict, approval_body: bytes | str, verified: dict,
-                    status_body: bytes | str, *, now: datetime) -> dict:
+                    status_body: bytes | str, *, now: datetime, target: ReviewTarget = PRODUCTION_TARGET) -> dict:
     """Future administrator-only operation. No replacement of any prior ID."""
-    validate_state(state)
+    validate_state(state, target=target)
     utc_clock(now)
     try:
-        validate_approval(approval_body, verified, status_body, now=now)
+        validate_approval(approval_body, verified, status_body, now=now, target=target)
         record = strict_json(approval_body)
     except (VerificationError, ValueError, TypeError, UnicodeError):
         raise LedgerError("Approval registration validation failed.") from None
@@ -137,13 +138,13 @@ def register_record(state: dict, approval_body: bytes | str, verified: dict,
         "approval": record, "approval_sha256": approval_digest(record),
         "registered_at": now.isoformat(), "phase": "approved",
         "attempt_id": None, "claimed_at": None, "completed_at": None}
-    return validate_state(updated)
+    return validate_state(updated, target=target)
 
 
 def claim_record(state: dict, identifier: str, verified: dict, status_body: bytes | str,
-                 *, now: datetime) -> tuple[dict, dict]:
+                 *, now: datetime, target: ReviewTarget = PRODUCTION_TARGET) -> tuple[dict, dict]:
     """Use ONLY the stored approval, never caller-supplied replacement JSON."""
-    validate_state(state)
+    validate_state(state, target=target)
     utc_clock(now)
     try:
         hex_value(identifier, 32)
@@ -159,22 +160,23 @@ def claim_record(state: dict, identifier: str, verified: dict, status_body: byte
     if now < timestamp(entry["registered_at"]):
         raise LedgerError("Claim clock precedes registration.")
     try:
-        validate_approval(canonical(entry["approval"]), verified, status_body, now=now)
+        validate_approval(canonical(entry["approval"]), verified, status_body, now=now, target=target)
     except (VerificationError, ValueError, TypeError, UnicodeError):
         raise LedgerError("Stored approval no longer matches the package, history or validity window.") from None
     updated = copy.deepcopy(state)
     candidate = updated["entries"][identifier]
     candidate.update(phase="claimed", attempt_id=uuid.uuid4().hex, claimed_at=now.isoformat())
-    validate_state(updated)
+    validate_state(updated, target=target)
     receipt = {"approval_id": identifier, "attempt_id": candidate["attempt_id"],
                "approval_sha256": candidate["approval_sha256"],
                "execution_authorized": False, "sql_executed": False}
     return updated, receipt
 
 
-def finish_record(state: dict, receipt: dict, outcome: str, *, now: datetime) -> dict:
+def finish_record(state: dict, receipt: dict, outcome: str, *, now: datetime,
+                  target: ReviewTarget = PRODUCTION_TARGET) -> dict:
     """Bookkeeping only; a caller-supplied result is NOT proof that SQL ran."""
-    validate_state(state)
+    validate_state(state, target=target)
     utc_clock(now)
     try:
         exact_fields(receipt, {"approval_id", "attempt_id", "approval_sha256",
@@ -196,7 +198,7 @@ def finish_record(state: dict, receipt: dict, outcome: str, *, now: datetime) ->
         raise LedgerError("Completion clock precedes claim.")
     updated = copy.deepcopy(state)
     updated["entries"][receipt["approval_id"]].update(phase=outcome, completed_at=now.isoformat())
-    return validate_state(updated)
+    return validate_state(updated, target=target)
 
 
 def _require_owner(uid: int) -> None:
@@ -231,8 +233,9 @@ class ApprovalLedger:
     is an administrative API and MUST NOT be exposed to the deployment user.
     """
 
-    def __init__(self, directory: Path):
+    def __init__(self, directory: Path, *, target: ReviewTarget = PRODUCTION_TARGET):
         self.directory = Path(directory)
+        self.target = target  # Trusted host policy, never selected from saved/caller JSON.
 
     @contextmanager
     def _directory(self):
@@ -291,8 +294,7 @@ class ApprovalLedger:
             finally:
                 os.close(descriptor)
 
-    @staticmethod
-    def _read(directory: int) -> dict:
+    def _read(self, directory: int) -> dict:
         descriptor = os.open("ledger.json", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
                              dir_fd=directory)
         with os.fdopen(descriptor, "rb") as stream:
@@ -300,11 +302,10 @@ class ApprovalLedger:
             _private_file(info)
             if not 0 < info.st_size <= MAX_LEDGER_BYTES:
                 raise LedgerError("Invalid persisted ledger size.")
-            return decode_state(stream.read(MAX_LEDGER_BYTES + 1))
+            return decode_state(stream.read(MAX_LEDGER_BYTES + 1), target=self.target)
 
-    @staticmethod
-    def _write(directory: int, state: dict) -> None:
-        body = canonical(validate_state(state))
+    def _write(self, directory: int, state: dict) -> None:
+        body = canonical(validate_state(state, target=self.target))
         name = ".ledger-" + uuid.uuid4().hex
         descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                              0o600, dir_fd=directory)
@@ -329,16 +330,18 @@ class ApprovalLedger:
     def register(self, approval_body: bytes | str, verified: dict, status_body: bytes | str,
                  *, now: datetime) -> None:
         with self._locked() as directory:
-            state = register_record(self._read(directory), approval_body, verified, status_body, now=now)
+            state = register_record(self._read(directory), approval_body, verified, status_body,
+                                    now=now, target=self.target)
             self._write(directory, state)
 
     def claim(self, identifier: str, verified: dict, status_body: bytes | str, *, now: datetime) -> dict:
         with self._locked() as directory:
-            state, receipt = claim_record(self._read(directory), identifier, verified, status_body, now=now)
+            state, receipt = claim_record(self._read(directory), identifier, verified, status_body,
+                                          now=now, target=self.target)
             self._write(directory, state)  # No receipt is returned before both fsyncs succeed.
             return receipt
 
     def finish(self, receipt: dict, outcome: str, *, now: datetime) -> None:
         with self._locked() as directory:
-            state = finish_record(self._read(directory), receipt, outcome, now=now)
+            state = finish_record(self._read(directory), receipt, outcome, now=now, target=self.target)
             self._write(directory, state)

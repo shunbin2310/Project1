@@ -8,6 +8,9 @@
 后续新增了[一次性批准账本原型](MIGRATION_APPROVAL_LEDGER.md)，只在临时目录测试状态管理。
 它与这个只读校验器分开，没有安装或接入生产；下述 CLI 仍不登记或消耗批准。
 
+后续新增了[执行流程 CI 验证](MIGRATION_EXECUTION.md)：真实 SQL 会话、临时库备份与批准账本集成。
+生产执行入口、在线来源和备份适配器、管理员授权/恢复入口仍须单独实现和审阅；这个 CLI 保持离线只读。
+
 ## 校验哪些内容
 
 - 固定仓库 `shunbin2310/Project1`、服务器 `homelab-server` 和数据库 `Project1Db`。

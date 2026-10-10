@@ -1,7 +1,7 @@
 # 一次性批准状态管理：未安装的原型
 
 这一阶段新增 `scripts/deploy/migration_approval_ledger.py` 和临时目录测试，
-**没有生产命令入口、安装脚本、sudoers 模板、固定生产路径或工作流接入**。
+**没有生产命令入口、安装脚本、sudoers 模板、固定生产路径或生产工作流接入**。
 它不连接 GitHub/SSH/数据库，不执行 SQL、不控制服务，也不建立生产批准或账号。
 不要把这个模块或此前的离线校验器直接加进 sudoers。
 
@@ -81,4 +81,5 @@ Linux 测试在测试 runner 的临时目录中运行，不需要 sudo、不使�
 进程退出测试不是实际断电或磁盘故障测试，不能据此宣称完整的生产灾难恢复验证。
 
 Windows 明确跳过真实 Linux 后端测试；CI 现有 unittest discovery 会在 Ubuntu runner 中运行这些用例。
-没有修改现有 CI/CD 工作流，也没有启用生产一次性批准机制。
+后续新增了[执行流程 CI 验证](MIGRATION_EXECUTION.md)，在临时库中连接真实 SQL 会话与本账本。
+CI 增加专门的测试步骤；生产 CD、一次性批准机制和现有 Ubuntu 授权仍未启用或修改。

@@ -13,28 +13,29 @@ from deploy_verified import HOST, USER, DESTINATION, run_command, ssh_options
 from migration_package import migration_ids, strict_json
 from verify_ci_artifacts import REPOSITORY, VerificationError
 from verify_migration_artifact import load_verified
+from migration_target import PRODUCTION_TARGET, ReviewTarget
 
 
-def compare_history(manifest: dict, response: str) -> dict:
+def compare_history(manifest: dict, response: str, *, target: ReviewTarget = PRODUCTION_TARGET) -> dict:
     if len(response) > 180000:
         raise VerificationError("Remote status exceeded its size limit.")
     status = strict_json(response)
     if (not isinstance(status, dict) or set(status) != {"schema", "server", "database", "login", "checked_at", "migrations"}
             or type(status["schema"]) is not int or status["schema"] != 1
-            or status["server"] != "homelab-server" or status["database"] != "Project1Db"
-            or status["login"] != "project1_migrate" or not isinstance(status["checked_at"], str)):
+            or status["server"] != target.server or status["database"] != target.database
+            or status["login"] != target.login or not isinstance(status["checked_at"], str)):
         raise VerificationError("Unexpected fixed server/database/login status identity.")
     checked_at = datetime.fromisoformat(status["checked_at"])
     if checked_at.tzinfo is None:
         raise VerificationError("Migration status timestamp must include a timezone.")
     applied = migration_ids(status["migrations"], allow_empty=True)
-    target = migration_ids(manifest["migrations"])
-    if applied != target[:len(applied)]:
+    target_ids = migration_ids(manifest["migrations"])
+    if applied != target_ids[:len(applied)]:
         raise VerificationError("Database history is not an exact prefix of the selected version; unknown, missing or newer migrations require review.")
     return {"schema": 1, "commit": manifest["commit"], "run_id": manifest["run_id"],
             "run_attempt": manifest["run_attempt"], "sql_sha256": manifest["sql_sha256"],
             "checked_at": checked_at.isoformat(), "applied": applied,
-            "pending": target[len(applied):], "sql_executed": False}
+            "pending": target_ids[len(applied):], "sql_executed": False}
 
 
 def precheck(directory: Path, key_value: str, hosts_value: str, runner_temp: Path) -> dict:

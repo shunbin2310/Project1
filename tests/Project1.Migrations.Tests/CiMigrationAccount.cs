@@ -85,6 +85,9 @@ internal sealed class CiMigrationAccount : IAsyncDisposable
 
     internal SqlConnection CreateConnection() => database.CreateAccountConnection(Name, password);
 
+    internal Task<Project1.MigrationExecutor.SqlMigrationSession> CreateExecutionSessionAsync() =>
+        Project1.MigrationExecutor.SqlMigrationSession.OpenCiAsync(database.Name, Name, password);
+
     internal async Task ExecuteScriptAsync(IReadOnlyList<string> batches)
     {
         await using var connection = CreateConnection();
