@@ -306,6 +306,173 @@ class AcceptanceSudoersTests(unittest.TestCase):
                          ("/usr/sbin/visudo", "-c", "-O", "-P", "-f", str(acceptance.SUDOERS)))
 
 
+class AcceptanceInstallationTests(unittest.TestCase):
+    @contextmanager
+    def installation(self):
+        production = SimpleNamespace(trusted=mock.Mock(), require_installation=mock.Mock())
+        members = [acceptance.HOST / "Project1.MigrationHost.dll",
+                   acceptance.HOST / "private_dependency.dll", acceptance.HOST / "runtimes"]
+        runtime = Path("/opt/project1-host-acceptance-dotnet/dotnet")
+        with ExitStack() as stack:
+            stack.enter_context(mock.patch.dict(os.environ, AcceptanceGuardTests().environment(), clear=True))
+            stack.enter_context(mock.patch.object(acceptance.sys, "platform", "linux"))
+            stack.enter_context(mock.patch.object(acceptance.os, "geteuid", return_value=0, create=True))
+            stack.enter_context(mock.patch.object(acceptance, "_CURRENT_STAGE", "S17"))
+            stack.enter_context(mock.patch.object(acceptance.Path, "rglob", return_value=members))
+            stack.enter_context(mock.patch.object(acceptance.Path, "is_dir", autospec=True,
+                                                 side_effect=lambda path: path == members[-1]))
+            stack.enter_context(mock.patch.object(acceptance.Path, "resolve", return_value=runtime))
+            metadata = stack.enter_context(mock.patch.object(acceptance.Path, "lstat",
+                return_value=SimpleNamespace(st_uid=0, st_gid=0, st_mode=stat.S_IFDIR | 0o755, st_nlink=2)))
+            output = stack.enter_context(mock.patch("sys.stdout", io.StringIO()))
+            errors = stack.enter_context(mock.patch("sys.stderr", io.StringIO()))
+            yield SimpleNamespace(production=production, members=members, runtime=runtime,
+                                  metadata=metadata, output=output, errors=errors)
+
+    def test_validation_calls_real_trust_interface_then_original_authoritative_gate(self):
+        with self.installation() as fixture:
+            acceptance.validate_fixed_installation(fixture.production)
+            expected = [mock.call(acceptance.CONFIG, 0o700, directory=True),
+                        mock.call(Path("/root"), None, directory=True),
+                        mock.call(acceptance.HOST, 0o755, directory=True)]
+            expected += [mock.call(path, None, directory=path == fixture.members[-1])
+                         for path in sorted(fixture.members)]
+            expected += [mock.call(fixture.members[0], 0o644, directory=False),
+                         mock.call(fixture.runtime, None, directory=False)]
+            self.assertEqual(fixture.production.trusted.call_args_list, expected)
+            fixture.production.require_installation.assert_called_once_with(enabled=False)
+            self.assertEqual(acceptance._CURRENT_STAGE, "S18")
+            self.assertIn("host_dependencies=3", fixture.output.getvalue())
+            # Successful checks do not dump dependency metadata/content.
+            fixture.metadata.assert_not_called()
+            self.assertEqual(fixture.errors.getvalue(), "")
+
+    def test_each_trust_failure_keeps_specific_stage_and_original_error(self):
+        for call_number, stage in ((1, "S18C"), (2, "S18R"), (3, "S18H"),
+                                   (5, "S18F"), (7, "S18D"), (8, "S18T")):
+            with self.subTest(stage=stage), self.installation() as fixture:
+                original = RuntimeError("private password; raw SQL; ::error::injected")
+                fixture.production.trusted.side_effect = [None] * (call_number - 1) + [original]
+                with self.assertRaises(RuntimeError) as caught:
+                    acceptance.validate_fixed_installation(fixture.production)
+                self.assertIs(caught.exception, original)
+                self.assertEqual(acceptance._CURRENT_STAGE, stage)
+                fixture.production.require_installation.assert_not_called()
+                acceptance.report_failure(caught.exception)
+                combined = fixture.output.getvalue() + fixture.errors.getvalue()
+                self.assertIn("INSTALL-METADATA", combined)
+                self.assertIn(f"ERROR [{stage}]", combined)
+                for forbidden in ("private password", "raw SQL", "::error::", "private_dependency"):
+                    self.assertNotIn(forbidden, combined)
+                if stage == "S18F":
+                    self.assertIn("member=2", combined)
+
+    def test_final_production_gate_cannot_be_bypassed_by_successful_diagnostics(self):
+        with self.installation() as fixture:
+            fixture.production.require_installation.side_effect = RuntimeError("secret final rejection")
+            with self.assertRaises(RuntimeError):
+                acceptance.validate_fixed_installation(fixture.production)
+            self.assertEqual(acceptance._CURRENT_STAGE, "S18")
+            fixture.production.require_installation.assert_called_once_with(enabled=False)
+
+    def test_installation_guard_refuses_before_trust_checks_or_filesystem(self):
+        with self.installation() as fixture, mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(RuntimeError):
+                acceptance.validate_fixed_installation(fixture.production)
+            fixture.production.trusted.assert_not_called()
+            fixture.production.require_installation.assert_not_called()
+            fixture.metadata.assert_not_called()
+            self.assertEqual(acceptance._CURRENT_STAGE, "S17")
+
+    def test_safe_metadata_identifies_fixed_ancestor_without_exposing_unknown_name(self):
+        path = acceptance.HOST / "private_dependency.dll"
+        with self.installation() as fixture:
+            fixture.metadata.return_value = SimpleNamespace(st_uid=1001, st_gid=1001,
+                                                           st_mode=stat.S_IFREG | 0o664, st_nlink=2)
+            acceptance.report_installation_metadata(path, member=2)
+            output = fixture.errors.getvalue()
+            for expected in ("node=usr-local", "node=libexec", "node=host-root", "node=dependency",
+                             "uid=1001 gid=1001 mode=0664 type=file links=2", "member=2"):
+                self.assertIn(expected, output)
+            self.assertNotIn("private_dependency", output)
+            self.assertNotIn(str(path), output)
+
+    def test_metadata_read_failures_do_not_mask_primary_failure_or_leak_errors(self):
+        with self.installation() as fixture:
+            fixture.metadata.side_effect = OSError(errno.EACCES, "private error", "private path")
+            original = RuntimeError("private trust failure")
+            fixture.production.trusted.side_effect = original
+            with self.assertRaises(RuntimeError) as caught:
+                acceptance.validate_fixed_installation(fixture.production)
+            self.assertIs(caught.exception, original)
+            output = fixture.errors.getvalue()
+            self.assertIn("metadata=unavailable errno=13", output)
+            self.assertNotIn("private", output)
+
+    def test_invalid_metadata_or_dependency_index_cannot_inject_logs(self):
+        with self.installation() as fixture:
+            fixture.metadata.return_value = SimpleNamespace(st_uid="secret\n::error::injection", st_gid=0,
+                                                           st_mode=stat.S_IFREG | 0o644, st_nlink=1)
+            acceptance.report_installation_metadata(acceptance.HOST)
+            self.assertIn("metadata=invalid", fixture.errors.getvalue())
+            self.assertNotIn("secret", fixture.errors.getvalue())
+            for member in ("secret", 0, -1, True):
+                with self.assertRaises(ValueError):
+                    acceptance.report_installation_metadata(acceptance.HOST, member=member)
+
+    def test_empty_host_still_requires_main_dll_and_final_gate(self):
+        with self.installation() as fixture, mock.patch.object(acceptance.Path, "rglob", return_value=[]):
+            acceptance.validate_fixed_installation(fixture.production)
+            fixture.production.trusted.assert_any_call(acceptance.HOST / "Project1.MigrationHost.dll",
+                                                       0o644, directory=False)
+            fixture.production.require_installation.assert_called_once_with(enabled=False)
+            self.assertIn("host_dependencies=0", fixture.output.getvalue())
+
+    def test_ci_directory_modes_are_explicit_after_restrictive_umask(self):
+        # Exercise the actual setup sequence with simulated POSIX umask masking;
+        # intercept all filesystem/process mutations. Never install locally.
+        modes, events = {}, []
+        def mkdir(path, mode=0o777, **options):
+            modes[path] = mode & ~0o077
+        def chmod(path, mode):
+            events.append(("chmod", path, mode))
+            if path in modes:
+                modes[path] = mode
+        def chown(path, uid, gid):
+            events.append(("chown", path, uid, gid))
+        def child(arguments, **options):
+            if options["label"] == "docker-start":
+                raise acceptance.CommandFailure("docker-start", "exit-status", exit_code=1)
+            return b""
+        absent = mock.Mock(side_effect=KeyError)
+        modules = {"grp": SimpleNamespace(getgrnam=absent), "pwd": SimpleNamespace(getpwnam=absent)}
+        with ExitStack() as stack:
+            stack.enter_context(mock.patch.dict(sys.modules, modules))
+            stack.enter_context(mock.patch.dict(os.environ, AcceptanceGuardTests().environment(), clear=True))
+            stack.enter_context(mock.patch.object(acceptance, "require_ci"))
+            stack.enter_context(mock.patch.object(acceptance.os, "geteuid", return_value=0, create=True))
+            stack.enter_context(mock.patch.object(acceptance.os.path, "lexists", return_value=False))
+            stack.enter_context(mock.patch.object(acceptance.os, "umask"))
+            stack.enter_context(mock.patch.object(acceptance.os, "chown", side_effect=chown, create=True))
+            stack.enter_context(mock.patch.object(acceptance.Path, "mkdir", autospec=True, side_effect=mkdir))
+            stack.enter_context(mock.patch.object(acceptance.Path, "chmod", autospec=True, side_effect=chmod))
+            stack.enter_context(mock.patch.object(acceptance.Path, "resolve", return_value=Path("/unused/dotnet")))
+            stack.enter_context(mock.patch.object(acceptance.Path, "symlink_to"))
+            for name in ("normalize_runner_sudoers", "copy_tree", "verify_sudoers_metadata", "write_private"):
+                stack.enter_context(mock.patch.object(acceptance, name))
+            stack.enter_context(mock.patch.object(acceptance.shutil, "copyfile"))
+            stack.enter_context(mock.patch.object(acceptance, "run", side_effect=child))
+            stack.enter_context(mock.patch.object(acceptance, "_CURRENT_STAGE", "S00"))
+            stack.enter_context(mock.patch("sys.stdout", io.StringIO()))
+            with self.assertRaises(acceptance.CommandFailure):
+                acceptance.acceptance(*(Path("unused") for _ in range(4)))
+        self.assertEqual(modes, {acceptance.ROOT: 0o755, acceptance.CONFIG: 0o700,
+                                acceptance.CONFIG / "approvals": 0o700,
+                                acceptance.BACKUPS: 0o750, acceptance.STAGING: 0o700})
+        self.assertLess(events.index(("chown", acceptance.BACKUPS, 0, 10001)),
+                        events.index(("chmod", acceptance.BACKUPS, 0o750)))
+
+
 class AcceptanceDiagnosticTests(unittest.TestCase):
     def setUp(self):
         self.patch = mock.patch.object(acceptance, "_CURRENT_STAGE", "S09")

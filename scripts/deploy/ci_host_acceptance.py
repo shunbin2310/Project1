@@ -54,6 +54,9 @@ STAGES = {
     "S14": "check-sql-service-uid", "S15": "check-sql-service-groups",
     "S16": "provision-disposable-sql-baseline", "S17": "archive-checksum-backup",
     "S18": "validate-fixed-installation", "S19": "initialize-root-ledger",
+    "S18C": "validate-installation-config", "S18R": "validate-installation-root-home",
+    "S18H": "validate-installation-host-directory", "S18F": "validate-installation-host-dependencies",
+    "S18D": "validate-installation-host-dll", "S18T": "validate-installation-dotnet",
     "S20": "fixed-stdio-lock-and-backup", "S21": "cross-batch-rollback",
     "S22": "verify-synthetic-artifact", "S23": "check-sudo-execute-authorization",
     "S24": "check-default-off", "S25": "register-fixture-approval", "S26": "sudo-describe-binding",
@@ -82,6 +85,70 @@ VISUDO_FILES = {
     "/etc/sudoers.d/90-cloud-init-users": "cloud-init",
     "/etc/sudoers.d/README": "readme",
 }
+INSTALLATION_NODES = {
+    Path("/"): "filesystem-root", Path("/etc"): "etc", Path("/root"): "root-home",
+    Path("/usr"): "usr", Path("/usr/local"): "usr-local",
+    Path("/usr/local/libexec"): "libexec", Path("/usr/bin"): "usr-bin", Path("/opt"): "opt",
+    Path("/opt/project1-host-acceptance-dotnet"): "runtime-root",
+    Path("/opt/project1-host-acceptance-dotnet/dotnet"): "runtime-launcher",
+    Path("/usr/bin/dotnet"): "system-dotnet", CONFIG: "config", HOST: "host-root",
+    HOST / "Project1.MigrationHost.dll": "host-dll",
+}
+
+
+def report_installation_metadata(path, *, member=None):
+    """Report numeric metadata and fixed identifiers, never dependency names/content."""
+    if member is not None and (type(member) is not int or member < 1):
+        raise ValueError("Invalid dependency index.")
+    for depth, current in enumerate(reversed((path, *path.parents))):
+        node = INSTALLATION_NODES.get(current, "dependency")
+        prefix = f"INSTALL-METADATA node={node} depth={depth}"
+        if member is not None:
+            prefix += f" member={member}"
+        try:
+            info = current.lstat()
+        except OSError as error:
+            detail = f" errno={error.errno}" if type(error.errno) is int else ""
+            print(prefix + " metadata=unavailable" + detail, file=sys.stderr)
+            continue
+        if not all(type(value) is int for value in (info.st_uid, info.st_gid, info.st_mode, info.st_nlink)):
+            print(prefix + " metadata=invalid", file=sys.stderr)
+            continue
+        kind = ("directory" if stat.S_ISDIR(info.st_mode) else "file" if stat.S_ISREG(info.st_mode)
+                else "symlink" if stat.S_ISLNK(info.st_mode) else "other")
+        print(f"{prefix} uid={info.st_uid} gid={info.st_gid} mode={stat.S_IMODE(info.st_mode):04o} "
+              f"type={kind} links={info.st_nlink}", file=sys.stderr)
+
+
+def validate_fixed_installation(production):
+    """CI diagnostics around real, unmodified production trust checks."""
+    require_ci(os.environ, sys.platform, os.geteuid() if hasattr(os, "geteuid") else -1)
+
+    def check(path, mode=None, *, directory=False, member=None):
+        try:
+            production.trusted(path, mode, directory=directory)
+        except Exception:
+            report_installation_metadata(path, member=member)
+            raise
+
+    set_stage("S18C")
+    check(CONFIG, 0o700, directory=True)
+    set_stage("S18R")
+    check(Path("/root"), directory=True)
+    set_stage("S18H")
+    check(HOST, 0o755, directory=True)
+    set_stage("S18F")
+    count = 0
+    for count, path in enumerate(sorted(HOST.rglob("*")), 1):
+        check(path, directory=path.is_dir(), member=count)
+    print(f"INSTALL-CHECK host_dependencies={count}", flush=True)
+    set_stage("S18D")
+    check(HOST / "Project1.MigrationHost.dll", 0o644)
+    set_stage("S18T")
+    check(Path("/usr/bin/dotnet").resolve(strict=True))
+    # Keep the original authoritative check, including its Linux/root boundary.
+    set_stage("S18")
+    production.require_installation(enabled=False)
 
 
 def classify_visudo_output(stdout, stderr):
@@ -379,6 +446,7 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
     copy_tree(published_fixture, fixture_root)
     set_stage("S06")
     ROOT.mkdir(mode=0o755, parents=True)
+    ROOT.chmod(0o755)
     for name in MODULES:
         shutil.copyfile(scripts / name, ROOT / name)
         (ROOT / name).chmod(0o644)
@@ -403,11 +471,15 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
     run(["/usr/sbin/visudo", "-c"], label="visudo-installed")
     set_stage("S11")
     CONFIG.mkdir(mode=0o700)
+    CONFIG.chmod(0o700)
     (CONFIG / "approvals").mkdir(mode=0o700)
+    (CONFIG / "approvals").chmod(0o700)
     BACKUPS.mkdir(mode=0o750)
     os.chown(BACKUPS, 0, 10001)
+    BACKUPS.chmod(0o750)
     STAGING.mkdir(mode=0o700)
     os.chown(STAGING, 10001, 10001)
+    STAGING.chmod(0o700)
     execution, verifier = "P1!" + secrets.token_hex(32), "P1!" + secrets.token_hex(32)
     for name, value in (("execution-password", execution), ("verifier-password", verifier)):
         write_private(CONFIG / name, (value + "\n").encode())
@@ -462,8 +534,7 @@ def acceptance(scripts, published_host, published_fixture, dotnet):
         from migration_approval_ledger import ApprovalLedger, canonical
         import production_entry as entrypoint
         from verify_migration_artifact import verify
-        set_stage("S18")
-        production.require_installation(enabled=False)
+        validate_fixed_installation(production)
         set_stage("S19")
         run(["/usr/local/sbin/project1-migration-admin", "initialize"], label="ledger-initialize")
         print("BEGIN: actual fixed stdio host, independent verifier and failure cleanup", flush=True)
