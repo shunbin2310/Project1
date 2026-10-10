@@ -6,23 +6,24 @@ using Microsoft.Data.SqlClient;
 
 namespace Project1.MigrationExecutor;
 
-// No executable, production factory, provisioning, appsettings or secrets support.
-// The only factory is fixed to the isolated GitHub SQL Server. A trusted future
-// production entrypoint must supply its own separately reviewed authority boundary.
+// Both factories pin their target. Production authority lives in the separately
+// installed root-managed host, not this library or its connection-string helper.
 public sealed class SqlMigrationSession : IAsyncDisposable
 {
     public const string LockResource = "Project1.MigrationExecution";
     private readonly SqlConnection connection;
     private readonly string database;
     private readonly string login;
+    private readonly string server;
     private readonly CancellationTokenSource deadline = new(TimeSpan.FromMinutes(3));
     private bool attempted;
 
-    private SqlMigrationSession(SqlConnection connection, string database, string login)
+    private SqlMigrationSession(SqlConnection connection, string database, string login, string server)
     {
         this.connection = connection;
         this.database = database;
         this.login = login;
+        this.server = server;
     }
 
     public static string CiConnectionString(string database, string login, string password,
@@ -47,7 +48,31 @@ public sealed class SqlMigrationSession : IAsyncDisposable
     {
         var connection = new SqlConnection(CiConnectionString(database, login, password,
             Environment.GetEnvironmentVariable));
-        var session = new SqlMigrationSession(connection, database, login);
+        return await OpenAsync(connection, database, login, "project1-ci-sqlserver");
+    }
+
+    public static string ProductionConnectionString(string password)
+    {
+        if (!Regex.IsMatch(password, @"\AP1![0-9a-f]{64}\z"))
+            throw new InvalidOperationException("Invalid private execution credential.");
+        return new SqlConnectionStringBuilder
+        {
+            DataSource = "tcp:127.0.0.1,1433", InitialCatalog = "Project1Db",
+            UserID = "project1_execute", Password = password, Encrypt = true,
+            // Fixed local native instance; never a caller-selected remote host.
+            TrustServerCertificate = true, Pooling = false, ConnectTimeout = 15,
+            ConnectRetryCount = 0, ApplicationName = "Project1.Production.Execution"
+        }.ConnectionString;
+    }
+
+    public static Task<SqlMigrationSession> OpenProductionAsync(string password) =>
+        OpenAsync(new SqlConnection(ProductionConnectionString(password)),
+            "Project1Db", "project1_execute", "homelab-server");
+
+    private static async Task<SqlMigrationSession> OpenAsync(SqlConnection connection,
+        string database, string login, string server)
+    {
+        var session = new SqlMigrationSession(connection, database, login, server);
         try
         {
             await connection.OpenAsync(session.deadline.Token);
@@ -88,10 +113,19 @@ public sealed class SqlMigrationSession : IAsyncDisposable
                 CONVERT(int, SERVERPROPERTY('ProductMajorVersion')), @@TRANCOUNT;
             """);
         await using var reader = await command.ExecuteReaderAsync(deadline.Token);
-        if (!await reader.ReadAsync(deadline.Token) || reader.GetString(0) != "project1-ci-sqlserver" ||
+        if (!await reader.ReadAsync(deadline.Token) || reader.GetString(0) != server ||
             reader.GetString(1) != database || reader.GetString(2) != login ||
             reader.GetInt32(3) != 17 || reader.GetInt32(4) != 0)
             throw new InvalidOperationException("Unexpected executor session identity or transaction state.");
+        await reader.DisposeAsync();
+        await using var state = Command("""
+            SELECT state_desc, is_read_only, is_trustworthy_on
+            FROM sys.databases WHERE name = DB_NAME();
+            """);
+        await using var states = await state.ExecuteReaderAsync(deadline.Token);
+        if (!await states.ReadAsync(deadline.Token) || states.GetString(0) != "ONLINE" ||
+            states.GetBoolean(1) || states.GetBoolean(2))
+            throw new InvalidOperationException("Unexpected database state.");
     }
 
     private async Task AssertLockAsync()

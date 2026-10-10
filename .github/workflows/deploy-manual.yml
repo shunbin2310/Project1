@@ -22,6 +22,16 @@ on:
         required: true
         default: false
         type: boolean
+      execute_migrations:
+        description: 'EXECUTE reviewed migration using a previously registered server administrator approval (default: OFF)'
+        required: true
+        default: false
+        type: boolean
+      migration_approval_id:
+        description: 'Registered 32-character approval ID; required only for migration execution'
+        required: false
+        default: ''
+        type: string
 
 permissions: {}
 
@@ -56,15 +66,20 @@ jobs:
           ref: ${{ github.sha }}
       - name: Run deployment tooling unit tests without deployment credentials
         run: python3 -m unittest discover -s scripts/deploy/tests -v
-      - name: Refuse combining deployment and read-only migration checks
+      - name: Require exactly one explicit server mode and validate approval ID
         env:
           DEPLOY: ${{ inputs.deploy }}
           CHECK_MIGRATIONS: ${{ inputs.check_migrations }}
+          EXECUTE_MIGRATIONS: ${{ inputs.execute_migrations }}
+          APPROVAL_ID: ${{ inputs.migration_approval_id }}
         run: |
-          if [[ "$DEPLOY" == 'true' && "$CHECK_MIGRATIONS" == 'true' ]]; then
-            echo '::error::Choose deployment OR read-only migration precheck, not both.'
-            exit 1
-          fi
+          python3 - <<'PY'
+          import os, re
+          modes = [os.environ[name] == 'true' for name in ('DEPLOY', 'CHECK_MIGRATIONS', 'EXECUTE_MIGRATIONS')]
+          approval = os.environ['APPROVAL_ID']
+          if sum(modes) > 1 or (modes[2] and not re.fullmatch(r'[0-9a-f]{32}', approval)) or (not modes[2] and approval):
+              raise SystemExit('Choose at most one server mode; execution alone requires a registered approval ID.')
+          PY
       - name: Verify source and download both exact ZIPs
         id: packages
         env:
@@ -76,7 +91,7 @@ jobs:
             --run-id "$CI_RUN_ID" --commit "$CI_COMMIT" \
             --directory "$RUNNER_TEMP/project1-cd"
       - name: Verify exact migration ZIP, manifest and checksums without server access
-        if: ${{ inputs.check_migrations }}
+        if: ${{ inputs.check_migrations || inputs.execute_migrations }}
         id: migrations
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -89,13 +104,13 @@ jobs:
             --directory "$RUNNER_TEMP/project1-migrations" \
             --expected-attempt "$EXPECTED_ATTEMPT"
       - name: Explain validation-only result
-        if: ${{ !inputs.deploy && !inputs.check_migrations }}
+        if: ${{ !inputs.deploy && !inputs.check_migrations && !inputs.execute_migrations }}
         run: echo 'Validation only passed. No Tailscale connection, SSH, uploads, sudo, service restart or deployment occurred.'
 
   deploy:
     name: Explicitly deploy verified CI packages to Ubuntu
     needs: validate
-    if: ${{ inputs.deploy && !inputs.check_migrations && github.repository == 'shunbin2310/Project1' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' }}
+    if: ${{ inputs.deploy && !inputs.check_migrations && !inputs.execute_migrations && github.repository == 'shunbin2310/Project1' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -154,7 +169,7 @@ jobs:
   migration-precheck:
     name: Explicit read-only Ubuntu migration-history precheck (NO SQL execution)
     needs: validate
-    if: ${{ inputs.check_migrations && !inputs.deploy && github.repository == 'shunbin2310/Project1' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' }}
+    if: ${{ inputs.check_migrations && !inputs.deploy && !inputs.execute_migrations && github.repository == 'shunbin2310/Project1' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -222,3 +237,64 @@ jobs:
           DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
         run: python3 scripts/deploy/precheck_migrations.py --directory "$RUNNER_TEMP/project1-migrations"
+
+  migration-execute:
+    name: Explicit administrator-approved production migration (NO application deployment)
+    needs: validate
+    if: ${{ inputs.execute_migrations && !inputs.deploy && !inputs.check_migrations && github.repository == 'shunbin2310/Project1' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    # Keep existing manual-main OIDC trust. Root ledger is the approval boundary;
+    # workflow_dispatch or a checkbox is never sufficient authorization on server.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out trusted manual workflow commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Reverify migration artifact and attempt before SSH
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+          CI_COMMIT: ${{ inputs.commit_sha }}
+          EXPECTED_ATTEMPT: ${{ needs.validate.outputs.ci_attempt }}
+          EXPECTED_DIGEST: ${{ needs.validate.outputs.migration_digest }}
+        run: |
+          python3 scripts/deploy/verify_migration_artifact.py \
+            --run-id "$CI_RUN_ID" --commit "$CI_COMMIT" \
+            --directory "$RUNNER_TEMP/project1-migrations" \
+            --expected-attempt "$EXPECTED_ATTEMPT" --expected-digest "$EXPECTED_DIGEST"
+      - name: Check Tailscale configuration without printing values
+        env:
+          TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
+        run: |
+          if [[ -z "$TS_OAUTH_CLIENT_ID" || -z "$TS_AUDIENCE" ]]; then
+            echo '::error::Set TS_OAUTH_CLIENT_ID and TS_AUDIENCE.'
+            exit 1
+          fi
+      - name: Join Tailscale using existing manual-main OIDC trust
+        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:github-deploy
+          version: '1.102.5'
+          use-cache: 'false'
+      - name: Submit ONLY registered approval ID to restricted server helper
+        env:
+          MIGRATION_EXECUTION_CONFIRMED: 'true'
+          DEPLOY_CONFIRMED: 'false'
+          APPROVAL_ID: ${{ inputs.migration_approval_id }}
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          python3 scripts/deploy/execute_migration_verified.py \
+            --directory "$RUNNER_TEMP/project1-migrations" --approval-id "$APPROVAL_ID"
