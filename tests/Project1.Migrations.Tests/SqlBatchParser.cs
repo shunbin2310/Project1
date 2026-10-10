@@ -1,12 +1,12 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Project1.MigrationExecutor;
+namespace Project1.Migrations.Tests;
 
 // Limited EF SQL Server batch reader, not a general sqlcmd interpreter.
-public static class SqlBatchParser
+internal static class SqlBatchParser
 {
-    public static IReadOnlyList<string> SplitBatches(string sql)
+    internal static IReadOnlyList<string> SplitBatches(string sql)
     {
         var batches = new List<string>();
         var batch = new StringBuilder();

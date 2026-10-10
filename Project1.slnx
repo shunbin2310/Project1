@@ -5,10 +5,5 @@
   <Folder Name="/tests/">
     <Project Path="tests/Project1.Api.Tests/Project1.Api.Tests.csproj" />
     <Project Path="tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj" />
-    <Project Path="tests/Project1.MigrationHost.Acceptance/Project1.MigrationHost.Acceptance.csproj" />
-  </Folder>
-  <Folder Name="/tools/">
-    <Project Path="scripts/deploy/dotnet/Project1.MigrationHost/Project1.MigrationHost.csproj" />
-    <Project Path="scripts/deploy/dotnet/Project1.MigrationExecutor/Project1.MigrationExecutor.csproj" />
   </Folder>
 </Solution>

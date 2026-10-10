@@ -11,10 +11,7 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
   <ItemGroup>
-    <!-- CI diagnostics only: link the pure formatter, not the fixture entrypoint. -->
-    <Compile Include="../Project1.MigrationHost.Acceptance/CiFixtureDiagnostics.cs" Link="CiFixtureDiagnostics.cs" />
     <Using Include="Xunit" />
     <ProjectReference Include="..\..\backend\Project1.Api\Project1.Api.csproj" />
-    <ProjectReference Include="..\..\scripts\deploy\dotnet\Project1.MigrationExecutor\Project1.MigrationExecutor.csproj" />
   </ItemGroup>
 </Project>

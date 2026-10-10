@@ -1,4 +1,0 @@
-#!/bin/sh
-# Install only after separate review: root:root 0755, fixed root-managed module tree.
-set -eu
-exec /usr/bin/python3 -I /usr/local/libexec/project1-migration/production_entry.py execute "$@"

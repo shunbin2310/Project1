@@ -281,7 +281,7 @@ npm run test:e2e -- --project=chromium
 The workflow is [`.github/workflows/ci.yml`](.github/workflows/ci.yml), named **Project1 CI**.
 It uses GitHub-hosted Ubuntu 24.04 runners, .NET 10, and Node.js 24.15.0. Your Ubuntu
 laptop does not need to be online for CI. This workflow does **not** deploy, connect
-to your home server, apply database migrations, or send emails. No GitHub deployment
+to your home server, apply production database migrations, or send emails. No GitHub deployment
 secrets or self-hosted runner are required.
 
 #### When does it run?
@@ -303,7 +303,8 @@ The backend and frontend jobs run independently:
 
 - **Backend:** restore dependencies, install PDF fonts, build and run xUnit tests,
   then publish a framework-dependent `linux-x64` API. Tests use isolated SQLite
-  databases and test doubles; they do not use the Ubuntu SQL Server or SMTP account.
+  databases and test doubles. Migration checks also use disposable SQL Server databases
+  for fresh/upgrade tests and the exact generated SQL; they never use the home server.
 - **Frontend:** install dependencies with `npm ci`, check Oxlint/ESLint without
   modifying files, run Vitest unit tests, then type-check and create a production
   build. The production API base URL is empty for same-origin Nginx `/api/` requests.
@@ -346,7 +347,8 @@ for 14 days:
 | --- | --- |
 | `project1-api-linux-x64-<sha>` | API publish files, including `Project1.Api.dll`; no `appsettings.Development.json`. |
 | `project1-frontend-dist-<sha>` | Vue production files, including `index.html` and `assets/`. |
-| `backend-test-results-<sha>` | xUnit results in TRX format. |
+| `project1-migrations-sql-<sha>` | Reviewable SQL, migration manifest, build provenance and SHA-256 checksums. |
+| `backend-test-results-<sha>` | Business and migration xUnit results in separate TRX files. |
 | `frontend-test-results-<sha>` | Vitest results in JUnit XML format. |
 
 After downloading and extracting a build ZIP, the publish files are at the archive
@@ -358,7 +360,11 @@ use artifacts from a successful **trusted `main` run**, not an unreviewed PR. Bo
 must be green: one job's artifact can exist even if the other job failed. The API
 still needs the .NET 10 runtime, production environment configuration, SQL Server,
 and PDF fonts on Ubuntu. Database schema changes still require a separately reviewed
-migration and backup procedure; this workflow does not generate or apply migrations.
+migration and backup procedure. CI generates and tests SQL only in disposable databases;
+production migration is manual, not part of application CD. See
+[CI migration tests](docs/CI_MIGRATION_TESTS.md),
+[read-only precheck](docs/MIGRATION_PRECHECK.md), and
+[manual migration checklist](docs/MANUAL_MIGRATIONS.md).
 
 Keep database/SMTP passwords and JWT signing keys out of tracked configuration and
 build artifacts. `/etc/project1/project1.env` remains on Ubuntu. Do not upload it, PC

@@ -9,6 +9,19 @@ namespace Project1.Migrations.Tests;
 public sealed class MigrationSqlScriptTests
 {
     [Fact]
+    public void RawArtifactBatchCommandPreservesSqlWithoutExecutorWrapper()
+    {
+        const string batch = "BEGIN TRANSACTION;\r\nSELECT N'first\r\nsecond'; -- original";
+        using var connection = new Microsoft.Data.SqlClient.SqlConnection();
+        using var command = CiDatabase.CreateScriptBatchCommand(connection, batch);
+
+        Assert.Equal(batch, command.CommandText);
+        Assert.Equal(60, command.CommandTimeout);
+        Assert.Same(connection, command.Connection);
+        Assert.Empty(command.Parameters.Cast<Microsoft.Data.SqlClient.SqlParameter>());
+    }
+
+    [Fact]
     public void ManifestMatchesCompiledMigrationsWithoutDatabaseAccess()
     {
         using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()

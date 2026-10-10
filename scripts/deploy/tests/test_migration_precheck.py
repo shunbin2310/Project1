@@ -142,6 +142,14 @@ class PackageTests(TempCase):
     def test_good_package_and_sql_indentation(self):
         self.assertEqual(self.read(files_fixture())["migrations"], IDS)
 
+    def test_old_execution_approval_notice_is_rejected_even_after_rehash(self):
+        files = files_fixture()
+        files["build-info.txt"] = files["build-info.txt"].replace(
+            b"REVIEW ONLY: CI tests this SQL only in disposable databases. CD never executes it.",
+            b"REVIEW REQUIRED: production execution needs a separately registered administrator approval.")
+        with self.assertRaises(verify.VerificationError):
+            self.read(rehash(files))
+
     def test_missing_extra_traversal_files(self):
         for name in ("../migrations.sql", "/migrations.sql", "folder/migrations.sql", "extra.txt"):
             files = files_fixture()
@@ -416,7 +424,6 @@ class WorkflowTests(unittest.TestCase):
     def test_precheck_default_mutual_exclusion_reverification_and_no_upload(self):
         workflow = (SCRIPTS.parents[1] / ".github/workflows/deploy-manual.yml").read_text(encoding="utf-8")
         before, job = workflow.split("  migration-precheck:\n")
-        job = job.split("  migration-execute:\n")[0]
         self.assertIn("      check_migrations:\n", before)
         self.assertIn("Choose at most one server mode", before)
         self.assertIn("sum(modes) > 1", before)

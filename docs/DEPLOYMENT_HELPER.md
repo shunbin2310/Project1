@@ -154,7 +154,8 @@ Windows 会明确跳过这些 Linux 专用测试；通过便携测试不能代�
 - 上传目录用普通部署用户创建；同一个 SHA 目录已存在时失败，不覆盖旧上传，也不自动删除上传或备份。
   网络/上传/部署失败后由管理员审核目录和事务再决定后续步骤，不能仅删除 `pending.json` 解除保护。
 - 服务器 root 工具不会通过 CI 自我升级，新增这两个 runner 脚本不需要替换已经验证安装的 Python helper。
-- 手动 CD 的 validate job 包含全部部署工具测试；原有 PR CI 尚未增加这些 Python 测试，提交前仍需本地运行测试。
+- 手动 CD 的 validate job 和 PR CI 都运行部署工具的离线 Python 测试；不因此取得生产 SQL 执行权限。
+  数据库变更另按[手动迁移检查单](MANUAL_MIGRATIONS.md)处理。
 
 参考：[Python ZIP 安全注意事项](https://docs.python.org/3/library/zipfile.html#decompression-pitfalls)、
 [Python 文件描述符接口](https://docs.python.org/3/library/os.html#os.open)、
