@@ -45,11 +45,12 @@ dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj --c
 
 不要在 Ubuntu 上运行这个项目，也不要通过伪造 GitHub 环境变量让它连接电脑或正式数据库。真正的迁移执行结果请查看 PR 的 CI 日志和 `backend-test-results` 中的两个迁移 TRX 报告。
 
-正式数据库迁移仍然由管理员备份、审阅 SQL 后手动执行；这次没有改 CD 或正式部署 helper。
+正式数据库迁移仍然由管理员备份、审阅 SQL 后手动执行。CD 现在另有可选的只读历史预检查，
+但不会执行迁移；原正式部署 helper 不变。见 [只读迁移预检查](MIGRATION_PRECHECK.md)。
 
 ## 下载可审阅的迁移 SQL
 
-后端业务测试、模型检查和 EF 迁移测试通过后，CI 执行 `Generate reviewable migration SQL (no database access)`。然后执行三个 SQL 文件测试，核对 SQL 和版本说明的校验值没有改变，最后通过 `Save reviewable migration SQL` 上传文件。生成、测试、校验或上传失败都会让后端作业失败。只有测试步骤会执行 SQL，而且只在临时容器中；不使用正式连接字符串或部署 secrets。前端作业独立执行，因此下载正式上线用文件前仍要确认整次 CI 成功。
+后端业务测试、模型检查和 EF 迁移测试通过后，CI 执行 `Generate reviewable migration SQL (no database access)`。然后执行离线部署工具测试和三个 SQL 文件测试，核对 SQL、版本说明及迁移清单的校验值没有改变，最后通过 `Save reviewable migration SQL` 上传文件。生成、测试、校验或上传失败都会让后端作业失败。只有 SQL 集成测试步骤会执行 SQL，而且只在临时容器中；不使用正式连接字符串或部署 secrets。前端作业独立执行，因此下载正式上线用文件前仍要确认整次 CI 成功。
 
 1. 合并 PR 后，打开 GitHub → Actions → **Project1 CI**。
 2. 选择对应代码版本、事件为 **push**、分支为 **main** 的成功运行。不要用运行序号代替 run ID。
@@ -57,7 +58,9 @@ dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj --c
 4. 解压后查看：
    - `migrations.sql`：从第一个迁移到该版本最新迁移的 SQL Server 脚本。
    - `build-info.txt`：代码 SHA、实际检出的提交、CI run ID、重跑次数、事件、分支引用和运行链接。
-   - `SHA256SUMS`：SQL 和版本说明文件的 SHA-256。下载后可用 `Get-FileHash` 或 `sha256sum -c SHA256SUMS` 核对文件；校验值用于核对文件完整性，不代表 SQL 一定安全。
+   - `SHA256SUMS`：SQL、版本说明和迁移清单文件的 SHA-256。下载后可用 `Get-FileHash` 或 `sha256sum -c SHA256SUMS` 核对文件；校验值用于核对文件完整性，不代表 SQL 一定安全。
+   - `migration-manifest.json`：同一次编译的有序迁移编号清单，也在 `SHA256SUMS` 中校验。
+     CI 使用 `migrations list --no-connect` 生成，核对 SQL 历史 INSERT，并在 SQL 集成测试前核对编译的 EF 迁移。
 
 PR 中也会生成文件供审阅，但其 SHA 通常是 GitHub 测试用的合并提交，不是功能分支的提交。正式上线时应使用与应用部署版本匹配的成功 **main push** 运行，并核对 `build-info.txt`。文件保留 14 天；如需长期保存，请另行归档。
 

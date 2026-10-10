@@ -1,0 +1,3 @@
+# REVIEW TEMPLATE ONLY; administrator installs after visudo validation.
+# The "" argument specification allows ONLY an invocation with no arguments.
+project1_deploy ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/project1-migration-status ""

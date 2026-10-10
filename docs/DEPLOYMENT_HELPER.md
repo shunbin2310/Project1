@@ -139,6 +139,9 @@ Windows 会明确跳过这些 Linux 专用测试；通过便携测试不能代�
 
 ### 凭据、失败与重试
 
+迁移历史的可选只读预检查见 [MIGRATION_PRECHECK.md](MIGRATION_PRECHECK.md)。默认包验证和应用部署行为保留；
+`check_migrations` 与 `deploy` 互斥。查询依赖管理员另行安装的无参数 status 工具，不升级原部署 helper 的权限。
+
 - 使用已有四个 repository secrets：`TS_OAUTH_CLIENT_ID`、`TS_AUDIENCE`、`DEPLOY_SSH_PRIVATE_KEY`、`DEPLOY_SSH_KNOWN_HOSTS`。
   不把值写到工作流，不打印私钥、GitHub bearer token、签名下载 URL 或任意 HTTP/远程错误正文。
 - validate job 只有 contents/actions read；deploy job 另有 id-token write。PR/push 不会触发该工作流。

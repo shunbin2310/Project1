@@ -1,0 +1,4 @@
+#!/bin/sh
+# Administrator installs root:root 0755. Does not accept SQL, paths or commands.
+set -eu
+exec /usr/bin/python3 -I /usr/local/libexec/project1-migration-status.py "$@"

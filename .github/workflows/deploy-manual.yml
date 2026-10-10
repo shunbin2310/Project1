@@ -13,7 +13,12 @@ on:
         required: true
         type: string
       deploy:
-        description: 'DEPLOY to Ubuntu: replace API/frontend and restart API (unchecked = validate only)'
+        description: 'DEPLOY to Ubuntu: replace API/frontend and restart API (unchecked = no application deployment)'
+        required: true
+        default: false
+        type: boolean
+      check_migrations:
+        description: 'READ ONLY: query Ubuntu migration history and list pending migrations; never execute SQL'
         required: true
         default: false
         type: boolean
@@ -38,6 +43,7 @@ jobs:
       ci_attempt: ${{ steps.packages.outputs.ci_attempt }}
       api_digest: ${{ steps.packages.outputs.api_digest }}
       frontend_digest: ${{ steps.packages.outputs.frontend_digest }}
+      migration_digest: ${{ steps.migrations.outputs.migration_digest }}
     defaults:
       run:
         shell: bash
@@ -50,6 +56,15 @@ jobs:
           ref: ${{ github.sha }}
       - name: Run deployment tooling unit tests without deployment credentials
         run: python3 -m unittest discover -s scripts/deploy/tests -v
+      - name: Refuse combining deployment and read-only migration checks
+        env:
+          DEPLOY: ${{ inputs.deploy }}
+          CHECK_MIGRATIONS: ${{ inputs.check_migrations }}
+        run: |
+          if [[ "$DEPLOY" == 'true' && "$CHECK_MIGRATIONS" == 'true' ]]; then
+            echo '::error::Choose deployment OR read-only migration precheck, not both.'
+            exit 1
+          fi
       - name: Verify source and download both exact ZIPs
         id: packages
         env:
@@ -60,14 +75,27 @@ jobs:
           python3 scripts/deploy/verify_ci_artifacts.py \
             --run-id "$CI_RUN_ID" --commit "$CI_COMMIT" \
             --directory "$RUNNER_TEMP/project1-cd"
+      - name: Verify exact migration ZIP, manifest and checksums without server access
+        if: ${{ inputs.check_migrations }}
+        id: migrations
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+          CI_COMMIT: ${{ inputs.commit_sha }}
+          EXPECTED_ATTEMPT: ${{ steps.packages.outputs.ci_attempt }}
+        run: |
+          python3 scripts/deploy/verify_migration_artifact.py \
+            --run-id "$CI_RUN_ID" --commit "$CI_COMMIT" \
+            --directory "$RUNNER_TEMP/project1-migrations" \
+            --expected-attempt "$EXPECTED_ATTEMPT"
       - name: Explain validation-only result
-        if: ${{ !inputs.deploy }}
+        if: ${{ !inputs.deploy && !inputs.check_migrations }}
         run: echo 'Validation only passed. No Tailscale connection, SSH, uploads, sudo, service restart or deployment occurred.'
 
   deploy:
     name: Explicitly deploy verified CI packages to Ubuntu
     needs: validate
-    if: ${{ inputs.deploy && github.repository == 'shunbin2310/Project1' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' }}
+    if: ${{ inputs.deploy && !inputs.check_migrations && github.repository == 'shunbin2310/Project1' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -122,3 +150,75 @@ jobs:
           DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
         run: python3 scripts/deploy/deploy_verified.py --directory "$RUNNER_TEMP/project1-cd"
+
+  migration-precheck:
+    name: Explicit read-only Ubuntu migration-history precheck (NO SQL execution)
+    needs: validate
+    if: ${{ inputs.check_migrations && !inputs.deploy && github.repository == 'shunbin2310/Project1' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    # Keep the existing manual-main workflow identity; do not add an environment.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out trusted manual workflow commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Reverify application packages and CI attempt before network access
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+          CI_COMMIT: ${{ inputs.commit_sha }}
+          EXPECTED_ATTEMPT: ${{ needs.validate.outputs.ci_attempt }}
+          EXPECTED_API_DIGEST: ${{ needs.validate.outputs.api_digest }}
+          EXPECTED_FRONTEND_DIGEST: ${{ needs.validate.outputs.frontend_digest }}
+        run: |
+          python3 scripts/deploy/verify_ci_artifacts.py \
+            --run-id "$CI_RUN_ID" --commit "$CI_COMMIT" \
+            --directory "$RUNNER_TEMP/project1-cd" \
+            --expected-attempt "$EXPECTED_ATTEMPT" \
+            --expected-api-digest "$EXPECTED_API_DIGEST" \
+            --expected-frontend-digest "$EXPECTED_FRONTEND_DIGEST"
+      - name: Reverify migration package against the first job
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+          CI_COMMIT: ${{ inputs.commit_sha }}
+          EXPECTED_ATTEMPT: ${{ needs.validate.outputs.ci_attempt }}
+          EXPECTED_DIGEST: ${{ needs.validate.outputs.migration_digest }}
+        run: |
+          python3 scripts/deploy/verify_migration_artifact.py \
+            --run-id "$CI_RUN_ID" --commit "$CI_COMMIT" \
+            --directory "$RUNNER_TEMP/project1-migrations" \
+            --expected-attempt "$EXPECTED_ATTEMPT" --expected-digest "$EXPECTED_DIGEST"
+      - name: Check Tailscale configuration without printing values
+        env:
+          TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
+        run: |
+          if [[ -z "$TS_OAUTH_CLIENT_ID" || -z "$TS_AUDIENCE" ]]; then
+            echo '::error::Set TS_OAUTH_CLIENT_ID and TS_AUDIENCE.'
+            exit 1
+          fi
+      - name: Join Tailscale using existing manual-main OIDC trust
+        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:github-deploy
+          version: '1.102.5'
+          use-cache: 'false'
+      - name: Query fixed history and report pending migrations (no uploads)
+        env:
+          MIGRATION_PRECHECK_CONFIRMED: 'true'
+          DEPLOY_CONFIRMED: 'false'
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: python3 scripts/deploy/precheck_migrations.py --directory "$RUNNER_TEMP/project1-migrations"

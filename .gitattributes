@@ -1,0 +1,4 @@
+# Keep administrator-uploaded Unix helper files usable after a Windows checkout.
+scripts/deploy/project1-migration-status text eol=lf
+scripts/deploy/project1-migration-status.sudoers text eol=lf
+scripts/deploy/project1_migration_status.py text eol=lf
