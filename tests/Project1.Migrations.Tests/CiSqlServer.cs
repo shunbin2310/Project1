@@ -130,6 +130,24 @@ internal sealed class CiDatabase : IAsyncDisposable
 
     internal SqlConnection CreateConnection() => new(settings.ConnectionString(Name));
 
+    internal async Task ExecuteScriptAsync(IReadOnlyList<string> batches)
+    {
+        CiSqlServerSettings.ValidateDatabaseName(Name);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(timeout.Token);
+        await ValidateServerAsync(connection);
+        // One connection preserves session state and transactions across GO batches.
+        // Stop at the first error; closing this unpooled connection rolls back an open transaction.
+        foreach (var batch in batches)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandTimeout = 60;
+            command.CommandText = batch;
+            await command.ExecuteNonQueryAsync(timeout.Token);
+        }
+    }
+
     private static async Task ValidateServerAsync(SqlConnection connection)
     {
         await using var command = connection.CreateCommand();

@@ -7,9 +7,9 @@ namespace Project1.Migrations.Tests;
 
 public sealed class MigrationIntegrationTests
 {
-    private const string BeforeNote = "20260930150622_AddEmailAttachments";
-    private const string AddNote = "20261009164508_AddProductExampleAttr";
-    private static readonly DateTimeOffset FixtureCreatedAt = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    internal const string BeforeNote = "20260930150622_AddEmailAttachments";
+    internal const string AddNote = "20261009164508_AddProductExampleAttr";
+    internal static readonly DateTimeOffset FixtureCreatedAt = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     [SqlServerCiFact]
     public async Task EmptyDatabase_AllMigrationsApplyAndNoteColumnExists()
@@ -66,7 +66,7 @@ public sealed class MigrationIntegrationTests
         Assert.Equal(1, await context.Products.CountAsync());
     }
 
-    private static async Task AssertAllMigrationsAppliedAsync(Project1.Api.Data.AppDbContext context)
+    internal static async Task AssertAllMigrationsAppliedAsync(Project1.Api.Data.AppDbContext context)
     {
         var expected = context.Database.GetMigrations().ToArray();
         Assert.NotEmpty(expected);
@@ -74,7 +74,7 @@ public sealed class MigrationIntegrationTests
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
     }
 
-    private static async Task AssertNoteColumnAsync(CiDatabase database)
+    internal static async Task AssertNoteColumnAsync(CiDatabase database)
     {
         await using var connection = database.CreateConnection();
         await connection.OpenAsync();
@@ -88,7 +88,7 @@ public sealed class MigrationIntegrationTests
         Assert.Equal(1, Convert.ToInt32(await command.ExecuteScalarAsync()));
     }
 
-    private static async Task<int> InsertPreMigrationProductAsync(CiDatabase database)
+    internal static async Task<int> InsertPreMigrationProductAsync(CiDatabase database)
     {
         await using var connection = database.CreateConnection();
         await connection.OpenAsync();
