@@ -38,4 +38,29 @@ dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj --c
 
 正式数据库迁移仍然由管理员备份、审阅 SQL 后手动执行；这次没有改 CD 或正式部署 helper。
 
-参考：[GitHub 服务容器](https://docs.github.com/en/actions/tutorials/use-containerized-services/use-docker-service-containers)、[微软 SQL Server 容器说明](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/quickstart-install-docker?view=sql-server-linux-ver17)。
+## 下载可审阅的迁移 SQL
+
+后端业务测试、模型检查和 SQL Server 迁移测试通过后，CI 执行 `Generate reviewable migration SQL (no database access)`，再通过 `Save reviewable migration SQL` 上传文件。生成或上传失败会让后端作业失败；这两步不会执行 SQL，也不使用正式连接字符串或部署 secrets。前端作业独立执行，因此下载正式上线用文件前仍要确认整次 CI 成功。
+
+1. 合并 PR 后，打开 GitHub → Actions → **Project1 CI**。
+2. 选择对应代码版本、事件为 **push**、分支为 **main** 的成功运行。不要用运行序号代替 run ID。
+3. 在运行的 Summary 下方找到 **Artifacts**，下载 `project1-migrations-sql-<完整代码SHA>`。
+4. 解压后查看：
+   - `migrations.sql`：从第一个迁移到该版本最新迁移的 SQL Server 脚本。
+   - `build-info.txt`：代码 SHA、实际检出的提交、CI run ID、重跑次数、事件、分支引用和运行链接。
+   - `SHA256SUMS`：SQL 和版本说明文件的 SHA-256。下载后可用 `Get-FileHash` 或 `sha256sum -c SHA256SUMS` 核对文件；校验值用于核对文件完整性，不代表 SQL 一定安全。
+
+PR 中也会生成文件供审阅，但其 SHA 通常是 GitHub 测试用的合并提交，不是功能分支的提交。正式上线时应使用与应用部署版本匹配的成功 **main push** 运行，并核对 `build-info.txt`。文件保留 14 天；如需长期保存，请另行归档。
+
+生成命令是 `dotnet ef migrations script 0 --idempotent`。`--idempotent` 的意思是：SQL 会查看 `__EFMigrationsHistory`，跳过已记录为完成的迁移。因此文件包含完整迁移历史，并不只是这次新增的 `Note`。生成时明确使用非 Development 环境和无效占位连接，不连接电脑或正式数据库。
+
+注意：
+
+- 这一步只生成 SQL，不会创建新的 C# migration；修改实体后仍需手动运行 `migrations add` 并提交迁移文件。
+- 现有 SQL Server 集成测试验证的是 EF 执行迁移的路径，不是下载脚本的执行路径；生成成功不等于脚本已经执行测试。
+- `--idempotent` 依赖迁移记录与实际结构一致，不会自动修复结构漂移，也不保证删除列、转换数据等操作安全。脚本中可能包含历史删除操作，必须审阅目标数据库尚未执行的部分，并先在测试库试运行。
+- SQL 脚本没有 EF 的迁移锁；正式执行时应协调维护窗口，避免多人同时迁移。
+- 正式使用前仍需要核对数据库与迁移记录、备份、审阅、测试并确认应用兼容性。执行后查询迁移记录和业务数据，再按原流程部署应用。
+- 不要因为多了下载文件就再次执行已经完成的 `Note` 迁移，也不要把这个文件交给现有 CD 自动执行。
+
+参考：[GitHub 服务容器](https://docs.github.com/en/actions/tutorials/use-containerized-services/use-docker-service-containers)、[微软 SQL Server 容器说明](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/quickstart-install-docker?view=sql-server-linux-ver17)、[EF Core 迁移脚本与正式迁移说明](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying)。
