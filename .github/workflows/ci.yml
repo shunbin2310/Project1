@@ -20,6 +20,19 @@ jobs:
     name: Backend tests and Linux publish
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    services:
+      migration-sqlserver:
+        # SQL Server 2025 image, pinned to the digest verified on 2026-10-10.
+        image: mcr.microsoft.com/mssql/server@sha256:2b5b581621126574f3d1f75e78d3eebe8d05aedb59ad0cfdf9aa42cb0634d726
+        env:
+          ACCEPT_EULA: 'Y'
+          MSSQL_PID: 'Express'
+          # Public, disposable CI credential. Never use this outside this container.
+          MSSQL_SA_PASSWORD: 'Project1CiOnly-Tests!2026'
+          MSSQL_MEMORY_LIMIT_MB: '2048'
+        ports:
+          - '127.0.0.1:14333:1433'
+        options: --hostname project1-ci-sqlserver --memory 3g
     env:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
@@ -42,11 +55,15 @@ jobs:
       - name: Restore backend and test dependencies
         run: dotnet restore Project1.slnx
 
+      - name: Restore isolated SQL Server migration tests
+        run: dotnet restore tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj
+
       - name: Restore pinned EF Core CLI tool
         run: dotnet tool restore
 
       - name: Build and test backend
-        run: dotnet test Project1.slnx --configuration Release --no-restore --logger "trx;LogFileName=backend.trx" --results-directory artifacts/backend-test-results
+        # Keep business tests and their TRX separate from the SQL migration test project.
+        run: dotnet test tests/Project1.Api.Tests/Project1.Api.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=backend.trx" --results-directory artifacts/backend-test-results
 
       - name: Check that model changes have a migration
         # Compare the SQL Server model with its snapshot; never apply migrations.
@@ -63,6 +80,21 @@ jobs:
           --startup-project backend/Project1.Api
           --configuration Release --no-build --context AppDbContext
           -- --environment CiModelCheck
+
+      - name: Test fresh database and existing database migrations on SQL Server
+        # These tests never read appsettings, user secrets, or deployment secrets.
+        env:
+          PROJECT1_CI_MIGRATION_TESTS: 'true'
+          PROJECT1_CI_SQLSERVER_PASSWORD: 'Project1CiOnly-Tests!2026'
+        run: >-
+          dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj
+          --configuration Release --no-restore
+          --logger "trx;LogFileName=migrations.trx"
+          --results-directory artifacts/backend-test-results
+
+      - name: Show migration SQL Server logs on failure
+        if: ${{ failure() }}
+        run: docker logs "${{ job.services.migration-sqlserver.id }}"
 
       - name: Save backend test results
         if: ${{ always() }}
