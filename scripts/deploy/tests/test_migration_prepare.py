@@ -346,6 +346,80 @@ class ServerTests(TempCase):
         self.assertFalse(any("P1!" in item for item in arguments))
 
 
+class InstallerTests(TempCase):
+    def setUp(self):
+        super().setUp()
+        self.source = self.root / "source"
+        self.source.mkdir()
+        reviewed = Path(installer.__file__).resolve().parent
+        for name in (*installer.MODULE_NAMES, "project1-migration-prepare",
+                     "project1-migration-prepare.sudoers"):
+            # Exercise normalization even when checked-out sources already use LF.
+            body = (reviewed / name).read_bytes().replace(b"\r\n", b"\n")
+            (self.source / name).write_bytes(body.replace(b"\n", b"\r\n"))
+        self.modules = self.root / "modules"
+        self.state = self.root / "state"
+        self.wrapper = self.root / "sbin" / "project1-migration-prepare"
+        self.sudoers = self.root / "sudoers.d" / "project1-migration-prepare"
+        self.wrapper.parent.mkdir()
+        self.sudoers.parent.mkdir()
+        for name, path in (("MODULES", self.modules), ("STATE", self.state),
+                           ("WRAPPER", self.wrapper), ("SUDOERS", self.sudoers)):
+            patch = mock.patch.object(installer, name, path)
+            patch.start()
+            self.addCleanup(patch.stop)
+        # Windows lacks O_NOFOLLOW. Only ordinary files in a private test folder
+        # are used here; production Linux guards are not relaxed.
+        patch = mock.patch.object(installer.os, "O_NOFOLLOW", 0, create=True)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_actual_installed_bytes_use_distinct_wrapper_and_sudoers_sources(self):
+        with mock.patch.object(installer, "command") as command:
+            installer.install_tools(self.source)
+        self.assertEqual(self.wrapper.name, self.sudoers.name)
+        for path, name in ((self.wrapper, "project1-migration-prepare"),
+                           (self.sudoers, "project1-migration-prepare.sudoers")):
+            self.assertEqual(path.read_bytes(), (self.source / name).read_bytes().replace(b"\r\n", b"\n"))
+            self.assertNotIn(b"\r", path.read_bytes())
+        self.assertNotEqual(self.wrapper.read_bytes(), self.sudoers.read_bytes())
+        self.assertIn(b"exec /usr/bin/python3", self.wrapper.read_bytes())
+        self.assertIn(b"project1_deploy ALL=(root) NOPASSWD: NOSETENV:", self.sudoers.read_bytes())
+        self.assertNotIn(b"exec /usr/bin/python3", self.sudoers.read_bytes())
+        for name in installer.MODULE_NAMES:
+            self.assertEqual((self.modules / name).read_bytes(), (self.source / name).read_bytes())
+        # The file-only phase calls visudo, not sqlcmd/systemctl or any installer.
+        self.assertEqual(command.call_args_list, [
+            mock.call(["/usr/sbin/visudo", "-cf", str(self.source / "project1-migration-prepare.sudoers")]),
+            mock.call(["/usr/sbin/visudo", "-c"])])
+        if sys.platform == "linux":
+            self.assertEqual(self.wrapper.stat().st_mode & 0o777, 0o755)
+            self.assertEqual(self.sudoers.stat().st_mode & 0o777, 0o440)
+
+    def test_invalid_template_stops_before_any_installation_write(self):
+        with mock.patch.object(installer, "command", side_effect=RuntimeError("invalid sudoers")):
+            with self.assertRaises(RuntimeError):
+                installer.install_tools(self.source)
+        for path in (self.modules, self.state, self.wrapper, self.sudoers):
+            self.assertFalse(path.exists())
+
+    def test_existing_sudoers_is_not_overwritten(self):
+        self.sudoers.write_bytes(b"existing administrator configuration\n")
+        with mock.patch.object(installer, "command") as command:
+            with self.assertRaises(FileExistsError):
+                installer.install_tools(self.source)
+        self.assertEqual(self.sudoers.read_bytes(), b"existing administrator configuration\n")
+        self.assertEqual(command.call_count, 1)
+
+    def test_repeat_install_refuses_and_preserves_installed_files(self):
+        with mock.patch.object(installer, "command"):
+            installer.install_tools(self.source)
+            original = self.sudoers.read_bytes(), self.wrapper.read_bytes()
+            with self.assertRaises(FileExistsError):
+                installer.install_tools(self.source)
+        self.assertEqual((self.sudoers.read_bytes(), self.wrapper.read_bytes()), original)
+
+
 class PolicyTests(unittest.TestCase):
     def test_server_permission_queries_use_null_class_and_installer_rejects_unknown(self):
         import ast

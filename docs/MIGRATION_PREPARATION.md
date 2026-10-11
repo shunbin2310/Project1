@@ -77,6 +77,10 @@ sudo env -i PATH=/usr/bin:/bin HOME=/root LANG=C.UTF-8 \
 `/etc/project1-backup/password`（root:root、0600，目录 0700），不输出到日志。
 真实密码不传入 `-P`、Git、GitHub secrets 或聊天；不要上传 root 安装目录。
 安装失败可能留下部分 SQL 对象或私人凭据，必须管理员检查，不自动回滚或覆盖。
+如果最终 `visudo -c` 失败，先保留当前 SSH 会话和错误文件，单独检查、修复 sudoers；
+不要重跑整个安装器，也不要删除已创建的 SQL 对象或密码文件。
+sudoers 应来自 `project1-migration-prepare.sudoers`，不能复制同名的 shell 启动脚本。
+修复时先验证候选配置，再替换已确认的错误文件，最后检查完整 sudoers 配置。
 
 权限设计：新的 `project1_backup` 登录只获得固定备份过程的 EXECUTE；不加入 sysadmin/db_owner。
 `BACKUP DATABASE` 和 VERIFYONLY 所需权限由不能通过密码登录的证书身份提供，
