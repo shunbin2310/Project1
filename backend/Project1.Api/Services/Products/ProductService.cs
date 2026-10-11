@@ -58,7 +58,6 @@ public sealed class ProductService(AppDbContext dbContext) : IProductService
             Code = CreateTemporaryCode(),
             Name = request.Name.Trim(),
             Description = NormalizeOptionalText(request.Description),
-            CicdPracticeNote = NormalizeOptionalText(request.CicdPracticeNote),
             StorageLocation = NormalizeOptionalText(request.StorageLocation),
             ProductCategory = category,
             UnitOfMeasure = unit,
@@ -123,7 +122,6 @@ public sealed class ProductService(AppDbContext dbContext) : IProductService
 
         product.Name = request.Name.Trim();
         product.Description = NormalizeOptionalText(request.Description);
-        product.CicdPracticeNote = NormalizeOptionalText(request.CicdPracticeNote);
         product.StorageLocation = NormalizeOptionalText(request.StorageLocation);
         product.DefaultUnitPrice = request.DefaultUnitPrice;
         product.ReorderLevel = request.ReorderLevel;
@@ -177,7 +175,6 @@ public sealed class ProductService(AppDbContext dbContext) : IProductService
             product.IsActive,
             product.CreatedAtUtc,
             product.UpdatedAtUtc,
-            product.CicdPracticeNote,
             product.StorageLocation));
     }
 
@@ -203,6 +200,5 @@ public sealed class ProductService(AppDbContext dbContext) : IProductService
             product.IsActive,
             product.CreatedAtUtc,
             product.UpdatedAtUtc,
-            product.CicdPracticeNote,
             product.StorageLocation);
 }

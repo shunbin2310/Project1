@@ -7,7 +7,6 @@ const productResponse = {
   code: 'ITEM-0001',
   name: 'A4 Paper',
   description: null,
-  cicdPracticeNote: 'Deployment practice',
   storageLocation: 'Shelf A1',
   productCategoryId: 1,
   productCategoryCode: 'CAT-0001',
@@ -55,7 +54,6 @@ describe('productService', () => {
     await productService.create({
       name: 'A4 Paper',
       description: null,
-      cicdPracticeNote: 'Deployment practice',
       storageLocation: 'Shelf A1',
       productCategoryId: 1,
       unitOfMeasureId: 1,
@@ -65,10 +63,10 @@ describe('productService', () => {
 
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as Record<string, unknown>
     expect(body).not.toHaveProperty('code')
+    expect(body).not.toHaveProperty('cicdPracticeNote')
     expect(body).toMatchObject({
       productCategoryId: 1,
       unitOfMeasureId: 1,
-      cicdPracticeNote: 'Deployment practice',
       storageLocation: 'Shelf A1',
     })
   })
@@ -85,7 +83,6 @@ describe('productService', () => {
     await productService.update(1, {
       name: 'A4 Paper',
       description: null,
-      cicdPracticeNote: null,
       storageLocation: null,
       productCategoryId: 1,
       unitOfMeasureId: 1,
@@ -96,8 +93,8 @@ describe('productService', () => {
 
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as Record<string, unknown>
     expect(body).not.toHaveProperty('code')
+    expect(body).not.toHaveProperty('cicdPracticeNote')
     expect(body.isActive).toBe(true)
-    expect(body.cicdPracticeNote).toBeNull()
     expect(body.storageLocation).toBeNull()
   })
 

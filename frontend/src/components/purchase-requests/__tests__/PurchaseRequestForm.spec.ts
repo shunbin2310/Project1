@@ -10,7 +10,6 @@ const product = {
   code: 'ITEM-0001',
   name: 'Monitor',
   description: null,
-  cicdPracticeNote: null,
   storageLocation: null,
   productCategoryId: 1,
   productCategoryCode: 'CAT-0001',

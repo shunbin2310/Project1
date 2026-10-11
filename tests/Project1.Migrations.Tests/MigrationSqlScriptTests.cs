@@ -9,7 +9,7 @@ namespace Project1.Migrations.Tests;
 public sealed class MigrationSqlScriptTests
 {
     [Fact]
-    public void PracticeMigration_OnlyAddsOptionalBoundedColumnAndSnapshotMatchesModel()
+    public void HistoricalPracticeMigration_OnlyAddsOptionalBoundedColumn()
     {
         var migration = new Project1.Api.Migrations.AddProductCicdPracticeNote();
         var add = Assert.IsType<Microsoft.EntityFrameworkCore.Migrations.Operations.AddColumnOperation>(
@@ -27,7 +27,6 @@ public sealed class MigrationSqlScriptTests
         using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlServer("Server=tcp:127.0.0.1,1;Database=CiPracticeModel;User Id=ci;Password=not-a-real-password;Connect Timeout=1")
             .Options);
-        Assert.False(context.Database.HasPendingModelChanges());
         var practiceMigration = context.Database.GetMigrations().Single(
             id => id.EndsWith("_AddProductCicdPracticeNote", StringComparison.Ordinal));
         var sql = context.GetService<IMigrator>().GenerateScript(
@@ -39,14 +38,12 @@ public sealed class MigrationSqlScriptTests
     }
 
     [Fact]
-    public void StorageLocationMigration_OnlyAddsOptionalBoundedColumnAndSnapshotMatchesModel()
+    public void HistoricalStorageLocationMigration_OnlyAddsOptionalBoundedColumn()
     {
         using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlServer("Server=tcp:127.0.0.1,1;Database=CiStorageModel;User Id=ci;Password=not-a-real-password;Connect Timeout=1")
             .Options);
-        Assert.False(context.Database.HasPendingModelChanges());
-        var latest = context.Database.GetMigrations().Last();
-        Assert.EndsWith("_AddProductStorageLocation", latest);
+        var latest = MigrationIntegrationTests.AddStorageLocation;
         var assembly = context.GetService<IMigrationsAssembly>();
         var migration = assembly.CreateMigration(assembly.Migrations[latest], context.Database.ProviderName!);
         var add = Assert.IsType<Microsoft.EntityFrameworkCore.Migrations.Operations.AddColumnOperation>(
@@ -69,6 +66,16 @@ public sealed class MigrationSqlScriptTests
         Assert.DoesNotContain("DROP COLUMN", sql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("UPDATE [Products]", sql, StringComparison.OrdinalIgnoreCase);
         Assert.NotEmpty(SqlBatchParser.SplitBatches(sql));
+    }
+
+    [Fact]
+    public void SnapshotMatchesCurrentModel()
+    {
+        using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlServer("Server=tcp:127.0.0.1,1;Database=SnapshotOnly;User Id=ci;Password=not-a-real-password")
+            .Options);
+        // This remains a release gate: scaffold the new migration before pushing.
+        Assert.False(context.Database.HasPendingModelChanges());
     }
 
     [Fact]

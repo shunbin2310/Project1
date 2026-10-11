@@ -26,7 +26,6 @@ const form = reactive<ProductFormState>({
   code: '',
   name: '',
   description: null,
-  cicdPracticeNote: null,
   storageLocation: null,
   productCategoryId: 0,
   unitOfMeasureId: 0,
@@ -38,7 +37,6 @@ const form = reactive<ProductFormState>({
 const errors = reactive({
   name: '',
   description: '',
-  cicdPracticeNote: '',
   storageLocation: '',
   productCategoryId: '',
   unitOfMeasureId: '',
@@ -49,7 +47,6 @@ const errors = reactive({
 const isEditing = computed(() => props.product !== null)
 const title = computed(() => (isEditing.value ? 'Edit product' : 'Create product'))
 const descriptionLength = computed(() => form.description?.length ?? 0)
-const practiceNoteLength = computed(() => form.cicdPracticeNote?.length ?? 0)
 const selectableCategories = computed(() =>
   props.categories.filter(
     (category) => category.isActive || category.id === props.product?.productCategoryId,
@@ -65,7 +62,6 @@ watch(
     form.code = product?.code ?? ''
     form.name = product?.name ?? ''
     form.description = product?.description ?? null
-    form.cicdPracticeNote = product?.cicdPracticeNote ?? null
     form.storageLocation = product?.storageLocation ?? null
     form.productCategoryId = product?.productCategoryId ?? 0
     form.unitOfMeasureId = product?.unitOfMeasureId ?? 0
@@ -80,7 +76,6 @@ watch(
 function clearErrors() {
   errors.name = ''
   errors.description = ''
-  errors.cicdPracticeNote = ''
   errors.storageLocation = ''
   errors.productCategoryId = ''
   errors.unitOfMeasureId = ''
@@ -100,10 +95,6 @@ function validate() {
 
   if ((form.description?.length ?? 0) > 500) {
     errors.description = 'Description cannot exceed 500 characters.'
-  }
-
-  if ((form.cicdPracticeNote?.length ?? 0) > 100) {
-    errors.cicdPracticeNote = 'CI/CD practice note cannot exceed 100 characters.'
   }
 
   if ((form.storageLocation?.length ?? 0) > 100) {
@@ -135,7 +126,6 @@ function submit() {
   emit('save', {
     name: form.name.trim(),
     description: form.description?.trim() || null,
-    cicdPracticeNote: form.cicdPracticeNote?.trim() || null,
     storageLocation: form.storageLocation?.trim() || null,
     productCategoryId: form.productCategoryId,
     unitOfMeasureId: form.unitOfMeasureId,
@@ -283,31 +273,6 @@ function submit() {
             :aria-invalid="Boolean(errors.description)"
           />
           <p v-if="errors.description" class="field-error">{{ errors.description }}</p>
-        </div>
-
-        <div class="form-field form-grid-full">
-          <div class="label-row">
-            <label for="product-cicd-practice-note">CI/CD practice note</label>
-            <span>{{ practiceNoteLength }}/100</span>
-          </div>
-          <input
-            id="product-cicd-practice-note"
-            v-model="form.cicdPracticeNote"
-            maxlength="100"
-            autocomplete="off"
-            placeholder="Optional note for the deployment exercise"
-            :aria-invalid="Boolean(errors.cicdPracticeNote)"
-            :aria-describedby="
-              errors.cicdPracticeNote ? 'product-cicd-practice-note-error' : undefined
-            "
-          />
-          <p
-            v-if="errors.cicdPracticeNote"
-            id="product-cicd-practice-note-error"
-            class="field-error"
-          >
-            {{ errors.cicdPracticeNote }}
-          </p>
         </div>
 
         <div class="form-field form-grid-full">
