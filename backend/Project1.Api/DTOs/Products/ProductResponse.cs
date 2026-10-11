@@ -16,5 +16,4 @@ public sealed record ProductResponse(
     bool IsActive,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? UpdatedAtUtc,
-    string? CicdPracticeNote,
     string? StorageLocation);

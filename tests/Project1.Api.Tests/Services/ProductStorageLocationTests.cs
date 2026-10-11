@@ -40,7 +40,6 @@ public sealed class ProductStorageLocationTests
             Name = "Practice product",
             ProductCategoryId = category.Id,
             UnitOfMeasureId = unit.Id,
-            CicdPracticeNote = "Keep existing practice note",
             StorageLocation = input
         }, CancellationToken.None);
         Assert.Equal(ProductSaveStatus.Success, created.Status);
@@ -60,7 +59,6 @@ public sealed class ProductStorageLocationTests
             Name = "Practice product",
             ProductCategoryId = category.Id,
             UnitOfMeasureId = unit.Id,
-            CicdPracticeNote = "Keep existing practice note",
             StorageLocation = input,
             IsActive = true
         }, CancellationToken.None);
@@ -70,7 +68,6 @@ public sealed class ProductStorageLocationTests
         stored = await context.Products.SingleAsync();
         Assert.Equal(expected, stored.StorageLocation);
         Assert.Equal("Keep the existing business note", stored.Note);
-        Assert.Equal("Keep existing practice note", stored.CicdPracticeNote);
 
         var deactivated = await service.DeactivateAsync(id, CancellationToken.None);
         Assert.Equal(ProductSaveStatus.Success, deactivated.Status);
@@ -82,20 +79,18 @@ public sealed class ProductStorageLocationTests
             Name = "Practice product",
             ProductCategoryId = category.Id,
             UnitOfMeasureId = unit.Id,
-            CicdPracticeNote = "Keep existing practice note",
             StorageLocation = expected,
             IsActive = true
         }, CancellationToken.None);
         Assert.True(reactivated.Product!.IsActive);
         Assert.Equal(expected, reactivated.Product.StorageLocation);
 
-        // Clearing the field persists null without touching the other notes.
+        // Clearing the field persists null without touching the business note.
         var cleared = await service.UpdateAsync(id, new UpdateProductRequest
         {
             Name = "Practice product",
             ProductCategoryId = category.Id,
             UnitOfMeasureId = unit.Id,
-            CicdPracticeNote = "Keep existing practice note",
             StorageLocation = "   ",
             IsActive = true
         }, CancellationToken.None);
@@ -104,7 +99,6 @@ public sealed class ProductStorageLocationTests
         stored = await context.Products.SingleAsync();
         Assert.Null(stored.StorageLocation);
         Assert.Equal("Keep the existing business note", stored.Note);
-        Assert.Equal("Keep existing practice note", stored.CicdPracticeNote);
     }
 
     [Theory]

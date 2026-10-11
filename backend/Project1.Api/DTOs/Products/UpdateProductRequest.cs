@@ -12,9 +12,6 @@ public sealed class UpdateProductRequest
     public string? Description { get; init; }
 
     [StringLength(100)]
-    public string? CicdPracticeNote { get; init; }
-
-    [StringLength(100)]
     public string? StorageLocation { get; init; }
 
     [Range(1, int.MaxValue)]

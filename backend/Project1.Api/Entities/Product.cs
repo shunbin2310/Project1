@@ -12,8 +12,6 @@ public sealed class Product
 
     public string? Note { get; set; }
 
-    public string? CicdPracticeNote { get; set; }
-
     public string? StorageLocation { get; set; }
 
     public int ProductCategoryId { get; set; }

@@ -27,7 +27,6 @@ const product: Product = {
   code: 'ITEM-0001',
   name: 'Practice product',
   description: null,
-  cicdPracticeNote: 'Deployment rehearsal',
   storageLocation: 'Shelf A1',
   productCategoryId: 1,
   productCategoryCode: 'CAT-0001',
@@ -42,7 +41,7 @@ const product: Product = {
   updatedAtUtc: null,
 }
 
-describe('ProductListView practice note', () => {
+describe('ProductListView storage location', () => {
   const wrappers: ReturnType<typeof mount>[] = []
   beforeEach(() => {
     vi.resetAllMocks()
@@ -82,13 +81,11 @@ describe('ProductListView practice note', () => {
     return wrapper
   }
 
-  it('displays and searches the practice note', async () => {
+  it('does not display the retired practice note column', async () => {
     const wrapper = await render()
-    expect(wrapper.get('tbody').text()).toContain('Deployment rehearsal')
-    await wrapper.get('input[type="search"]').setValue('REHEARSAL')
-    expect(wrapper.get('tbody').text()).toContain('ITEM-0001')
-    await wrapper.get('input[type="search"]').setValue('not a matching note')
-    expect(wrapper.text()).toContain('No matching products')
+    expect(wrapper.get('thead').text()).not.toContain('CI/CD practice note')
+    await wrapper.get('.page-heading button').trigger('click')
+    expect(wrapper.find('#product-cicd-practice-note').exists()).toBe(false)
   })
 
   it('displays and searches the storage location', async () => {
@@ -101,45 +98,41 @@ describe('ProductListView practice note', () => {
     expect(wrapper.text()).toContain('No matching products')
   })
 
-  it('sends the practice note and storage location when creating through the real form', async () => {
+  it('sends only supported fields when creating through the real form', async () => {
     const wrapper = await render()
     await wrapper.get('.page-heading button').trigger('click')
     await wrapper.get('#product-name').setValue('New practice product')
     await wrapper.get('#product-category').setValue('1')
     await wrapper.get('#product-unit').setValue('1')
-    await wrapper.get('#product-cicd-practice-note').setValue('  New deployment note  ')
     await wrapper.get('#product-storage-location').setValue('  Shelf B2  ')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'New practice product',
-        cicdPracticeNote: 'New deployment note',
         storageLocation: 'Shelf B2',
       }),
     )
+    expect(mocks.create.mock.calls[0]?.[0]).not.toHaveProperty('cicdPracticeNote')
   })
 
-  it('loads an existing note and sends null when it is cleared', async () => {
+  it('loads the storage location and sends null when it is cleared', async () => {
     const wrapper = await render()
     const edit = wrapper.findAll('tbody button').find((button) => button.text() === 'Edit')
     expect(edit).toBeDefined()
     await edit!.trigger('click')
-    expect((wrapper.get('#product-cicd-practice-note').element as HTMLInputElement).value).toBe(
-      product.cicdPracticeNote,
-    )
-    await wrapper.get('#product-cicd-practice-note').setValue('')
     expect((wrapper.get('#product-storage-location').element as HTMLInputElement).value).toBe('Shelf A1')
     await wrapper.get('#product-storage-location').setValue('')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(mocks.update).toHaveBeenCalledWith(
       1,
-      expect.objectContaining({ cicdPracticeNote: null, storageLocation: null }),
+      expect.objectContaining({ storageLocation: null }),
     )
+    expect(mocks.update.mock.calls[0]?.[1]).not.toHaveProperty('cicdPracticeNote')
   })
 
-  it('preserves the practice note when reactivating a product', async () => {
+  it('preserves the storage location when reactivating a product', async () => {
     mocks.getProducts.mockResolvedValue([{ ...product, isActive: false }])
     const wrapper = await render()
     await wrapper.get('input[type="checkbox"]').setValue(true)
@@ -153,7 +146,6 @@ describe('ProductListView practice note', () => {
       1,
       expect.objectContaining({
         isActive: true,
-        cicdPracticeNote: 'Deployment rehearsal',
         storageLocation: 'Shelf A1',
       }),
     )

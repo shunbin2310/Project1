@@ -114,32 +114,28 @@ $env:ConnectionStrings__DefaultConnection = "your-connection-string"
 
 ### 2. Apply database migrations
 
+【电脑 PowerShell · 仓库根目录】这一步只更新电脑上的开发数据库，不连接 Ubuntu。
+已有项目首次启动或拉取新迁移后，先确认本地连接，再更新到当前代码的最新迁移：
+
 ```powershell
+$LocalDb = "Server=localhost;Database=Project1Db;Trusted_Connection=True;TrustServerCertificate=True"
 
-dotnet tool run dotnet-ef -- migrations add xxxx `
-  --project backend/Project1.Api `
-  --startup-project backend/Project1.Api `
-  -- --environment Development
-
-check which migration file status
 dotnet tool run dotnet-ef -- migrations list `
   --project backend/Project1.Api `
   --startup-project backend/Project1.Api `
   --connection "$LocalDb" `
   -- --environment Development
 
-$LocalDb = "Server=localhost;Database=Project1Db;Trusted_Connection=True;TrustServerCertificate=True"
-
-dotnet tool run dotnet-ef -- database update 20261009164508_AddProductExampleAttr `
+dotnet tool run dotnet-ef -- database update `
   --project backend/Project1.Api `
   --startup-project backend/Project1.Api `
   --connection "$LocalDb" `
   -- --environment Development
-
-dotnet tool run dotnet-ef database update `
-  --project backend/Project1.Api `
-  --startup-project backend/Project1.Api
 ```
+
+只有修改了实体／数据库映射、需要生成新迁移时，才运行 `migrations add`；
+不是每次启动项目都运行。完整命令及 Ubuntu 发布步骤见[独立操作迁移指南](#独立操作迁移指南)。
+不要把旧迁移名当成日常更新目标：更新到早于已应用版本的目标会回退数据库，可能删除列和数据。
 
 ### 3. Configure email delivery
 
@@ -525,3 +521,810 @@ Review production SMTP settings and credentials before the Ubuntu deployment.
 
 client id = ThC5Q4Azzz11CNTRL-kUCh513QKk11CNTRL
 audience (aud claim) = api.tailscale.com/ThC5Q4Azzz11CNTRL-kUCh513QKk11CNTRL
+
+
+
+## 独立操作迁移指南
+
+适用于已安装好准备工具的 homelab：**CI 验证 → 上传 SQL／备份 → 手动迁移 → 部署前后端**。
+本次 StorageLocation 已完成，下面是下次有新迁移时使用的模板，不要重复执行本次旧命令。
+
+范围：像本次一样，给 Products 新增允许为空、旧 API 仍兼容的字段。
+删列、改名、改类型、非空列、回填数据需要另行设计、审核和演练，不能直接照搬发布顺序。
+删除 CicdPracticeNote 请使用下面独立的[删列练习指南](#删除-cicdpracticenote-练习先更新应用再删数据库列)，不要直接执行新增列指南的全部步骤。
+改属性名时 EF 可能生成“删旧列 + 加新列”，不一定保留数据；必须检查生成的迁移。
+
+### 先分清操作位置
+
+| 标记 | 在哪里操作 | 怎么认 |
+| --- | --- | --- |
+| 【电脑 PowerShell】 | Windows 电脑，开发命令在仓库根目录 | Windows 路径；多行续行符为反引号 |
+| 【Ubuntu SSH】 | 已登录服务器的终端 | 提示符类似 shunbin@homelab-server:~$；续行符为反斜杠 |
+| 【GitHub】 | 浏览器 Actions / Pull Request | 点击按钮，不是在终端执行 |
+
+PowerShell 输入 ssh 并登录成功后，那个窗口接下来是在 Ubuntu 运行。
+以 # 开头的是 PowerShell／Bash 注释；不要复制终端提示符、输出或密码。
+所有 REPLACE_ 占位符必须先替换。每段成功、检查输出后才执行下一段，不要一次执行整篇。
+
+| 步骤 | 操作位置 | 内容 |
+| --- | --- | --- |
+| 1–2 | 电脑 / IDE | 改代码、生成迁移、更新和测试本地库 |
+| 3 | GitHub / 电脑 | PR、合并、确认 main CI、下载并审阅 SQL |
+| 4 | Ubuntu SSH | 确认正式库起点，停止 API 和其他写入 |
+| 5 | GitHub | 只选 prepare_migrations，上传 SQL 并备份 |
+| 6–7 | Ubuntu SSH → 电脑 | 创建备份下载副本，下载到电脑并校验 |
+| 8 | Ubuntu SSH | 临时恢复和检查，不覆盖正式库 |
+| 9–10 | Ubuntu SSH | 执行正式迁移，再验证结构和数据 |
+| 11–13 | Ubuntu SSH → GitHub → 网页 | 启动兼容 API、部署同一版本、测试网页 |
+
+没有待执行迁移时，不停 API、不运行准备／恢复／旧 SQL，只做 CI 和应用部署。
+
+### 1. 【电脑 PowerShell / IDE】修改代码并生成迁移
+
+在新功能分支修改实体、AppDbContext 映射、DTO、后端服务、前端表单／列表和测试。
+已有分支不用再创建；先查看自己的改动，别覆盖其他工作。
+
+~~~powershell
+git status
+git switch -c practice/your-new-feature
+dotnet tool restore
+
+# 将 AddYourNewColumn 换成描述本次变化的名称
+dotnet tool run dotnet-ef -- migrations add AddYourNewColumn `
+  --project backend/Project1.Api `
+  --startup-project backend/Project1.Api `
+  -- --environment Development
+~~~
+
+migrations add 只生成迁移 .cs、Designer.cs 并更新 ModelSnapshot，**不修改数据库**。
+审阅 Up（升级）和 Down（回退），确认与本次变化一致。
+看到意外的 DropColumn、删表或类型变化就先停止。不要修改已应用到服务器的历史迁移。
+
+### 2. 【电脑 PowerShell】查看、更新和测试本地库
+
+电脑与 Ubuntu 都叫 Project1Db，但它们是两个不同的数据库。
+以下连接是电脑的 localhost，不是 192.168.1.158。
+
+~~~powershell
+$LocalDb = "Server=localhost;Database=Project1Db;Trusted_Connection=True;TrustServerCertificate=True"
+
+dotnet tool run dotnet-ef -- migrations list `
+  --project backend/Project1.Api `
+  --startup-project backend/Project1.Api `
+  --connection "$LocalDb" `
+  -- --environment Development
+
+# 不指定旧目标：更新到当前代码的最新迁移
+dotnet tool run dotnet-ef -- database update `
+  --project backend/Project1.Api `
+  --startup-project backend/Project1.Api `
+  --connection "$LocalDb" `
+  -- --environment Development
+
+dotnet test Project1.slnx -c Release
+~~~
+
+Pending 表示该库尚未应用。更新到最新时，会按顺序执行所有缺少的迁移，不只最后一份。
+本地 SQL Server 专用测试可能因缺少 CI 配置而跳过；还必须确认 GitHub 上真实 SQL Server 测试通过。
+不要把旧的 database update 20261009164508_AddProductExampleAttr 当成日常更新命令：
+对已经较新的数据库，这会回退，可能删除后续列及数据。回退不属于正常发布步骤。
+
+前端检查也在电脑运行，结束后会回到仓库根目录：
+
+~~~powershell
+Push-Location frontend
+try {
+    npm ci
+    if ($LASTEXITCODE -ne 0) { throw 'npm ci 失败。' }
+    npm run lint:check
+    if ($LASTEXITCODE -ne 0) { throw 'lint 失败。' }
+    npm run test:unit -- --run
+    if ($LASTEXITCODE -ne 0) { throw '前端测试失败。' }
+    npm run build
+    if ($LASTEXITCODE -ne 0) { throw '前端构建失败。' }
+} finally {
+    Pop-Location
+}
+~~~
+
+在本地网页测试新字段的保存、编辑、刷新、清空，然后再推送。
+
+### 3. 【GitHub / 电脑】推送、合并并审阅 SQL 包
+
+电脑上检查 git status / git diff，用 IDE 或熟悉的 Git 命令提交并推送本次文件。
+要包括实体／映射、DTO／服务、前端、测试、新迁移、Designer、ModelSnapshot。
+不要提交密码、.bak 或生产配置。
+
+GitHub 上：
+
+1. 创建 PR 到 main，等待前后端两个 CI 检查成功。
+2. 合并后，再等待 main / push CI 成功。
+3. 记录该成功 CI 的完整 40 位 commit SHA、run ID、attempt。
+   run ID 是 URL 中 actions/runs/ 后的数字，不是 #69 之类的界面序号。
+4. 下载并解压对应的 project1-migrations-sql-<SHA>，审阅 migrations.sql。
+   完整脚本包含旧迁移，要核对正式库真正待执行的部分和实际结构。
+   幂等脚本依赖迁移历史，不会自动修复历史和实际结构的差异。
+
+电脑 PowerShell 检查包内来源和文件哈希：
+
+~~~powershell
+& {
+    $ErrorActionPreference = 'Stop'
+    $Package = 'REPLACE_EXTRACTED_SQL_PACKAGE_DIRECTORY'
+    if ($Package -like '*REPLACE_*') { throw '先填写本次解压目录。' }
+
+    Get-Content -LiteralPath (Join-Path $Package 'build-info.txt')
+    Get-Content -LiteralPath (Join-Path $Package 'migration-manifest.json')
+
+    $Lines = @(Get-Content -LiteralPath (Join-Path $Package 'SHA256SUMS'))
+    if ($Lines.Count -ne 3) { throw '校验清单应有三行。' }
+    $Seen = @{}
+    foreach ($Line in $Lines) {
+        if ($Line -notmatch '^([0-9a-f]{64})  (migrations\.sql|build-info\.txt|migration-manifest\.json)$') {
+            throw 'SHA256SUMS 格式异常。'
+        }
+        $Expected = $Matches[1]
+        $Name = $Matches[2]
+        if ($Seen.ContainsKey($Name)) { throw '校验清单文件名重复。' }
+        $Seen[$Name] = $true
+        $Actual = (Get-FileHash -LiteralPath (Join-Path $Package $Name) -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($Actual -ne $Expected) { throw "哈希不一致：$Name" }
+        Write-Output "$Name : OK"
+    }
+}
+~~~
+
+build-info 的仓库、commit、run ID、attempt 必须与选中的成功 main / push CI 相同。
+哈希一致只说明内容一致，不证明 SQL 安全；准备 workflow 会另行验证所选 CI 来源。
+复杂变化还要对目标结构／受保护恢复副本演练新迁移，不能只依赖通用 CI 测试。
+
+### 4. 【Ubuntu SSH】确认正式库起点，再停止 API
+
+先在电脑 PowerShell 登录，保留 SSH 窗口；下载备份时另开电脑 PowerShell：
+
+~~~powershell
+ssh shunbin@192.168.1.158
+~~~
+
+以下开始在 Ubuntu SSH 运行。只读查询，记下起点的迁移数量、最新迁移、产品数量和列结构：
+
+~~~bash
+env -i PATH=/usr/bin:/bin HOME="$HOME" LANG=C.UTF-8 \
+  /opt/mssql-tools18/bin/sqlcmd \
+  -S tcp:127.0.0.1,1433 -U sa -d Project1Db \
+  -C -b -I -x -l 15 -t 30 -W -w 2000 -s "|" \
+  -Q "
+SET NOCOUNT ON;
+SELECT CONVERT(nvarchar(128), SERVERPROPERTY('ServerName')) AS server_name,
+       DB_NAME() AS database_name,
+       CONVERT(nvarchar(60), DATABASEPROPERTYEX(DB_NAME(), 'Status')) AS database_status,
+       (SELECT COUNT(*) FROM dbo.__EFMigrationsHistory) AS applied_migrations,
+       (SELECT MAX(MigrationId) FROM dbo.__EFMigrationsHistory) AS latest_migration,
+       (SELECT COUNT_BIG(*) FROM dbo.Products) AS product_count;
+SELECT name, TYPE_NAME(user_type_id) AS data_type, max_length, is_nullable
+FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Products');
+"
+~~~
+
+需要 homelab-server / Project1Db / ONLINE，且实际结构符合迁移起点。
+没有待执行迁移就不继续停服务／准备；未知历史、缺项、结构不符合时停止。
+
+确认维护时间、唯一操作人，停止其他程序／计划任务写入，再停止 API：
+
+~~~bash
+sudo systemctl stop project1-api.service
+systemctl show project1-api.service \
+  --property=ActiveState --property=SubState --property=MainPID
+~~~
+
+必须 inactive / dead / MainPID=0，不停止 mssql-server。
+只停止 API 不会阻止其他程序或管理员写入。备份后若恢复写入，正式迁移前必须重新停写并刷新备份。
+如果停服务前有人更新过数据，停写后再用上面的只读查询记录起点，避免拿旧数量比较恢复结果。
+
+### 5. 【GitHub】只准备 SQL 和备份
+
+Actions → Project1 manual deployment → Run workflow：
+
+| 输入 | 填写／勾选 |
+| --- | --- |
+| Use workflow from | main |
+| ci_run_id | 第 3 步成功 main / push CI 的 run ID |
+| commit_sha | 同一 CI 的完整小写 SHA |
+| deploy | 不勾选 |
+| check_migrations | 不勾选 |
+| prepare_migrations | 只勾选这一项 |
+
+等 Success，打开 Migration preparation ONLY Summary。
+它上传 SQL、创建 COPY_ONLY／checksum 备份并 VERIFYONLY；**不执行迁移，不启动／停止 API，不部署应用**。
+失败或超时先保留 SSH、检查状态和日志；不要重跑、重新安装或删除记录绕过检查。
+
+### 6. 【Ubuntu SSH】填写本次值，创建备份下载副本
+
+Summary 来自刚刚的准备 workflow，不是单纯合并后的 CI 页面。
+
+example
+Commit: ecd96ab74831e7ad1e577b2efa58ef325296b823
+CI run: 38123390962, attempt: 1
+Prepared at: 2026-10-11T08:21:11.923284+00:00
+SQL: /var/lib/project1-migration-prepare/175629af310349048db5f02e9f571b9d/migrations.sql
+SQL SHA-256: cad95fedccd5e44b3a870a6c3992ec02a6889e5b288a0e7fb903604b3148070c
+Backup: /var/opt/mssql/backup/project1-prepare-175629af310349048db5f02e9f571b9d/Project1Db.bak
+Backup SHA-256: f14ff2dfac471f60581f57268ebcc51eb26501b068fd838233886b307e859184
+Backup bytes: 13523456
+
+Pending migrations:
+
+20261011073715_AddProductStorageLocation
+Backup checksum verification passed; this is NOT an actual restore rehearsal.
+API remains stopped. No uploaded SQL was executed. No application was deployed.
+Administrator: review SQL, retain a protected off-server backup, manually apply and verify,
+then start the compatible API and separately deploy the matching application version.
+If writes resume, refresh the backup before migration. Preparation is not execution approval.
+
+| 变量 | 从哪里填写 |
+| --- | --- |
+| PrepareToken | Summary 的 SQL 路径中，project1-migration-prepare/ 后的 32 位目录名 |
+| SqlSha256 | SQL SHA-256 |
+| BackupSha256 | Backup SHA-256 |
+| BackupBytes | Backup bytes |
+| ExpectedLatest | Pending migrations 中最后一项 |
+| NewColumn | 本次新增的 Products 字段名，不是 Summary 值 |
+
+先替换以下值，再粘到 Ubuntu；这里只设置终端变量和一个检查函数，不执行迁移：
+
+~~~bash
+PrepareToken='REPLACE_32_CHARACTER_TOKEN'
+SqlSha256='REPLACE_SQL_SHA256'
+BackupSha256='REPLACE_BACKUP_SHA256'
+BackupBytes='REPLACE_BACKUP_BYTES'
+ExpectedLatest='REPLACE_LAST_PENDING_MIGRATION'
+NewColumn='REPLACE_NEW_PRODUCTS_COLUMN'
+
+SqlFile="/var/lib/project1-migration-prepare/$PrepareToken/migrations.sql"
+BackupFile="/var/opt/mssql/backup/project1-prepare-$PrepareToken/Project1Db.bak"
+
+# 后面的操作复用此函数，占位符没替换或格式不符就停止
+check_inputs() {
+    if ! [[ "$PrepareToken" =~ ^[0-9a-f]{32}$ &&
+            "$SqlSha256" =~ ^[0-9a-f]{64}$ &&
+            "$BackupSha256" =~ ^[0-9a-f]{64}$ &&
+            "$BackupBytes" =~ ^[1-9][0-9]*$ &&
+            "$ExpectedLatest" =~ ^[0-9]{14}_[A-Za-z][A-Za-z0-9_]*$ &&
+            "$NewColumn" =~ ^[A-Za-z][A-Za-z0-9_]*$ &&
+            "$ExpectedLatest$NewColumn" != *REPLACE_* &&
+            "$SqlFile" = "/var/lib/project1-migration-prepare/$PrepareToken/migrations.sql" &&
+            "$BackupFile" = "/var/opt/mssql/backup/project1-prepare-$PrepareToken/Project1Db.bak" ]]; then
+        printf 'STOP：先正确填写第 6 步的本次值。\n'
+        return 1
+    fi
+}
+~~~
+
+对照 Summary 确认构造出的 SqlFile、BackupFile 完整路径相同。
+变量和函数只在当前 SSH 窗口有效；重新登录后需重设，不能沿用上次值。
+括号中的操作结束后不保留内部新变量，要记录它打印的下载路径／临时库名。
+
+接下来只创建备份副本，原备份不动：
+
+~~~bash
+(
+set -eu
+check_inputs
+[ "$(id -un)" = "shunbin" ] || { printf 'STOP：用户不正确。\n'; exit 1; }
+sudo -v
+
+DownloadDir=$(mktemp -d "$HOME/project1-backup-download.XXXXXXXX")
+chmod 0700 "$DownloadDir"
+Copy="$DownloadDir/Project1Db.bak"
+sudo install -m 0600 -o "$(id -u)" -g "$(id -g)" -- "$BackupFile" "$Copy"
+
+Actual=$(sha256sum -- "$Copy" | cut -d ' ' -f 1)
+if [ "$Actual" != "$BackupSha256" ] ||
+   [ "$(stat -c %s "$Copy")" != "$BackupBytes" ]; then
+    printf 'STOP：备份副本哈希或大小不一致。\n'
+    exit 1
+fi
+printf '下载文件：%s\nSHA256：%s\n' "$Copy" "$Actual"
+)
+~~~
+
+mktemp 创建不重名的目录；0700 只允许目录主人访问；
+install 是复制并设置权限，不是安装软件，0600 只允许文件主人读写。
+sha256sum 检查内容，stat -c %s 查看字节数。记录打印的完整下载文件路径。
+
+### 7. 【电脑 PowerShell】下载备份并校验
+
+在另开的电脑 PowerShell 运行，不是在 Ubuntu 提示符下执行。
+RemoteFile 用第 6 步打印的下载路径；Expected、ExpectedBytes 用 Summary 值。
+下载的是整个数据库的 .bak，不是 SQL 脚本，也不只是 Products 表。
+
+~~~powershell
+& {
+    $ErrorActionPreference = 'Stop'
+    $RemoteFile = 'REPLACE_UBUNTU_DOWNLOAD_FILE_PATH'
+    $Expected = 'REPLACE_BACKUP_SHA256'
+    $ExpectedBytes = 'REPLACE_BACKUP_BYTES'
+    if ($RemoteFile -notmatch '^/home/shunbin/project1-backup-download\.[A-Za-z0-9]{8}/Project1Db\.bak$' -or
+        $Expected -cnotmatch '^[0-9a-f]{64}$' -or
+        $ExpectedBytes -notmatch '^[1-9][0-9]*$') {
+        throw '先正确填写本次下载路径、哈希和大小。'
+    }
+
+    $Root = Join-Path $env:USERPROFILE 'Project1Backups'
+    if (Test-Path -LiteralPath $Root) {
+        $Item = Get-Item -LiteralPath $Root
+        if (!$Item.PSIsContainer -or
+            ($Item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            throw '备份根目录不是普通文件夹。'
+        }
+    } else {
+        New-Item -ItemType Directory -Path $Root | Out-Null
+    }
+    $Folder = Join-Path $Root ('Migration-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $Folder | Out-Null
+
+    # 仅当前用户、SYSTEM 和本机管理员可访问，不继承其他用户权限
+    $Acl = Get-Acl -LiteralPath $Folder
+    $Acl.SetAccessRuleProtection($true, $false)
+    $UserSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    foreach ($SidText in @($UserSid, 'S-1-5-18', 'S-1-5-32-544')) {
+        $Sid = [Security.Principal.SecurityIdentifier]::new($SidText)
+        $Rule = [Security.AccessControl.FileSystemAccessRule]::new(
+            $Sid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'
+        )
+        $Acl.SetAccessRule($Rule)
+    }
+    Set-Acl -LiteralPath $Folder -AclObject $Acl
+
+    $File = Join-Path $Folder 'Project1Db-before-migration.bak'
+    $Remote = 'shunbin@192.168.1.158:{0}' -f $RemoteFile
+    scp -o StrictHostKeyChecking=yes $Remote $File
+    if ($LASTEXITCODE -ne 0) { throw '下载失败，停止。' }
+
+    $Hash = (Get-FileHash -LiteralPath $File -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($Hash -ne $Expected -or
+        (Get-Item -LiteralPath $File).Length -ne [long]$ExpectedBytes) {
+        throw '下载文件哈希或大小不一致。'
+    }
+    Write-Output "电脑备份：$File"
+    Write-Output "SHA256：$Hash"
+    Write-Output '下载校验成功；尚未执行迁移。'
+}
+~~~
+
+scp 用 SSH 复制文件；StrictHostKeyChecking=yes 只接受电脑已信任的服务器。
+主机密钥不被信任或发生变化时，先确认服务器指纹，不要关闭检查绕过。
+成功后保留电脑备份位置，不覆盖旧备份、不把 .bak 提交 Git 或公开上传。
+
+### 8. 【Ubuntu SSH】恢复到临时库并检查
+
+先查看备份内的文件名称：
+
+~~~bash
+(
+set -eu
+check_inputs
+env -i PATH=/usr/bin:/bin HOME="$HOME" LANG=C.UTF-8 \
+  /opt/mssql-tools18/bin/sqlcmd \
+  -S tcp:127.0.0.1,1433 -U sa -d master \
+  -C -b -I -x -l 15 -t 60 -W -w 4000 -s "|" \
+  -Q "RESTORE FILELISTONLY FROM DISK = N'$BackupFile' WITH FILE = 1, CHECKSUM;"
+)
+~~~
+
+本项目预期两个逻辑文件：Project1Db（D，数据）、Project1Db_log（L，日志）。
+数量／逻辑名称不同就先停止，重新安排每个文件的 MOVE，不能直接用下面模板。
+FILELISTONLY 只列文件信息；VERIFYONLY 校验备份，都不等于实际恢复成功。
+
+下面恢复到随机生成的新临时库，**不覆盖 Project1Db**：
+
+~~~bash
+(
+set -eu
+check_inputs
+sudo -v
+[ "$(systemctl show project1-api.service --property=ActiveState --value)" = "inactive" ] &&
+[ "$(systemctl show project1-api.service --property=MainPID --value)" = "0" ] ||
+    { printf 'STOP：API 未完全停止。\n'; exit 1; }
+
+Root=/var/opt/mssql
+[ "$(sudo readlink -e "$Root")" = "$Root" ] ||
+    { printf 'STOP：恢复根目录不符合预期。\n'; exit 1; }
+RestoreDir=$(sudo mktemp -d "$Root/project1-restore-check.XXXXXXXX")
+Token=$(basename "$RestoreDir" | cut -d . -f 2)
+[[ "$Token" =~ ^[A-Za-z0-9]{8}$ ]] ||
+    { printf 'STOP：临时名称不符合预期。\n'; exit 1; }
+RestoreDb="Project1Db_RestoreCheck_$Token"
+sudo chown mssql:mssql "$RestoreDir"
+sudo chmod 0700 "$RestoreDir"
+printf '临时数据库：%s\n临时目录：%s\n' "$RestoreDb" "$RestoreDir"
+
+env -i PATH=/usr/bin:/bin HOME="$HOME" LANG=C.UTF-8 \
+  /opt/mssql-tools18/bin/sqlcmd \
+  -S tcp:127.0.0.1,1433 -U sa -d master \
+  -C -b -I -x -l 15 -t 120 \
+  -Q "
+IF DB_ID(N'$RestoreDb') IS NOT NULL
+BEGIN
+    ;THROW 50000, 'Temporary database already exists. Stop.', 1;
+END;
+RESTORE DATABASE [$RestoreDb]
+FROM DISK = N'$BackupFile'
+WITH FILE = 1,
+  MOVE N'Project1Db' TO N'$RestoreDir/restore-check.mdf',
+  MOVE N'Project1Db_log' TO N'$RestoreDir/restore-check_log.ldf',
+  CHECKSUM, RECOVERY, RESTRICTED_USER, STATS = 10;
+"
+)
+~~~
+
+RESTORE 创建临时库；MOVE 使用新文件位置；不加 REPLACE，不要求覆盖已有库。
+看到 RESTORE DATABASE successfully processed 才继续。
+将打印的真实临时库名填入 RestoreDb，然后在同一个 Ubuntu SSH 窗口检查：
+
+~~~bash
+RestoreDb='REPLACE_PRINTED_RESTORE_DATABASE_NAME'
+
+(
+set -eu
+[[ "$RestoreDb" =~ ^Project1Db_RestoreCheck_[A-Za-z0-9]{8}$ ]] ||
+    { printf 'STOP：先填写正确的临时库名。\n'; exit 1; }
+env -i PATH=/usr/bin:/bin HOME="$HOME" LANG=C.UTF-8 \
+  /opt/mssql-tools18/bin/sqlcmd \
+  -S tcp:127.0.0.1,1433 -U sa -d master \
+  -C -b -I -x -l 15 -t 30 \
+  -Q "ALTER DATABASE [$RestoreDb] SET READ_ONLY WITH NO_WAIT;"
+
+env -i PATH=/usr/bin:/bin HOME="$HOME" LANG=C.UTF-8 \
+  /opt/mssql-tools18/bin/sqlcmd \
+  -S tcp:127.0.0.1,1433 -U sa -d "$RestoreDb" \
+  -C -b -I -x -l 15 -t 120 -W -w 2000 -s "|" \
+  -Q "
+SET NOCOUNT ON;
+DBCC CHECKDB WITH NO_INFOMSGS;
+SELECT DB_NAME() AS database_name,
+       (SELECT COUNT(*) FROM dbo.__EFMigrationsHistory) AS applied_migrations,
+       (SELECT MAX(MigrationId) FROM dbo.__EFMigrationsHistory) AS latest_migration,
+       (SELECT COUNT_BIG(*) FROM dbo.Products) AS product_count;
+"
+)
+~~~
+
+先恢复，再用 -d 连接已存在的临时库检查，不在恢复那批 SQL 中写 USE，避免之前的批次错误。
+这一段会有两次 SQL 密码提示：先从 master 设置临时库 READ_ONLY，再连接临时库 CHECKDB。
+READ_ONLY 防止临时库被写入；NO_WAIT 遇到其他连接占用就报错而不一直等待，不强制中断其他人。
+CHECKDB 检查一致性，不修复业务数据。
+正常时 CHECKDB 通常没有额外输出；恢复库的迁移／产品数量应符合第 4 步的停写起点。
+此步骤只证明恢复能力；复杂的新 SQL 仍需另外演练，不把备份能恢复当成迁移一定安全。
+
+### 9. 【Ubuntu SSH】正式迁移：这一段真的修改 Project1Db
+
+确认 SQL 已审阅、目标／待执行范围正确、备份已下载校验和恢复检查通过、仍保持停写、只有你操作。
+如果备份后恢复写入，先刷新备份。本次没有 pending 就不执行旧 SQL，不改历史来制造 pending。
+绝不能把恢复脚本中的临时库名换成正式库来演练。
+
+~~~bash
+(
+set -eu
+check_inputs
+[ "$(systemctl show project1-api.service --property=ActiveState --value)" = "inactive" ] &&
+[ "$(systemctl show project1-api.service --property=MainPID --value)" = "0" ] ||
+    { printf 'STOP：API 未完全停止。\n'; exit 1; }
+
+[ "$SqlFile" = "/var/lib/project1-migration-prepare/$PrepareToken/migrations.sql" ] ||
+    { printf 'STOP：SQL 路径不符合预期。\n'; exit 1; }
+Actual=$(sudo sha256sum -- "$SqlFile" | cut -d ' ' -f 1)
+[ "$Actual" = "$SqlSha256" ] ||
+    { printf 'STOP：SQL 哈希不一致。\n'; exit 1; }
+
+sudo env -i PATH=/usr/bin:/bin HOME=/root LANG=C.UTF-8 \
+  /opt/mssql-tools18/bin/sqlcmd \
+  -S tcp:127.0.0.1,1433 -U sa -d Project1Db \
+  -C -b -I -x -X1 -f 65001 -l 15 -t 120 \
+  -i "$SqlFile"
+printf 'SQL 命令正常结束；API 保持停止，接下来验证。\n'
+)
+~~~
+
+原文件通过 -i 直接执行，不拼接额外 SQL，不改写或现场生成另一份脚本。
+报错、超时、断连就停：不重跑、不启动 API、不部署、不自动恢复、不删除记录。
+-b 退出不代表整份 SQL 全部回滚，早先提交的部分可能已完成；先检查实际状态再安排修复。
+即使命令正常结束，也要完成下一步验证。
+
+### 10. 【Ubuntu SSH】验证正式结构和原有数据
+
+这是 Products 新增列的模板：比较 Id、Note、CicdPracticeNote 是否与恢复库一致，不打印备注内容。
+不是全部业务数据检查；改其他表／字段时，必须相应改变检查范围。
+
+~~~bash
+(
+set -eu
+check_inputs
+[[ "$RestoreDb" =~ ^Project1Db_RestoreCheck_[A-Za-z0-9]{8}$ ]] ||
+    { printf 'STOP：临时库名不正确。\n'; exit 1; }
+env -i PATH=/usr/bin:/bin HOME="$HOME" LANG=C.UTF-8 \
+  /opt/mssql-tools18/bin/sqlcmd \
+  -S tcp:127.0.0.1,1433 -U sa -d Project1Db \
+  -C -b -I -x -l 15 -t 30 -W -w 2000 -s "|" \
+  -Q "
+SET NOCOUNT ON;
+DECLARE @NotesUnchanged bit = 1;
+IF EXISTS (
+    SELECT Id, Note, CicdPracticeNote FROM dbo.Products
+    EXCEPT
+    SELECT Id, Note, CicdPracticeNote FROM [$RestoreDb].dbo.Products
+) OR EXISTS (
+    SELECT Id, Note, CicdPracticeNote FROM [$RestoreDb].dbo.Products
+    EXCEPT
+    SELECT Id, Note, CicdPracticeNote FROM dbo.Products
+)
+    SET @NotesUnchanged = 0;
+SELECT DB_NAME() AS database_name,
+       (SELECT COUNT(*) FROM dbo.__EFMigrationsHistory) AS applied_migrations,
+       (SELECT MAX(MigrationId) FROM dbo.__EFMigrationsHistory) AS latest_migration,
+       N'$ExpectedLatest' AS expected_latest_migration,
+       (SELECT COUNT_BIG(*) FROM dbo.Products) AS product_count,
+       @NotesUnchanged AS existing_notes_unchanged;
+SELECT name AS column_name, TYPE_NAME(user_type_id) AS data_type, max_length, is_nullable
+FROM sys.columns
+WHERE object_id = OBJECT_ID(N'dbo.Products') AND name = N'$NewColumn';
+"
+)
+~~~
+
+需要 Project1Db、latest_migration 等于 expected_latest_migration；
+迁移数量为起点加本次 pending 数量；产品数量不变，existing_notes_unchanged=1。
+新列类型／长度／可空性必须符合本次迁移；nvarchar(100) 的 max_length 为 200 字节。
+结果不符合就停，不能只凭 SQL 命令成功而忽略验证。
+
+### 11. 【Ubuntu SSH】启动兼容 API
+
+仅适用于本指南的“旧 API 兼容新增可空列”方案：
+
+~~~bash
+sudo systemctl start project1-api.service
+systemctl show project1-api.service \
+  --property=ActiveState --property=SubState --property=MainPID
+~~~
+
+需要 active / running / MainPID 大于 0。进程运行不代表所有业务功能健康；
+如果失败先查日志，不继续部署或重复迁移。
+
+### 12. 【GitHub】部署同一 CI 版本的前后端
+
+再次打开 Project1 manual deployment，使用第 3 步的同一 CI run ID 和完整 SHA，不是任意最新 CI。
+
+| 输入 | 填写／勾选 |
+| --- | --- |
+| Use workflow from | main |
+| ci_run_id / commit_sha | 与准备 SQL 所选 CI 相同 |
+| deploy | 只勾选这一项 |
+| check_migrations | 不勾选 |
+| prepare_migrations | 不勾选 |
+
+这次部署前后端并重启 API，**不会执行迁移**。
+准备步骤灰色 Skipped 正常；应用部署 job 必须 Success。失败先检查该 job 日志。
+代码回滚不等于数据库回滚，不能擅自删列或恢复覆盖正式库。
+
+### 13. 【网页】最终验证并保留记录
+
+Ctrl + F5 刷新产品页面：
+填写／保存 → 刷新 → 再编辑确认值仍在 → 清空／保存 → 刷新为空且不报错。
+同时检查原来的字段和相关业务功能。
+
+保存本次 CI 来源、Summary、电脑／服务器备份位置和哈希、临时库名、执行时间和验证结果。
+备份、SQL、操作记录先保留；清理临时库和备份要另行安排，不在本模板中自动删除。
+
+### 命令和密码提示速查
+
+| 命令／参数 | 简单意思 |
+| --- | --- |
+| migrations add / list / database update | 生成迁移／查看状态／更新指定数据库 |
+| systemctl stop / start / show | 停止／启动／查看 API 服务 |
+| sudo | Ubuntu 管理员权限，可能提示输入 Ubuntu 用户密码 |
+| env -i | 使用干净环境，不继承其他配置；不代表只读 |
+| sqlcmd -S / -U / -d | SQL 服务器地址／登录账号／数据库名 |
+| sqlcmd -Q / -i | 执行命令内 SQL／执行 SQL 文件；是否修改数据取决于 SQL 内容 |
+| sqlcmd -I | 打开 QUOTED_IDENTIFIER，注意大写 I |
+| sqlcmd -C | 信任服务器证书，本 homelab 用法，不等于验证了证书身份 |
+| sqlcmd -b / -l / -t | SQL 报错退出／登录超时秒数／查询超时秒数 |
+| sqlcmd -x / -X1 / -f 65001 | 禁用脚本变量替换／禁用危险客户端命令并报错／UTF-8 输入输出 |
+| sha256sum / Get-FileHash | Linux／PowerShell 的文件内容哈希检查 |
+| scp | 通过 SSH 在电脑与服务器之间复制文件 |
+| ( set -eu; ... ) | 出错或变量未设置时结束该操作块，不自动回滚已完成操作 |
+
+[sudo] password 和 ssh / scp 密码属于 Ubuntu 用户 shunbin；
+sqlcmd 的 Password: 是 SQL Server 的 sa 密码，不要混淆。
+sa 是当前 homelab 演练身份，不交给应用或 GitHub；密码不写入 -P、Git、聊天或文档。
+长期执行权限需另行审核。一次性工具安装／故障恢复不是每次迁移步骤：
+见[准备工具说明](docs/MIGRATION_PREPARATION.md)、[手动迁移检查单](docs/MANUAL_MIGRATIONS.md)。
+
+### 已完成的 StorageLocation 练习记录（仅留档，不是下次输入）
+
+| 项目 | 2026-10-11 本次的值 |
+| --- | --- |
+| Commit SHA | ecd96ab74831e7ad1e577b2efa58ef325296b823 |
+| CI run / attempt | 38123390962 / 1 |
+| 准备完成时间 | 2026-10-11T08:21:11.923284+00:00 |
+| 准备 token | 175629af310349048db5f02e9f571b9d |
+| SQL 文件 | /var/lib/project1-migration-prepare/175629af310349048db5f02e9f571b9d/migrations.sql |
+| SQL SHA-256 | cad95fedccd5e44b3a870a6c3992ec02a6889e5b288a0e7fb903604b3148070c |
+| 服务器备份 | /var/opt/mssql/backup/project1-prepare-175629af310349048db5f02e9f571b9d/Project1Db.bak |
+| Backup SHA-256 | f14ff2dfac471f60581f57268ebcc51eb26501b068fd838233886b307e859184 |
+| Backup bytes | 13523456 |
+| Ubuntu 下载副本 | /home/shunbin/project1-backup-download.lmzNu0dZ/Project1Db.bak |
+| 电脑备份 | C:\Users\shun bin\Project1Backups\StorageLocation-2e45e1c2d5ca4f0d91827f9d1da4dcdb\Project1Db-before-StorageLocation.bak |
+| 临时恢复库 | Project1Db_RestoreCheck_BYJv2fCb |
+| 当时待执行、现已完成的迁移 | 20261011073715_AddProductStorageLocation |
+
+当次已确认：备份下载校验、实际恢复、CHECKDB 成功；正式库由 18 到 19 个迁移；
+StorageLocation 为 nvarchar(100) NULL；产品数量 1、原有备注一致；前后端部署及网页读写／清空成功。
+这是完成记录，不代表下次操作前的实时状态。
+
+参考：[EF 迁移管理与回退](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/managing)、
+[SQL 脚本部署](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying)、
+[sqlcmd 参数](https://learn.microsoft.com/en-us/sql/tools/sqlcmd/sqlcmd-utility?view=sql-server-ver17)、
+[SQL 批次 GO](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/sql-server-utilities-statements-go)。
+
+## 删除 CicdPracticeNote 练习：先更新应用，再删数据库列
+
+只删除 Products.CicdPracticeNote；保留 Note、StorageLocation 和其他产品数据。
+删除列会清除该列中的值。Down 重新创建列不等于恢复值；需要恢复数据时应另行审核恢复方案。
+完整数据库恢复还会覆盖备份之后的新写入，不能随意用旧备份覆盖正式库。
+旧的 AddProductCicdPracticeNote migration 必须保留，不修改已上线的迁移历史。
+
+与新增列不同，这次**先部署不依赖旧列的新前后端，再停止写入、备份和删列**。
+这针对当前允许为空的练习字段；其他字段的约束、索引、外键和外部程序也要检查。
+
+### A. 【电脑 PowerShell，仓库根目录】生成删除 migration
+
+先完成代码移除和测试调整，再运行以下命令。它只生成文件，不执行数据库 SQL。
+
+~~~powershell
+dotnet tool run dotnet-ef -- migrations add RemoveProductCicdPracticeNote `
+  --project backend/Project1.Api `
+  --startup-project backend/Project1.Api `
+  -- --environment Development
+~~~
+
+检查新 migration：Up 应只有 Products.CicdPracticeNote 的 DropColumn；
+Down 应只加回 nvarchar(100) NULL 的同名列，不恢复原来的内容。
+出现其他列删除、表重建或数据操作就先停下来审核。
+快照由这个命令更新，不手动改旧 migration／Designer。
+
+接着运行新增列指南第 2 步的本地测试。新增 migration 之前，SnapshotMatchesCurrentModel
+会失败，这是阻止忘记生成迁移的检查，不能删掉或绕过这个检查再 push。
+如果要在本地 Project1Db 执行 database update，要先备份：这次会真的删除本地该列和它的值。
+仅生成文件、跑无数据库测试不会删除本地 Project1Db；CI 的 SQL 测试只使用一次性数据库。
+
+### B. 【GitHub】CI 通过后，先只部署新应用
+
+Push → PR CI 成功 → merge → main 的 push CI 成功。审核这个版本生成的 SQL 和 manifest。
+记录这次完整 Commit SHA、CI run ID 和 attempt，不使用下面旧 StorageLocation 记录的值。
+
+Project1 manual deployment → Run workflow → 选择 main，填写上述 SHA 和 run ID：
+
+- deploy = true。
+- prepare_migrations = false，check_migrations = false。
+
+这次只更新应用，不执行删除 SQL。数据库仍有 CicdPracticeNote 是正常的。
+确认网页不再显示这个字段，产品读取、新增、编辑、停用／启用、StorageLocation 保存正常。
+确认没有旧 API 实例或其他程序依赖该列后，才进入下一阶段。
+
+### C. 【Ubuntu SSH + GitHub】停止 API，再准备 SQL 和备份
+
+按新增列指南第 4 步停止 API，确认 inactive、MainPID=0；停止其他写入，避免并行操作。
+停止 API 不代表 SQL Server、后台任务或其他客户端自动停止写入。
+在 GitHub 用同一个已验证 CI 版本再次 Run workflow：
+
+- prepare_migrations = true。
+- deploy = false，check_migrations = false。
+
+准备成功后拿本次新 Summary。它只上传 SQL、创建备份，不会删列或部署应用。
+待执行清单应只有新的 RemoveProductCicdPracticeNote；出现其他迁移先审核，不直接执行。
+
+### D. 【Ubuntu SSH】填写本次值，下载备份并做临时恢复
+
+下面取代新增列指南第 6 步的“变量设置及 check_inputs 函数”。
+每次都从本次准备 Summary 填写，不从旧命令复制哈希或备份路径。
+ExpectedLatest 是 Pending migrations 中完整名称，包括新生成的时间戳。
+
+~~~bash
+PrepareToken='REPLACE_32_CHARACTER_TOKEN'
+SqlSha256='REPLACE_SQL_SHA256'
+BackupSha256='REPLACE_BACKUP_SHA256'
+BackupBytes='REPLACE_BACKUP_BYTES'
+ExpectedLatest='REPLACE_FULL_REMOVE_MIGRATION_ID'
+SqlFile="/var/lib/project1-migration-prepare/$PrepareToken/migrations.sql"
+BackupFile="/var/opt/mssql/backup/project1-prepare-$PrepareToken/Project1Db.bak"
+
+check_inputs() {
+    if ! [[ "$PrepareToken" =~ ^[0-9a-f]{32}$ &&
+            "$SqlSha256" =~ ^[0-9a-f]{64}$ &&
+            "$BackupSha256" =~ ^[0-9a-f]{64}$ &&
+            "$BackupBytes" =~ ^[1-9][0-9]*$ &&
+            "$ExpectedLatest" =~ ^[0-9]{14}_RemoveProductCicdPracticeNote$ &&
+            "$SqlFile" = "/var/lib/project1-migration-prepare/$PrepareToken/migrations.sql" &&
+            "$BackupFile" = "/var/opt/mssql/backup/project1-prepare-$PrepareToken/Project1Db.bak" ]]; then
+        printf 'STOP：先正确填写本次删列准备的 Summary 值。\n'
+        return 1
+    fi
+}
+check_inputs
+~~~
+
+保持同一 SSH 会话，复用第 6 步后半段的备份复制、第 7 步电脑下载、第 8 步临时恢复命令。
+RestoreDb 是这次新打印的临时库名，不是正式 Project1Db。
+下载副本要用本次 Backup SHA-256 和 Backup bytes 校验。
+恢复演练应显示迁移前的状态，CicdPracticeNote 仍在；不要给临时库执行删除 SQL。
+API／其他写入必须持续停止；如果写入恢复过，重新停止并准备新备份，更新全部 Summary 值。
+
+### E. 【Ubuntu SSH】手动执行真实删列，再验证
+
+准备、备份、恢复都成功且已明确确认删列后，执行新增列指南第 9 步的原始 SQL 命令。
+它使用本次 SqlFile，并通过 -I 开启 QUOTED_IDENTIFIER；不要现场拼接修改 SQL。
+报错或断连就停止，不盲目重跑、不启动 API、不自动恢复数据库。
+
+**不要运行新增列指南第 10 步**：它查询已删除的 CicdPracticeNote，会报错。
+使用下面的删列验证：比较保留的全部 Products 字段，确认迁移记录、删除结果和保留列结构。
+
+~~~bash
+(
+set -eu
+check_inputs
+[[ "$RestoreDb" =~ ^Project1Db_RestoreCheck_[A-Za-z0-9]{8}$ ]] ||
+    { printf 'STOP：先填写本次临时恢复数据库名称。\n'; exit 1; }
+env -i PATH=/usr/bin:/bin HOME="$HOME" LANG=C.UTF-8 \
+  /opt/mssql-tools18/bin/sqlcmd \
+  -S tcp:127.0.0.1,1433 -U sa -d Project1Db \
+  -C -b -I -x -l 15 -t 30 -W -w 2000 -s "|" \
+  -Q "
+SET NOCOUNT ON;
+IF DB_NAME() <> N'Project1Db'
+    THROW 50000, 'Wrong target database.', 1;
+IF EXISTS (
+    SELECT Id, Code, Name, Description, Note, StorageLocation, ProductCategoryId,
+           UnitOfMeasureId, DefaultUnitPrice, ReorderLevel, IsActive, CreatedAtUtc, UpdatedAtUtc
+    FROM dbo.Products
+    EXCEPT
+    SELECT Id, Code, Name, Description, Note, StorageLocation, ProductCategoryId,
+           UnitOfMeasureId, DefaultUnitPrice, ReorderLevel, IsActive, CreatedAtUtc, UpdatedAtUtc
+    FROM [$RestoreDb].dbo.Products
+) OR EXISTS (
+    SELECT Id, Code, Name, Description, Note, StorageLocation, ProductCategoryId,
+           UnitOfMeasureId, DefaultUnitPrice, ReorderLevel, IsActive, CreatedAtUtc, UpdatedAtUtc
+    FROM [$RestoreDb].dbo.Products
+    EXCEPT
+    SELECT Id, Code, Name, Description, Note, StorageLocation, ProductCategoryId,
+           UnitOfMeasureId, DefaultUnitPrice, ReorderLevel, IsActive, CreatedAtUtc, UpdatedAtUtc
+    FROM dbo.Products
+)
+    THROW 50000, 'Remaining product data differs from backup.', 1;
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Products') AND name = N'CicdPracticeNote')
+    THROW 50000, 'Retired column still exists.', 1;
+IF (SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.Products') AND
+    ((name = N'Note' AND TYPE_NAME(user_type_id) = N'nvarchar' AND max_length = -1 AND is_nullable = 1) OR
+     (name = N'StorageLocation' AND TYPE_NAME(user_type_id) = N'nvarchar' AND max_length = 200 AND is_nullable = 1))) <> 2
+    THROW 50000, 'Remaining column definitions differ.', 1;
+IF (SELECT MAX(MigrationId) FROM dbo.__EFMigrationsHistory) <> N'$ExpectedLatest' OR
+   (SELECT COUNT(*) FROM dbo.__EFMigrationsHistory) <>
+   (SELECT COUNT(*) + 1 FROM [$RestoreDb].dbo.__EFMigrationsHistory)
+    THROW 50000, 'Migration history differs from expected single removal.', 1;
+SELECT DB_NAME() AS database_name,
+       (SELECT COUNT(*) FROM dbo.__EFMigrationsHistory) AS applied_migrations,
+       (SELECT MAX(MigrationId) FROM dbo.__EFMigrationsHistory) AS latest_migration,
+       (SELECT COUNT_BIG(*) FROM dbo.Products) AS product_count,
+       0 AS practice_column_exists, 1 AS remaining_product_data_unchanged;
+"
+)
+~~~
+
+此比较只针对 Products，不是整库所有表的验证。验证失败时 API 保持停止，先排查。
+
+### F. 【Ubuntu SSH + 浏览器】启动已更新的 API，检查页面
+
+验证通过后，用第 11 步启动 API、检查 active/running，再在网页编辑保存／刷新确认。
+新应用已在 B 阶段部署，不需要照新增列流程再部署一次。
+删列之后，**不要回滚到依赖 CicdPracticeNote 的旧应用**；应用回滚不会把数据库列和原值恢复。
+之后再新增其他列时，也要按实际保留字段调整数据比较；旧新增列指南第 10 步仍引用 CicdPracticeNote，不能原样复用。
+保留备份、恢复库、SQL 和 Summary，本指南不自动删除它们。
