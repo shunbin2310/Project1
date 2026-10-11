@@ -347,6 +347,25 @@ class ServerTests(TempCase):
 
 
 class PolicyTests(unittest.TestCase):
+    def test_server_permission_queries_use_null_class_and_installer_rejects_unknown(self):
+        import ast
+        root = Path(__file__).resolve().parents[3]
+        installation = (root / "scripts/deploy/install_migration_prepare.py").read_text(encoding="utf-8")
+        integration = (root / "tests/Project1.Migrations.Tests/MigrationPreparationSqlTests.cs").read_text(encoding="utf-8")
+        expected = "HAS_PERMS_BY_NAME(NULL, NULL, 'CREATE ANY DATABASE')"
+        self.assertEqual(installation.count(expected), 1)
+        self.assertEqual(integration.count(expected), 2)
+        for source in (installation, integration):
+            self.assertNotIn("HAS_PERMS_BY_NAME(NULL, 'SERVER'", source)
+        # Read the actual installer query without running installation or accessing SQL.
+        assignments = [node for node in ast.walk(ast.parse(installation))
+                       if isinstance(node, ast.Assign) and any(
+                           isinstance(target, ast.Name) and target.id == "check" for target in node.targets)]
+        self.assertEqual(len(assignments), 1)
+        query = ast.literal_eval(assignments[0].value)
+        self.assertIn("ISNULL(" + expected + ", -1) <> 0", query)
+        self.assertIn("THROW 51000", query)
+
     def test_workflow_is_manual_exclusive_and_verifies_before_network(self):
         root = Path(__file__).resolve().parents[3]
         workflow = (root / ".github/workflows/deploy-manual.yml").read_text(encoding="utf-8")

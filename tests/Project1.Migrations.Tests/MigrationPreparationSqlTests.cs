@@ -7,6 +7,22 @@ namespace Project1.Migrations.Tests;
 public sealed class MigrationPreparationSqlTests
 {
     [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void PermissionResult_AcceptsOnlyExplicitIntegerResults(int result)
+    {
+        AssertPermissionResult(result, result);
+    }
+
+    [Fact]
+    public void PermissionResult_RejectsNullInvalidAndUnexpectedValues()
+    {
+        foreach (var result in new object?[] { null, DBNull.Value, "0", -1, 2 })
+            Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => AssertPermissionResult(result, 0));
+        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => AssertPermissionResult(1, 0));
+    }
+
+    [Theory]
     [InlineData("Project1Db")]
     [InlineData("Project1CiMigration_0123456789abcdef0123456789abcdef_fresh")]
     public async Task InstallationCertificateSubject_RemainsWithinLinuxLimit_AfterDatabaseReplacement(string databaseName)
@@ -54,8 +70,8 @@ public sealed class MigrationPreparationSqlTests
             }.ConnectionString;
             await using var limited = new SqlConnection(connectionString);
             await limited.OpenAsync();
-            Assert.Equal(0, Convert.ToInt32(await ScalarAsync(limited, "SELECT IS_SRVROLEMEMBER('sysadmin');")));
-            Assert.Equal(0, Convert.ToInt32(await ScalarAsync(limited, "SELECT HAS_PERMS_BY_NAME(NULL, 'SERVER', 'CREATE ANY DATABASE');")));
+            AssertPermissionResult(await ScalarAsync(limited, "SELECT IS_SRVROLEMEMBER('sysadmin');"), 0);
+            AssertPermissionResult(await ScalarAsync(limited, "SELECT HAS_PERMS_BY_NAME(NULL, NULL, 'CREATE ANY DATABASE');"), 0);
             await Assert.ThrowsAsync<SqlException>(() => ExecuteAsync(limited,
                 $"BACKUP DATABASE [{database.Name}] TO DISK=N'/var/opt/mssql/data/unauthorized-{token}.bak';"));
             await Assert.ThrowsAsync<SqlException>(() => ExecuteAsync(limited,
@@ -64,7 +80,7 @@ public sealed class MigrationPreparationSqlTests
                 $"EXEC dbo.[{procedure}] @Token=N'../escape';"));
             Assert.Equal("PROJECT1_PREPARE_BACKUP_V1", await ScalarAsync(limited,
                 $"EXEC dbo.[{procedure}] @Token=N'{token}';"));
-            Assert.Equal(0, Convert.ToInt32(await ScalarAsync(limited, "SELECT HAS_PERMS_BY_NAME(NULL, 'SERVER', 'CREATE ANY DATABASE');")));
+            AssertPermissionResult(await ScalarAsync(limited, "SELECT HAS_PERMS_BY_NAME(NULL, NULL, 'CREATE ANY DATABASE');"), 0);
             Assert.Equal(7, Convert.ToInt32(await ScalarAsync(admin, $"SELECT Id FROM [{database.Name}].dbo.KeepMe;")));
             Assert.Equal(1, Convert.ToInt32(await ScalarAsync(admin, $"""
                 SELECT COUNT(*) FROM msdb.dbo.backupset s
@@ -85,6 +101,14 @@ public sealed class MigrationPreparationSqlTests
                 IF CERT_ID(N'{certificate}') IS NOT NULL DROP CERTIFICATE [{certificate}];
                 """);
         }
+    }
+
+    private static void AssertPermissionResult(object? result, int expected)
+    {
+        // A NULL/DBNull result means unknown, never "permission absent".
+        var permission = Assert.IsType<int>(result);
+        Assert.InRange(permission, 0, 1);
+        Assert.Equal(expected, permission);
     }
 
     private static async Task<string> ReadInstallationTemplateAsync()

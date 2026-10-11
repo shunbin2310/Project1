@@ -96,7 +96,7 @@ def install() -> None:
             raise RuntimeError("SQL installation result could not be confirmed.")
     # Verify that the authenticating login itself has no broad server/database permissions.
     check = """SET NOCOUNT ON;
-IF ISNULL(IS_SRVROLEMEMBER('sysadmin'), -1) <> 0 OR ISNULL(HAS_PERMS_BY_NAME(NULL, 'SERVER', 'CREATE ANY DATABASE'), -1) <> 0
+IF ISNULL(IS_SRVROLEMEMBER('sysadmin'), -1) <> 0 OR ISNULL(HAS_PERMS_BY_NAME(NULL, NULL, 'CREATE ANY DATABASE'), -1) <> 0
    OR ISNULL(HAS_PERMS_BY_NAME(DB_NAME(), 'DATABASE', 'CONTROL'), -1) <> 0
    OR ISNULL(HAS_PERMS_BY_NAME('dbo.project1_prepare_backup', 'OBJECT', 'EXECUTE'), -1) <> 1
     THROW 51000, 'Unexpected backup login permissions.', 1;
