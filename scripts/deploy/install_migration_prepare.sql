@@ -19,7 +19,8 @@ CREATE LOGIN [project1_backup] WITH PASSWORD = N'__BACKUP_PASSWORD__', CHECK_POL
 CREATE USER [project1_backup] FOR LOGIN [project1_backup];
 CREATE CERTIFICATE [Project1PrepareBackupCert]
     ENCRYPTION BY PASSWORD = '__SIGNING_PASSWORD__'
-    WITH SUBJECT = 'Fixed Project1Db backup and VERIFYONLY procedure';
+    -- Keep the subject independent of database names and within Linux's 64-character limit.
+    WITH SUBJECT = 'Fixed backup and VERIFYONLY procedure';
 CREATE LOGIN [Project1PrepareBackupCertLogin] FROM CERTIFICATE [Project1PrepareBackupCert];
 -- This non-authenticating certificate identity supplies VERIFYONLY permission only inside the signed module.
 GRANT CREATE ANY DATABASE TO [Project1PrepareBackupCertLogin];

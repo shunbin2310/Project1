@@ -1,10 +1,21 @@
 using Microsoft.Data.SqlClient;
+using System.Text.RegularExpressions;
 
 namespace Project1.Migrations.Tests;
 
 // Same disposable container/identity guard as existing migration tests. No Ubuntu access.
 public sealed class MigrationPreparationSqlTests
 {
+    [Theory]
+    [InlineData("Project1Db")]
+    [InlineData("Project1CiMigration_0123456789abcdef0123456789abcdef_fresh")]
+    public async Task InstallationCertificateSubject_RemainsWithinLinuxLimit_AfterDatabaseReplacement(string databaseName)
+    {
+        // Offline regression test: exercise the same database replacement without connecting to SQL.
+        var template = await ReadInstallationTemplateAsync();
+        AssertCertificateSubject(template.Replace("Project1Db", databaseName), databaseName);
+    }
+
     [SqlServerCiFact]
     public async Task SignedBackupProcedure_VerifiesRealBackup_WithoutGivingLoginDdlPermissions()
     {
@@ -18,11 +29,7 @@ public sealed class MigrationPreparationSqlTests
         var certificate = "Project1CiBackupCert_" + token;
         var procedure = "Project1CiBackupProc_" + token;
         var password = "P1!" + Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "Project1.slnx")))
-            root = root.Parent;
-        Assert.NotNull(root);
-        var template = await File.ReadAllTextAsync(Path.Combine(root.FullName, "scripts", "deploy", "install_migration_prepare.sql"));
+        var template = await ReadInstallationTemplateAsync();
         // Only this guarded CI fixture substitutes identities/paths. Production accepts no overrides.
         var script = template.Replace("homelab-server", CiSqlServerSettings.ServerName)
             .Replace("Project1Db", database.Name)
@@ -34,6 +41,7 @@ public sealed class MigrationPreparationSqlTests
             .Replace("N'/var/opt/mssql/backup/project1-prepare-' + @Token + N'/" + database.Name + ".bak'",
                      "N'/var/opt/mssql/data/Project1CiPrepare-' + @Token + N'.bak'");
         Assert.DoesNotContain("/var/opt/mssql/backup/project1-prepare-", script);
+        AssertCertificateSubject(script, database.Name);
         try
         {
             await ExecuteAsync(admin, $"CREATE TABLE [{database.Name}].dbo.KeepMe (Id int NOT NULL); INSERT [{database.Name}].dbo.KeepMe VALUES (7);");
@@ -77,6 +85,23 @@ public sealed class MigrationPreparationSqlTests
                 IF CERT_ID(N'{certificate}') IS NOT NULL DROP CERTIFICATE [{certificate}];
                 """);
         }
+    }
+
+    private static async Task<string> ReadInstallationTemplateAsync()
+    {
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "Project1.slnx")))
+            root = root.Parent;
+        Assert.NotNull(root);
+        return await File.ReadAllTextAsync(Path.Combine(root.FullName, "scripts", "deploy", "install_migration_prepare.sql"));
+    }
+
+    private static void AssertCertificateSubject(string script, string databaseName)
+    {
+        var match = Assert.Single(Regex.Matches(script, @"\bWITH\s+SUBJECT\s*=\s*'([^']*)'", RegexOptions.IgnoreCase).Cast<Match>());
+        var subject = match.Groups[1].Value;
+        Assert.InRange(subject.Length, 1, 64);
+        Assert.DoesNotContain(databaseName, subject);
     }
 
     private static async Task ExecuteAsync(SqlConnection connection, string sql)
