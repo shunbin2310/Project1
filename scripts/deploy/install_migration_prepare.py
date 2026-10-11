@@ -43,6 +43,21 @@ def create_private_file(path: Path, body: bytes, mode: int) -> None:
     os.chmod(path, mode)
 
 
+def install_tools(source: Path) -> None:
+    """Install reviewed files only; never execute SQL or operate services."""
+    wrapper_source = source / "project1-migration-prepare"
+    # Both destination basenames are identical; the sudoers SOURCE has a suffix.
+    sudoers_source = source / "project1-migration-prepare.sudoers"
+    command(["/usr/sbin/visudo", "-cf", str(sudoers_source)])
+    MODULES.mkdir(mode=0o755)
+    STATE.mkdir(mode=0o700)
+    for name in MODULE_NAMES:
+        create_private_file(MODULES / name, (source / name).read_bytes(), 0o644)
+    create_private_file(WRAPPER, wrapper_source.read_bytes().replace(b"\r\n", b"\n"), 0o755)
+    create_private_file(SUDOERS, sudoers_source.read_bytes().replace(b"\r\n", b"\n"), 0o440)
+    command(["/usr/sbin/visudo", "-c"])
+
+
 def install() -> None:
     if sys.platform != "linux" or os.geteuid() != 0:
         raise RuntimeError("Ubuntu administrator installation only.")
@@ -110,13 +125,7 @@ SELECT N'PROJECT1_PREPARE_LOGIN_V1';"""
         environment.pop("SQLCMDPASSWORD", None)
     if output != "PROJECT1_PREPARE_LOGIN_V1":
         raise RuntimeError("Backup login permission check failed.")
-    MODULES.mkdir(mode=0o755)
-    STATE.mkdir(mode=0o700)
-    for name in MODULE_NAMES:
-        create_private_file(MODULES / name, (source / name).read_bytes(), 0o644)
-    create_private_file(WRAPPER, (source / WRAPPER.name).read_bytes().replace(b"\r\n", b"\n"), 0o755)
-    create_private_file(SUDOERS, (source / SUDOERS.name).read_bytes().replace(b"\r\n", b"\n"), 0o440)
-    command(["/usr/sbin/visudo", "-c"])
+    install_tools(source)
     print("Installed preparation-only tools. No backup, business migration or service operation occurred.")
 
 
