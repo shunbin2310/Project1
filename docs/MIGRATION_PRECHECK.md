@@ -25,6 +25,9 @@ CI 从同一次构建的 EF 程序集，用 `migrations list --no-connect --json
 
 Actions → **Project1 manual deployment** → Run workflow → Branch: `main`：
 
+以下表格针对 `prepare_migrations` **不勾选**时的原有模式；
+三个服务器选项只能选择一个。新增准备功能见[准备迁移](MIGRATION_PREPARATION.md)。
+
 | deploy | check_migrations | 行为 |
 | --- | --- | --- |
 | 不勾选 | 不勾选 | 原来的包验证模式；不连接服务器 |
@@ -97,7 +100,7 @@ sqlcmd 是 root 管理的固定二进制；root 组可写的已有文件允许�
    sudo -u project1_deploy -- sudo -n /usr/local/sbin/project1-migration-status --sql anything.sql
    ```
 
-7. 以上全部通过后，才在 GitHub 勾选 `check_migrations`，**不勾选 deploy**，选择新的成功 main/push CI。
+7. 以上全部通过后，才在 GitHub 勾选 `check_migrations`，**不勾选 deploy 或 prepare_migrations**，选择新的成功 main/push CI。
 
 本功能没有运行生产迁移的选项。需要变更数据库时，使用[手动迁移检查单](MANUAL_MIGRATIONS.md)，单独确认权限、备份、维护窗口和失败处理。
 

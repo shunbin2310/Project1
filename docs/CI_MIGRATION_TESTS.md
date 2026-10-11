@@ -12,6 +12,9 @@
 1. `Check that model changes have a migration`：比较模型与快照，不连接数据库。
 2. `Test fresh database and existing database migrations on SQL Server`：
    两个 EF 用例验证空库、旧库升级、产品数据保留、Note 保存和重复迁移。
+   新增 `MigrationPreparationSqlTests` 在同一个一次性容器中测试备份签名过程：
+   创建真实 COPY_ONLY/checksum 备份、执行 VERIFYONLY，并确认备份登录本身不能直接备份或改表。
+   仅 CI fixture 替换服务器、数据库、账号和备份路径；生产工具不接受这些覆盖参数。
 3. `Generate reviewable migration SQL (no database access)`：生成幂等 SQL 和同次编译的迁移清单。
 4. `Test deployment and read-only migration tooling without server access`：离线验证部署和只读预检查工具。
 5. `Test generated SQL on disposable SQL Server databases`：
@@ -48,7 +51,7 @@ python -m unittest discover -s scripts/deploy/tests -v
 dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj --configuration Release
 ```
 
-本地执行隔离保护、清单一致性、分段器和 EF 脚本生成检查；六个 SQL 集成用例跳过。
+本地执行隔离保护、清单一致性、分段器和 EF 脚本生成检查；七个 SQL 集成用例跳过。
 不要伪造 GitHub 环境变量在电脑或生产服务器运行 SQL 测试。实际 SQL 结果必须查看新的 GitHub CI。
 业务报告为 `backend.trx`，EF/纯代码检查为 `migrations.trx`，
 生成 SQL 用例为 `migration-sql.trx`，均收入 `backend-test-results-<sha>`。
@@ -66,6 +69,7 @@ dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj --c
 不自动修复漂移，不表示危险变更一定安全。
 生产操作见[手动迁移检查单](MANUAL_MIGRATIONS.md)。
 既有[只读预检查](MIGRATION_PRECHECK.md)和应用部署保留，均不执行生产迁移。
+可选[准备迁移](MIGRATION_PREPARATION.md)上传 SQL 并备份，依旧不执行生产迁移。
 
 参考：[EF Core 正式迁移策略](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying)、
 [SQL Server GO](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/sql-server-utilities-statements-go?view=sql-server-ver17)。
