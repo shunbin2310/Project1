@@ -14,6 +14,9 @@ public sealed class CreateProductRequest
     [StringLength(100)]
     public string? CicdPracticeNote { get; init; }
 
+    [StringLength(100)]
+    public string? StorageLocation { get; init; }
+
     [Range(1, int.MaxValue)]
     public int ProductCategoryId { get; init; }
 

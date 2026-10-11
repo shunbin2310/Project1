@@ -28,6 +28,7 @@ const product: Product = {
   name: 'Practice product',
   description: null,
   cicdPracticeNote: 'Deployment rehearsal',
+  storageLocation: 'Shelf A1',
   productCategoryId: 1,
   productCategoryCode: 'CAT-0001',
   productCategoryName: 'Practice category',
@@ -90,19 +91,31 @@ describe('ProductListView practice note', () => {
     expect(wrapper.text()).toContain('No matching products')
   })
 
-  it('sends the practice note when creating through the real form', async () => {
+  it('displays and searches the storage location', async () => {
+    const wrapper = await render()
+    expect(wrapper.get('thead').text()).toContain('Storage location')
+    expect(wrapper.get('tbody').text()).toContain('Shelf A1')
+    await wrapper.get('input[type="search"]').setValue('SHELF A1')
+    expect(wrapper.get('tbody').text()).toContain('ITEM-0001')
+    await wrapper.get('input[type="search"]').setValue('Shelf Z99')
+    expect(wrapper.text()).toContain('No matching products')
+  })
+
+  it('sends the practice note and storage location when creating through the real form', async () => {
     const wrapper = await render()
     await wrapper.get('.page-heading button').trigger('click')
     await wrapper.get('#product-name').setValue('New practice product')
     await wrapper.get('#product-category').setValue('1')
     await wrapper.get('#product-unit').setValue('1')
     await wrapper.get('#product-cicd-practice-note').setValue('  New deployment note  ')
+    await wrapper.get('#product-storage-location').setValue('  Shelf B2  ')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'New practice product',
         cicdPracticeNote: 'New deployment note',
+        storageLocation: 'Shelf B2',
       }),
     )
   })
@@ -116,11 +129,13 @@ describe('ProductListView practice note', () => {
       product.cicdPracticeNote,
     )
     await wrapper.get('#product-cicd-practice-note').setValue('')
+    expect((wrapper.get('#product-storage-location').element as HTMLInputElement).value).toBe('Shelf A1')
+    await wrapper.get('#product-storage-location').setValue('')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(mocks.update).toHaveBeenCalledWith(
       1,
-      expect.objectContaining({ cicdPracticeNote: null }),
+      expect.objectContaining({ cicdPracticeNote: null, storageLocation: null }),
     )
   })
 
@@ -139,6 +154,7 @@ describe('ProductListView practice note', () => {
       expect.objectContaining({
         isActive: true,
         cicdPracticeNote: 'Deployment rehearsal',
+        storageLocation: 'Shelf A1',
       }),
     )
   })

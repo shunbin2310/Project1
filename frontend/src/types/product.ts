@@ -4,6 +4,7 @@ export interface Product {
   name: string
   description: string | null
   cicdPracticeNote: string | null
+  storageLocation: string | null
   productCategoryId: number
   productCategoryCode: string
   productCategoryName: string
@@ -21,6 +22,7 @@ export interface CreateProductRequest {
   name: string
   description: string | null
   cicdPracticeNote?: string | null
+  storageLocation?: string | null
   productCategoryId: number
   unitOfMeasureId: number
   defaultUnitPrice: number

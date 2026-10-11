@@ -8,6 +8,7 @@ const productResponse = {
   name: 'A4 Paper',
   description: null,
   cicdPracticeNote: 'Deployment practice',
+  storageLocation: 'Shelf A1',
   productCategoryId: 1,
   productCategoryCode: 'CAT-0001',
   productCategoryName: 'Office Supplies',
@@ -55,6 +56,7 @@ describe('productService', () => {
       name: 'A4 Paper',
       description: null,
       cicdPracticeNote: 'Deployment practice',
+      storageLocation: 'Shelf A1',
       productCategoryId: 1,
       unitOfMeasureId: 1,
       defaultUnitPrice: 18.9,
@@ -67,6 +69,7 @@ describe('productService', () => {
       productCategoryId: 1,
       unitOfMeasureId: 1,
       cicdPracticeNote: 'Deployment practice',
+      storageLocation: 'Shelf A1',
     })
   })
 
@@ -83,6 +86,7 @@ describe('productService', () => {
       name: 'A4 Paper',
       description: null,
       cicdPracticeNote: null,
+      storageLocation: null,
       productCategoryId: 1,
       unitOfMeasureId: 1,
       defaultUnitPrice: 18.9,
@@ -94,6 +98,7 @@ describe('productService', () => {
     expect(body).not.toHaveProperty('code')
     expect(body.isActive).toBe(true)
     expect(body.cicdPracticeNote).toBeNull()
+    expect(body.storageLocation).toBeNull()
   })
 
   it('uses related-record error details returned by the API', async () => {

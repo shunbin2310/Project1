@@ -28,11 +28,44 @@ public sealed class MigrationSqlScriptTests
             .UseSqlServer("Server=tcp:127.0.0.1,1;Database=CiPracticeModel;User Id=ci;Password=not-a-real-password;Connect Timeout=1")
             .Options);
         Assert.False(context.Database.HasPendingModelChanges());
-        var latest = context.Database.GetMigrations().Last();
-        Assert.EndsWith("_AddProductCicdPracticeNote", latest);
+        var practiceMigration = context.Database.GetMigrations().Single(
+            id => id.EndsWith("_AddProductCicdPracticeNote", StringComparison.Ordinal));
         var sql = context.GetService<IMigrator>().GenerateScript(
-            MigrationIntegrationTests.AddNote, latest, MigrationsSqlGenerationOptions.Idempotent);
+            MigrationIntegrationTests.AddNote, practiceMigration, MigrationsSqlGenerationOptions.Idempotent);
         Assert.Contains("ADD [CicdPracticeNote] nvarchar(100) NULL", sql);
+        Assert.DoesNotContain("DROP COLUMN", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("UPDATE [Products]", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.NotEmpty(SqlBatchParser.SplitBatches(sql));
+    }
+
+    [Fact]
+    public void StorageLocationMigration_OnlyAddsOptionalBoundedColumnAndSnapshotMatchesModel()
+    {
+        using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlServer("Server=tcp:127.0.0.1,1;Database=CiStorageModel;User Id=ci;Password=not-a-real-password;Connect Timeout=1")
+            .Options);
+        Assert.False(context.Database.HasPendingModelChanges());
+        var latest = context.Database.GetMigrations().Last();
+        Assert.EndsWith("_AddProductStorageLocation", latest);
+        var assembly = context.GetService<IMigrationsAssembly>();
+        var migration = assembly.CreateMigration(assembly.Migrations[latest], context.Database.ProviderName!);
+        var add = Assert.IsType<Microsoft.EntityFrameworkCore.Migrations.Operations.AddColumnOperation>(
+            Assert.Single(migration.UpOperations));
+        Assert.Equal("Products", add.Table);
+        Assert.Equal("StorageLocation", add.Name);
+        Assert.Equal("nvarchar(100)", add.ColumnType);
+        Assert.Equal(100, add.MaxLength);
+        Assert.True(add.IsNullable);
+        Assert.Null(add.DefaultValue);
+        Assert.Null(add.DefaultValueSql);
+        var drop = Assert.IsType<Microsoft.EntityFrameworkCore.Migrations.Operations.DropColumnOperation>(
+            Assert.Single(migration.DownOperations));
+        Assert.Equal("Products", drop.Table);
+        Assert.Equal("StorageLocation", drop.Name);
+
+        var sql = context.GetService<IMigrator>().GenerateScript(
+            MigrationIntegrationTests.AddPracticeNote, latest, MigrationsSqlGenerationOptions.Idempotent);
+        Assert.Contains("ADD [StorageLocation] nvarchar(100) NULL", sql);
         Assert.DoesNotContain("DROP COLUMN", sql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("UPDATE [Products]", sql, StringComparison.OrdinalIgnoreCase);
         Assert.NotEmpty(SqlBatchParser.SplitBatches(sql));
