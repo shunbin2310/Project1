@@ -424,6 +424,7 @@ class WorkflowTests(unittest.TestCase):
     def test_precheck_default_mutual_exclusion_reverification_and_no_upload(self):
         workflow = (SCRIPTS.parents[1] / ".github/workflows/deploy-manual.yml").read_text(encoding="utf-8")
         before, job = workflow.split("  migration-precheck:\n")
+        job = job.split("  migration-prepare:\n", 1)[0]
         self.assertIn("      check_migrations:\n", before)
         self.assertIn("Choose at most one server mode", before)
         self.assertIn("sum(modes) > 1", before)

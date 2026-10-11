@@ -366,6 +366,13 @@ production migration is manual, not part of application CD. See
 [read-only precheck](docs/MIGRATION_PRECHECK.md), and
 [manual migration checklist](docs/MANUAL_MIGRATIONS.md).
 
+可选的“自动准备 + 手动迁移”：先由你手动停止 API，再在
+`Project1 manual deployment` 中只勾选 `prepare_migrations`。
+它会上传指定成功 CI 的 SQL 包，并在 Ubuntu 保存、校验新的数据库备份；
+**不会执行 migration、启动/停止 API 或部署应用**。先完成一次性的服务器工具安装，
+具体步骤见[准备迁移与服务器安装说明](docs/MIGRATION_PREPARATION.md)。
+准备完成后仍需审核 SQL、保存受保护的服务器外备份、手动迁移及验证。
+
 For the nullable product-note exercise, follow the
 [CI and manual migration practice checklist](docs/CICD_PRACTICE.md).
 Apply and verify the reviewed database migration before deploying the new API.

@@ -39,14 +39,14 @@ class ManualMigrationPolicyTests(unittest.TestCase):
                         "ci_host_acceptance", "ACCEPTANCE_RESULT"):
             self.assertNotIn(removed, workflow)
 
-    def test_manual_workflow_only_exposes_validation_app_deploy_and_read_only_precheck(self):
+    def test_manual_workflow_exposes_preparation_but_no_migration_execution(self):
         workflow = (ROOT / ".github/workflows/deploy-manual.yml").read_text(encoding="utf-8")
         inputs = workflow.split("    inputs:\n", 1)[1].split("\npermissions:", 1)[0]
         self.assertEqual(re.findall(r"^      ([a-z_]+):$", inputs, re.M),
-                         ["ci_run_id", "commit_sha", "deploy", "check_migrations"])
-        self.assertEqual(inputs.count("default: false"), 2)
+                         ["ci_run_id", "commit_sha", "deploy", "check_migrations", "prepare_migrations"])
+        self.assertEqual(inputs.count("default: false"), 3)
         self.assertEqual(re.findall(r"^  ([a-z][a-z-]*):$", workflow.split("jobs:\n", 1)[1], re.M),
-                         ["validate", "deploy", "migration-precheck"])
+                         ["validate", "deploy", "migration-precheck", "migration-prepare"])
         for removed in ("execute_migrations", "migration_approval_id",
                         "execute_migration_verified.py", "project1-migration-execute"):
             self.assertNotIn(removed, workflow)
@@ -57,13 +57,15 @@ class ManualMigrationPolicyTests(unittest.TestCase):
         import os
         import textwrap
         from unittest.mock import patch
-        for deploy, precheck in (("false", "false"), ("true", "false"), ("false", "true")):
-            with self.subTest(deploy=deploy, precheck=precheck), patch.dict(
-                    os.environ, {"DEPLOY": deploy, "CHECK_MIGRATIONS": precheck}, clear=True):
-                exec(textwrap.dedent(code), {})
-        with patch.dict(os.environ, {"DEPLOY": "true", "CHECK_MIGRATIONS": "true"}, clear=True):
-            with self.assertRaises(SystemExit):
-                exec(textwrap.dedent(code), {})
+        import itertools
+        for modes in itertools.product(("false", "true"), repeat=3):
+            environment = dict(zip(("DEPLOY", "CHECK_MIGRATIONS", "PREPARE_MIGRATIONS"), modes))
+            with self.subTest(modes=modes), patch.dict(os.environ, environment, clear=True):
+                if modes.count("true") > 1:
+                    with self.assertRaises(SystemExit):
+                        exec(textwrap.dedent(code), {})
+                else:
+                    exec(textwrap.dedent(code), {})
 
     def test_solution_and_test_project_do_not_reference_removed_tools(self):
         solution = (ROOT / "Project1.slnx").read_text(encoding="utf-8")

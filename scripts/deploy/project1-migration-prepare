@@ -1,0 +1,4 @@
+#!/bin/sh
+# Administrator-installed root-managed entry point. No caller import paths/environment.
+set -eu
+exec /usr/bin/python3 -I -c 'import sys; sys.path.insert(0, "/usr/local/libexec/project1-migration-prepare"); from project1_migration_prepare import main; sys.exit(main())' "$@"

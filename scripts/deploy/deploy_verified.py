@@ -80,7 +80,9 @@ def main(arguments=None) -> int:
         if (sys.platform != "linux" or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
                 or os.environ.get("GITHUB_REF") != "refs/heads/main"
                 or os.environ.get("GITHUB_REPOSITORY") != REPOSITORY
-                or os.environ.get("DEPLOY_CONFIRMED") != "true"):
+                or os.environ.get("DEPLOY_CONFIRMED") != "true"
+                or os.environ.get("MIGRATION_PREPARE_CONFIRMED") == "true"
+                or os.environ.get("MIGRATION_PRECHECK_CONFIRMED") == "true"):
             raise VerificationError("Deployment requires an explicitly confirmed manual main workflow in Project1.")
         os.umask(0o077)
         key = os.environ.pop("DEPLOY_SSH_PRIVATE_KEY", "")
