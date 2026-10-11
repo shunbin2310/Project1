@@ -811,6 +811,10 @@ namespace Project1.Api.Migrations
                         .HasPrecision(18, 3)
                         .HasColumnType("decimal(18,3)");
 
+                    b.Property<string>("StorageLocation")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<int>("UnitOfMeasureId")
                         .HasColumnType("int");
 

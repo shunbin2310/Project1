@@ -27,6 +27,7 @@ const form = reactive<ProductFormState>({
   name: '',
   description: null,
   cicdPracticeNote: null,
+  storageLocation: null,
   productCategoryId: 0,
   unitOfMeasureId: 0,
   defaultUnitPrice: 0,
@@ -38,6 +39,7 @@ const errors = reactive({
   name: '',
   description: '',
   cicdPracticeNote: '',
+  storageLocation: '',
   productCategoryId: '',
   unitOfMeasureId: '',
   defaultUnitPrice: '',
@@ -64,6 +66,7 @@ watch(
     form.name = product?.name ?? ''
     form.description = product?.description ?? null
     form.cicdPracticeNote = product?.cicdPracticeNote ?? null
+    form.storageLocation = product?.storageLocation ?? null
     form.productCategoryId = product?.productCategoryId ?? 0
     form.unitOfMeasureId = product?.unitOfMeasureId ?? 0
     form.defaultUnitPrice = product?.defaultUnitPrice ?? 0
@@ -78,6 +81,7 @@ function clearErrors() {
   errors.name = ''
   errors.description = ''
   errors.cicdPracticeNote = ''
+  errors.storageLocation = ''
   errors.productCategoryId = ''
   errors.unitOfMeasureId = ''
   errors.defaultUnitPrice = ''
@@ -100,6 +104,10 @@ function validate() {
 
   if ((form.cicdPracticeNote?.length ?? 0) > 100) {
     errors.cicdPracticeNote = 'CI/CD practice note cannot exceed 100 characters.'
+  }
+
+  if ((form.storageLocation?.length ?? 0) > 100) {
+    errors.storageLocation = 'Storage location cannot exceed 100 characters.'
   }
 
   if (form.productCategoryId < 1) {
@@ -128,6 +136,7 @@ function submit() {
     name: form.name.trim(),
     description: form.description?.trim() || null,
     cicdPracticeNote: form.cicdPracticeNote?.trim() || null,
+    storageLocation: form.storageLocation?.trim() || null,
     productCategoryId: form.productCategoryId,
     unitOfMeasureId: form.unitOfMeasureId,
     defaultUnitPrice: form.defaultUnitPrice,
@@ -298,6 +307,22 @@ function submit() {
             class="field-error"
           >
             {{ errors.cicdPracticeNote }}
+          </p>
+        </div>
+
+        <div class="form-field form-grid-full">
+          <label for="product-storage-location">Storage location</label>
+          <input
+            id="product-storage-location"
+            v-model="form.storageLocation"
+            maxlength="100"
+            autocomplete="off"
+            placeholder="e.g. Shelf A1 (optional)"
+            :aria-invalid="Boolean(errors.storageLocation)"
+            :aria-describedby="errors.storageLocation ? 'product-storage-location-error' : undefined"
+          />
+          <p v-if="errors.storageLocation" id="product-storage-location-error" class="field-error">
+            {{ errors.storageLocation }}
           </p>
         </div>
 

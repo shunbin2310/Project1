@@ -202,6 +202,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(product => product.CicdPracticeNote)
                 .HasMaxLength(100);
 
+            entity.Property(product => product.StorageLocation)
+                .HasMaxLength(100);
+
             entity.Property(product => product.DefaultUnitPrice)
                 .HasPrecision(18, 2);
 

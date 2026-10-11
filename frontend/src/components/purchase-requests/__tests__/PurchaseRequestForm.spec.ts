@@ -11,6 +11,7 @@ const product = {
   name: 'Monitor',
   description: null,
   cicdPracticeNote: null,
+  storageLocation: null,
   productCategoryId: 1,
   productCategoryCode: 'CAT-0001',
   productCategoryName: 'Electronics',

@@ -47,6 +47,7 @@ describe('ProductForm', () => {
           name: 'A4 Paper',
           description: null,
           cicdPracticeNote: 'First deployment exercise',
+          storageLocation: 'Shelf A1',
           productCategoryId: 1,
           productCategoryCode: 'CAT-0001',
           productCategoryName: 'Office Supplies',
@@ -73,6 +74,8 @@ describe('ProductForm', () => {
       'First deployment exercise',
     )
     expect(wrapper.get('#product-cicd-practice-note').attributes('maxlength')).toBe('100')
+    expect((wrapper.get('#product-storage-location').element as HTMLInputElement).value).toBe('Shelf A1')
+    expect(wrapper.get('#product-storage-location').attributes('maxlength')).toBe('100')
   })
 
   it.each([
@@ -116,6 +119,37 @@ describe('ProductForm', () => {
     expect(wrapper.emitted('save')).toBeUndefined()
     expect(wrapper.get('#product-cicd-practice-note-error').text()).toContain('100 characters')
     expect(wrapper.get('#product-cicd-practice-note').attributes('aria-invalid')).toBe('true')
+  })
+
+  it.each([
+    ['  Shelf A1  ', 'Shelf A1'],
+    ['', null],
+    ['   ', null],
+    ['x'.repeat(100), 'x'.repeat(100)],
+  ])('saves normalized optional storage location %j', async (input, expected) => {
+    const wrapper = mount(ProductForm, {
+      props: { product: null, categories: [category], units: [unit], saving: false, errorMessage: '' },
+    })
+    await wrapper.get('#product-name').setValue('Storage product')
+    await wrapper.get('#product-category').setValue('1')
+    await wrapper.get('#product-unit').setValue('1')
+    await wrapper.get('#product-storage-location').setValue(input)
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({ storageLocation: expected })
+  })
+
+  it('rejects a storage location longer than 100 characters', async () => {
+    const wrapper = mount(ProductForm, {
+      props: { product: null, categories: [category], units: [unit], saving: false, errorMessage: '' },
+    })
+    await wrapper.get('#product-name').setValue('Storage product')
+    await wrapper.get('#product-category').setValue('1')
+    await wrapper.get('#product-unit').setValue('1')
+    await wrapper.get('#product-storage-location').setValue('x'.repeat(101))
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('save')).toBeUndefined()
+    expect(wrapper.get('#product-storage-location-error').text()).toContain('100 characters')
+    expect(wrapper.get('#product-storage-location').attributes('aria-invalid')).toBe('true')
   })
 
   it('only offers active related records when creating', () => {

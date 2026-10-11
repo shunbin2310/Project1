@@ -40,6 +40,7 @@ const visibleProducts = computed(() => {
       product.name,
       product.description ?? '',
       product.cicdPracticeNote ?? '',
+      product.storageLocation ?? '',
       product.productCategoryCode,
       product.productCategoryName,
       product.unitOfMeasureCode,
@@ -102,6 +103,7 @@ async function saveProduct(values: ProductFormValues) {
         name: values.name,
         description: values.description,
         cicdPracticeNote: values.cicdPracticeNote,
+        storageLocation: values.storageLocation,
         productCategoryId: values.productCategoryId,
         unitOfMeasureId: values.unitOfMeasureId,
         defaultUnitPrice: values.defaultUnitPrice,
@@ -145,6 +147,7 @@ async function reactivateProduct(product: Product) {
       name: product.name,
       description: product.description,
       cicdPracticeNote: product.cicdPracticeNote,
+      storageLocation: product.storageLocation,
       productCategoryId: product.productCategoryId,
       unitOfMeasureId: product.unitOfMeasureId,
       defaultUnitPrice: product.defaultUnitPrice,
@@ -280,6 +283,7 @@ function formatQuantity(value: number) {
               <th>Default unit price</th>
               <th>Reorder level</th>
               <th>CI/CD practice note</th>
+              <th>Storage location</th>
               <th>Status</th>
               <th><span class="sr-only">Actions</span></th>
             </tr>
@@ -310,6 +314,7 @@ function formatQuantity(value: number) {
               <td>{{ formatCurrency(product.defaultUnitPrice) }}</td>
               <td>{{ formatQuantity(product.reorderLevel) }} {{ product.unitOfMeasureCode }}</td>
               <td>{{ product.cicdPracticeNote || '—' }}</td>
+              <td>{{ product.storageLocation || '—' }}</td>
               <td>
                 <span class="status-badge" :class="product.isActive ? 'is-active' : 'is-inactive'">
                   <span aria-hidden="true"></span>

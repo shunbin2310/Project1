@@ -9,6 +9,7 @@ public sealed class MigrationIntegrationTests
 {
     internal const string BeforeNote = "20260930150622_AddEmailAttachments";
     internal const string AddNote = "20261009164508_AddProductExampleAttr";
+    internal const string AddPracticeNote = "20261010171840_AddProductCicdPracticeNote";
     internal static readonly DateTimeOffset FixtureCreatedAt = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     [SqlServerCiFact]
@@ -22,6 +23,7 @@ public sealed class MigrationIntegrationTests
         await AssertAllMigrationsAppliedAsync(context);
         await AssertNoteColumnAsync(database);
         await AssertPracticeNoteColumnAsync(database);
+        await AssertStorageLocationColumnAsync(database);
         Assert.Empty(await context.Products.AsNoTracking().ToListAsync());
     }
 
@@ -43,6 +45,7 @@ public sealed class MigrationIntegrationTests
         await AssertAllMigrationsAppliedAsync(context);
         await AssertNoteColumnAsync(database);
         await AssertPracticeNoteColumnAsync(database);
+        await AssertStorageLocationColumnAsync(database);
         Assert.Equal(1, await context.Products.CountAsync());
         var product = await context.Products.SingleAsync();
         Assert.Equal(productId, product.Id);
@@ -102,6 +105,20 @@ public sealed class MigrationIntegrationTests
             SELECT COUNT(*) FROM sys.columns AS c
             JOIN sys.types AS t ON c.user_type_id = t.user_type_id
             WHERE c.object_id = OBJECT_ID(N'dbo.Products') AND c.name = N'CicdPracticeNote'
+              AND t.name = N'nvarchar' AND c.max_length = 200 AND c.is_nullable = 1;
+            """;
+        Assert.Equal(1, Convert.ToInt32(await command.ExecuteScalarAsync()));
+    }
+
+    internal static async Task AssertStorageLocationColumnAsync(CiDatabase database)
+    {
+        await using var connection = database.CreateConnection();
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT COUNT(*) FROM sys.columns AS c
+            JOIN sys.types AS t ON c.user_type_id = t.user_type_id
+            WHERE c.object_id = OBJECT_ID(N'dbo.Products') AND c.name = N'StorageLocation'
               AND t.name = N'nvarchar' AND c.max_length = 200 AND c.is_nullable = 1;
             """;
         Assert.Equal(1, Convert.ToInt32(await command.ExecuteScalarAsync()));

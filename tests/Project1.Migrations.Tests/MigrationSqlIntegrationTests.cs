@@ -20,6 +20,7 @@ public sealed class MigrationSqlIntegrationTests
         await AssertAllMigrationsAppliedAsync(context);
         await AssertNoteColumnAsync(database);
         await AssertPracticeNoteColumnAsync(database);
+        await AssertStorageLocationColumnAsync(database);
         Assert.Empty(await context.Products.AsNoTracking().ToListAsync());
     }
 
@@ -39,6 +40,7 @@ public sealed class MigrationSqlIntegrationTests
         await AssertAllMigrationsAppliedAsync(context);
         await AssertNoteColumnAsync(database);
         await AssertPracticeNoteColumnAsync(database);
+        await AssertStorageLocationColumnAsync(database);
         await AssertProductAsync(context, productId, null);
         Assert.Null((await context.Products.AsNoTracking().SingleAsync()).CicdPracticeNote);
         var product = await context.Products.SingleAsync();
@@ -69,6 +71,7 @@ public sealed class MigrationSqlIntegrationTests
         await AssertAllMigrationsAppliedAsync(context);
         await AssertNoteColumnAsync(database);
         await AssertPracticeNoteColumnAsync(database);
+        await AssertStorageLocationColumnAsync(database);
         await AssertProductAsync(context, productId, product.Note);
     }
 
@@ -94,6 +97,7 @@ public sealed class MigrationSqlIntegrationTests
         await AssertAllMigrationsAppliedAsync(context);
         await AssertNoteColumnAsync(database);
         await AssertPracticeNoteColumnAsync(database);
+        await AssertStorageLocationColumnAsync(database);
         await AssertProductAsync(context, productId, "Existing business note");
         var product = await context.Products.SingleAsync();
         Assert.Null(product.CicdPracticeNote);
@@ -108,6 +112,47 @@ public sealed class MigrationSqlIntegrationTests
         await AssertAllMigrationsAppliedAsync(context);
         await AssertProductAsync(context, productId, "Existing business note");
         Assert.Equal(new string('x', 100), (await context.Products.AsNoTracking().SingleAsync()).CicdPracticeNote);
+    }
+
+    [SqlServerCiFact]
+    public async Task GeneratedSql_StorageLocationUpgradePreservesExistingNotesAndSupportsReplay()
+    {
+        var batches = MigrationSqlScript.ReadFromCiWorkspace();
+        await using var database = await CiDatabase.CreateAsync("storage");
+        await using var context = database.CreateContext();
+        await context.GetService<IMigrator>().MigrateAsync(AddPracticeNote);
+        var productId = await InsertPreMigrationProductAsync(database);
+        // Raw SQL arranges the current production schema, which lacks StorageLocation.
+        await using (var connection = database.CreateConnection())
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE dbo.Products SET Note = N'Keep business note', CicdPracticeNote = N'Keep practice note';";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await database.ExecuteScriptAsync(batches);
+        await AssertAllMigrationsAppliedAsync(context);
+        await AssertStorageLocationColumnAsync(database);
+        await AssertProductAsync(context, productId, "Keep business note");
+        var product = await context.Products.SingleAsync();
+        Assert.Null(product.StorageLocation);
+        Assert.Equal("Keep practice note", product.CicdPracticeNote);
+        var location = new string('位', 100);
+        product.StorageLocation = location;
+        await context.SaveChangesAsync();
+
+        await database.ExecuteScriptAsync(batches);
+        context.ChangeTracker.Clear();
+        await AssertAllMigrationsAppliedAsync(context);
+        await AssertProductAsync(context, productId, "Keep business note");
+        product = await context.Products.SingleAsync();
+        Assert.Equal(location, product.StorageLocation);
+        Assert.Equal("Keep practice note", product.CicdPracticeNote);
+        product.StorageLocation = null;
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        Assert.Null((await context.Products.SingleAsync()).StorageLocation);
     }
 
     private static async Task AssertProductAsync(AppDbContext context, int productId, string? note)
