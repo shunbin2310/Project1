@@ -118,7 +118,7 @@ public sealed class MigrationSqlIntegrationTests
     public async Task GeneratedSql_StorageLocationUpgradePreservesExistingNotesAndSupportsReplay()
     {
         var batches = MigrationSqlScript.ReadFromCiWorkspace();
-        await using var database = await CiDatabase.CreateAsync("storage");
+        await using var database = await CiDatabase.CreateAsync("upgrade");
         await using var context = database.CreateContext();
         await context.GetService<IMigrator>().MigrateAsync(AddPracticeNote);
         var productId = await InsertPreMigrationProductAsync(database);
