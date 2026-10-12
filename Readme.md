@@ -451,17 +451,21 @@ For implementation details, see [Architecture](docs/ARCHITECTURE.md).
 
 ### Learning and deployment roadmap
 
-Follow these phases in order. The manual LAN deployment has been tested; the current
-focus is Phase 3's first step: CI tests and build artifacts, without automatic
-deployment. Docker begins in Phase 4, after the manual deployment and its automated
-deployment pipeline are working. Public access and HTTPS remain separate work.
+Follow these phases in order. Phase 3 has been exercised: CI tests/build artifacts,
+manually triggered Ubuntu application deployment, and separately executed manual
+database migrations (including adding and removing a practice column). Migration
+preparation uploads SQL and creates a backup; it never executes uploaded SQL.
+Phase 4's basic local Docker stack has been exercised. PDF and email business
+verification remain pending. Next, prepare for Phase 5's manual Ubuntu Docker
+practice; public access and HTTPS remain separate work, and the existing Ubuntu
+deployment stays unchanged.
 
 | Phase | Learning goal | Status | Completion target |
 | --- | --- | --- | --- |
 | 1 | Develop Vue + .NET on the development PC | Completed for the current feature set | Run and test the full purchasing and inventory process locally. |
 | 2 | Manually deploy to Ubuntu Server | LAN deployment tested; public HTTPS not configured | Run the frontend, API, and database on Ubuntu and access the application through a link. |
-| 3 | Automate deployment with CI/CD, without Docker | CI workflow added; GitHub verification and CD pending | Use GitHub Actions to test, build, and later deploy the application to Ubuntu. |
-| 4 | Learn Docker and containerize locally | Pending | Run the Vue frontend, .NET API, and SQL Server together on the development PC using Docker Compose. |
+| 3 | Automate deployment with CI/CD, without Docker | CI and manual-triggered CD exercised; database migrations remain manual | Use GitHub Actions to test, build, and explicitly deploy the application to Ubuntu. |
+| 4 | Learn Docker and containerize locally | Basic Vue + API + isolated SQL Server stack exercised; PDF and email verification pending | Run Vue + API + SQL Server locally; separately verify PDF and email. |
 | 5 | Manually deploy Docker to Ubuntu Server | Pending | Deploy and verify the containerized application on Ubuntu. |
 | 6 | Automate Docker build and deployment with CI/CD | Pending | Test the application, build container images, and deploy them to Ubuntu through GitHub Actions. |
 | 7 | Start learning Local LLM / Qwen | Pending | Run a model locally, understand its hardware needs, and evaluate a useful project integration. |
@@ -480,24 +484,34 @@ Review production SMTP settings and credentials before the Ubuntu deployment.
 
 #### Phase 3: CI/CD without Docker
 
-- First step implemented: GitHub-hosted backend restore, build, tests, and Linux publish.
-- First step implemented: locked npm installation, non-mutating lint, frontend unit
+- Implemented and exercised: GitHub-hosted backend restore, build, tests, and Linux publish.
+- Implemented and exercised: locked npm installation, non-mutating lint, frontend unit
   tests, type-checking, production build, and downloadable artifacts.
-- Next: verify the PR, `main` push, and manual CI triggers on GitHub.
-- Later, with separate approval: design secure access to the private Ubuntu server,
-  deployment credentials, artifact transfer, and service updates.
-- Later: verify deployment health, backups, and rollback. No Docker is used in this phase.
+- Exercised: manually triggered deployment of verified CI packages to private Ubuntu.
+- Exercised: prepare-only SQL upload and database backup while the administrator
+  keeps the API stopped; uploaded SQL is never executed by this preparation job.
+- Exercised: manual add-column/remove-column migrations, off-server backups, and
+  temporary backup restore checks. Application deployment and SQL execution remain
+  separate actions. No Docker is used in this phase.
+- Full application rollback and ongoing backup drills remain separate practice tasks.
 
 #### Phase 4: Local Docker learning
 
-- Create API and Vue Dockerfiles.
-- Add SQL Server and Docker Compose for the local container environment.
-- Configure environment variables, persistent database storage, health checks, and PDF fonts.
-- Verify the same business process in the local container environment.
+- Docker Desktop installation and the `hello-world` test have passed.
+- First stage: API Dockerfile and an isolated SQL Server with Docker Compose.
+- Configure local secrets, persistent database storage, health checks, and PDF fonts.
+- Manually apply existing migrations to the empty practice database before starting API.
+- Exercised with PC-hosted Vue: login, product operations, and database restart persistence.
+- Vue now has a Node build stage and an Nginx runtime container with same-origin API proxying.
+- Exercised with container-hosted Vue at `localhost:8081`: login, existing product
+  display, and Products page refresh. Further business-flow testing remains pending.
+- PDF business verification and a local email capture service remain separate tasks.
 
 #### Phase 5: Manual Docker deployment
 
 - Prepare Docker on Ubuntu and configure the server environment.
+- Start with read-only checks of Docker, memory, disk, and ports. Plan an isolated
+  practice deployment before changing any existing API service or `Project1Db`.
 - Manually deploy the container images and Compose configuration.
 - Verify HTTPS, persistent data, SMTP/PDF delivery, restart behavior, and backups.
 - Document manual updates and rollback.
@@ -523,6 +537,272 @@ client id = ThC5Q4Azzz11CNTRL-kUCh513QKk11CNTRL
 audience (aud claim) = api.tailscale.com/ThC5Q4Azzz11CNTRL-kUCh513QKk11CNTRL
 
 
+
+## 本地 Docker 练习：Vue + API + 独立 SQL Server
+
+**这里所有命令都在电脑 PowerShell 的仓库根目录执行，不是在 Ubuntu SSH。**
+这是一套新的练习环境，不连接 Windows 原有的 `Project1Db`，也不连接 Ubuntu。
+现在可以使用 Vue 容器：Node 只负责编译，Nginx 负责运行时提供网页和转发 API 请求。
+已经完成 API／数据库练习的用户，直接从步骤 6 开始；不要重新生成密码或重复迁移。
+
+### 当前验证记录（2026-10-12）
+
+- API 和迁移工具镜像构建成功；练习库已手动应用现有 migrations。
+- 使用电脑 Vite 前端验证了登录、分类／单位／产品创建和产品修改。
+- 停止并重建 API／SQL Server 容器后，测试产品及 `Docker-Shelf-B2` 仍保留。
+- Vue 镜像构建和类型检查通过，223 个前端单元测试通过。
+- 临时模拟 API 检查通过：Nginx 页面刷新、API 路径／参数／请求体／令牌转发、
+  API 错误状态保留、PDF 响应转发。临时测试不连接练习库或正式库。
+- 用户已在 `http://localhost:8081/products` 验证登录、原产品显示及页面刷新。
+- 尚未验证：真实 PDF 业务生成和邮件流程；模拟 PDF 转发不代表 PDF 业务已通过。
+- 这些记录仅适用于本机练习，不代表已部署 Docker 到 Ubuntu 或完成公网 HTTPS。
+
+### 先记住几个名称
+
+| 名称 | 简单解释 | 本项目用途 |
+| --- | --- | --- |
+| image（镜像） | 运行模板 | Vue 网页和 Nginx；API 编译结果和运行环境；SQL Server 程序 |
+| container（容器） | 根据模板启动的实例 | 分别运行前端、API、SQL Server |
+| Dockerfile | 制作镜像的步骤 | 还原依赖、编译 API、安装 PDF 字体 |
+| Compose | 描述几个容器怎么一起使用 | API、SQL Server、网络和存储配置 |
+| volume（卷） | 独立保存数据的存储 | 重建 SQL Server 容器后保留练习数据；不是备份 |
+
+| 从哪里连接 | 地址／名称 |
+| --- | --- |
+| 电脑浏览器访问 Vue 容器 | `http://localhost:8081` |
+| 电脑访问练习 API | `http://localhost:5166` |
+| Nginx 容器转发 API 请求 | `http://api:8080`（保留 `/api/...` 路径） |
+| 电脑使用 SSMS 连接练习 SQL Server（SQL 登录） | `localhost,14334` |
+| API 容器连接数据库 | `sqlserver,1433` |
+| 练习数据库 | `Project1DockerPracticeDb` |
+| Compose 项目 | `project1-docker-practice` |
+
+容器里的 `localhost` 是容器自己，不是你的电脑。API 使用 Compose 的服务名
+`sqlserver` 连接数据库。三个电脑端口都只绑定 `127.0.0.1`，不对局域网开放。
+练习 SQL Server 使用 Developer 版本，只用于开发／测试，不用于正式生产。
+当前镜像是 Linux x64，适用于已验证的 `linux/amd64` Docker 引擎。
+
+### 1. 打开 Docker Desktop，准备私有配置
+
+先等 Docker Desktop 显示 `Engine running`。在仓库根目录，只复制一次：
+
+```powershell
+if (Test-Path -LiteralPath '.env.docker.local') {
+    throw '本地配置已经存在，不覆盖。请检查现有文件。'
+}
+Copy-Item -LiteralPath '.env.docker.example' -Destination '.env.docker.local'
+```
+
+在 IDE 打开 `.env.docker.local`，填写三个空值：
+
+- `SQL_PASSWORD`：新的练习 SQL 密码，至少 16 字符，包含大小写、数字和符号。
+  本例连接字符串建议只用英文字母、数字、`! @ # _ -`，不要用空格、分号、引号或 `$`。
+- `DEMO_PASSWORD`：新的练习账号密码，至少 16 字符，包含大小写、数字和符号。
+- `JWT_SIGNING_KEY`：随机签名密钥，至少 64 字符；例如在本地生成两段随机 GUID 拼接。
+
+这些值只放在电脑上。不要复用正式密码，不要提交或截图这个文件。
+`.gitignore` 和 `.dockerignore` 已排除它；容器管理员仍可以读取环境变量，所以这是
+**本地练习配置，不是生产环境的秘密管理方案**。不要粘贴 `docker inspect` 或没有
+`--quiet` 的 Compose 配置输出，它们可能显示密码。
+
+保存后检查配置。`config --quiet` 只检查格式，不启动容器，也不显示密码：
+
+```powershell
+docker compose --env-file .env.docker.local -f compose.local.yml config --quiet
+```
+
+每次使用下面的命令，都要保留 `--env-file .env.docker.local -f compose.local.yml`。
+Compose 可以读取当前 PowerShell 的同名环境变量；不要提前设置 `SQL_PASSWORD`、
+`DEMO_PASSWORD` 或 `JWT_SIGNING_KEY` 为其他环境的值。
+
+### 2. 只启动新的 SQL Server
+
+```powershell
+docker compose --env-file .env.docker.local -f compose.local.yml up -d --wait sqlserver
+```
+
+首次需要下载微软 SQL Server 镜像，并初始化新的 volume，可能需要几分钟。
+`up` 是创建／启动，`-d` 是后台运行，`--wait` 是等数据库健康检查通过。
+这个命令不会启动 API，也不会运行 migrations。
+如果端口 `14334` 被占用，停止这一步排查；不要停止原来的 SQL Server。
+
+### 3. 构建 API 和手动迁移工具镜像
+
+```powershell
+docker compose --env-file .env.docker.local -f compose.local.yml --profile tools build api migrate
+```
+
+`build` 只制作镜像，不启动 API、不执行迁移。API 镜像使用多阶段构建：
+SDK 负责编译，最后的运行镜像只保留运行库、编译结果、字体和健康检查工具。
+API 以非 root 用户运行。迁移工具是独立的 SDK 镜像，复用仓库锁定的 EF CLI 版本。
+构建上下文只包含 API 源码和 `dotnet-tools.json`，不包含备份、前端、README 或部署工具。
+本地 `appsettings.Development.json` 不打包，练习账号和连接由运行时环境变量提供。
+
+### 4. 手动把 migrations 应用到空的练习库
+
+```powershell
+docker compose --env-file .env.docker.local -f compose.local.yml --profile tools run --rm migrate
+```
+
+**这一步会修改数据库，但只修改 Compose 内的 `Project1DockerPracticeDb`。**
+它执行现有的 `dotnet ef database update`，创建数据库和表，不生成新的 migration，
+不读取 Windows 登录凭据，也不导入任何旧数据库的数据。
+`--profile tools` 开启手动工具，`run --rm` 运行一次后删除工具容器。
+必须看到命令成功结束（例如 `Done.`）才继续。失败时不要直接启动 API。
+API 启动只初始化角色、演示账号和模板；它不会自动升级表结构。
+
+### 5. 启动 API 并查看状态
+
+```powershell
+docker compose --env-file .env.docker.local -f compose.local.yml up -d --wait api
+docker compose --env-file .env.docker.local -f compose.local.yml ps
+```
+
+API 启动时读取练习数据库，创建缺失的演示账号和模板。`ps` 显示容器状态。
+浏览器打开 `http://localhost:5166/openapi/v1.json`，应能看到 JSON。
+这个 Development 接口用于 HTTP 健康检查，不代表每个业务操作都已测试。
+第一阶段使用仅限本机的 HTTP，不设置容器 HTTPS；这不是公网部署配置。
+API 日志中的找不到 HTTPS 端口警告不等于数据库失败；不要为此修改正式环境配置。
+如果端口 `5166` 被占用，先排查，不要停止其他项目服务。
+
+### 6. 构建并启动 Vue 容器（已有练习库从这里开始）
+
+**只添加前端，不删除旧容器／volume，不修改表结构，不生成新 migration。**
+保留现有 `.env.docker.local` 和数据库数据；不用再复制模板或换密码。
+如果电脑上的 `npm run dev` 还在运行，可以在它的终端按 `Ctrl+C` 正常结束。
+新前端使用 `8081`，不会占用原来的 `5173`。
+
+在电脑 PowerShell 的仓库根目录依次执行，上一条成功才继续：
+
+```powershell
+docker compose --env-file .env.docker.local -f compose.local.yml config --quiet
+```
+
+检查 Compose 配置格式，不启动容器，也不打印密码。
+
+```powershell
+docker compose --env-file .env.docker.local -f compose.local.yml build frontend
+```
+
+`build frontend` 只制作前端镜像，不启动网页，不执行数据库迁移。
+首次需要下载 Node 和 Nginx 基础镜像。`npm ci` 按 `package-lock.json` 安装依赖，
+`npm run build` 执行类型检查并编译网页，输出到 `dist`。
+最后的运行镜像只复制网页和 Nginx 配置，不包含 Node、源码或 node_modules。
+Nginx 使用非 root 镜像，容器内监听 `8080`。
+2026-10-12 构建验证时，现有锁定依赖的 `npm audit` 报告 6 项漏洞
+（4 high、2 critical），均来自开发工具依赖；`--omit=dev` 检查为 0。
+这不代表整套应用没有安全问题。依赖升级另行审阅，不执行 `npm audit fix --force`，
+也不因这次本机练习就把服务开放到公网。
+
+```powershell
+docker compose --env-file .env.docker.local -f compose.local.yml up -d --wait frontend
+docker compose --env-file .env.docker.local -f compose.local.yml ps
+```
+
+`up` 创建／启动前端容器，`-d` 表示后台运行，`--wait` 等待健康检查。
+Compose 会先确认依赖的 API 和 SQL Server 健康；若它们已停止，会一并启动。
+**不会运行 migrate 服务。** 新的空库仍需先完成步骤 4；已有库没有新 migration 则不用重跑。
+前端健康检查只确认 Nginx 有响应，不代表登录、API 或数据库操作都成功。
+如果 `8081` 已被占用，先排查，不要停止其他项目服务。
+
+浏览器打开 `http://localhost:8081`，登录 `admin@demo.local`，手动填写
+现有 `.env.docker.local` 中的 `DEMO_PASSWORD`。不要发送或截图密码。
+“Use account” 按钮仍使用前端默认演示密码，与随机练习密码不同，不能据此判断登录失败。
+
+为什么不需要修改 API 的 CORS：网页和请求都使用同一个 `localhost:8081` 地址。
+浏览器请求 `/api/...`，Nginx 再转发给 Docker 网络里的 `api:8080`。
+构建时把 `VITE_API_BASE_URL` 设为空字符串，所以不是直接请求旧的 `localhost:5165`。
+`VITE_*` 值会进入浏览器可读的网页，绝不能把 SQL／JWT／练习账号密码作为前端构建参数。
+前端构建上下文单独使用 `frontend/`，其 `.dockerignore` 排除 `.env*` 等私有文件；
+根目录的 API `.dockerignore` 保持不变。Compose 不给 frontend 注入私有环境变量。
+
+检查以下项目：
+
+1. 登录后进入 Products，确认之前的 `Docker Test Product` 和 `Docker-Shelf-B2` 仍在。
+2. 在 Products 页面按刷新，或直接打开 `http://localhost:8081/products`，不应出现 Nginx 404。
+3. 按需修改练习产品、保存并刷新，确认结果保留。只操作练习环境的数据。
+
+这不是开发热更新服务器。以后修改 Vue 源码后，重新执行 `build frontend` 和
+`up -d --wait frontend`；Compose 会用新镜像重建前端容器，不需要清空数据库或重跑迁移。
+如果只是停止后再启动、源码没有修改，不需要重新 build。
+
+#### 可选：仍用电脑上的 Vite 开发前端
+
+另开一个电脑 PowerShell，在仓库根目录执行：
+
+```powershell
+Push-Location frontend
+try {
+    $PreviousApiBaseUrl = $env:VITE_API_BASE_URL
+    $env:VITE_API_BASE_URL = 'http://localhost:5166'
+    npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
+} finally {
+    $env:VITE_API_BASE_URL = $PreviousApiBaseUrl
+    Pop-Location
+}
+```
+
+浏览器使用 `http://localhost:5173`，不要使用 `127.0.0.1:5173`，因为现有 API CORS
+允许的是 `http://localhost:5173`。登录练习账号 `admin@demo.local`，密码使用刚才的
+`DEMO_PASSWORD`。只在这个新环境创建测试分类、计量单位、产品并练习修改。
+旧浏览器会话可能属于原环境；请先退出登录再登录练习账号。
+如果 5173 已被原来的前端使用，在那一窗口正常退出前端再运行这里的命令，
+不要让 Vite 自动换端口。按 `Ctrl+C` 结束练习前端会恢复这个终端之前的 API 地址。
+
+本轮**不测试真实邮件发送／采购订单发出**。SMTP 固定为 API 容器自己的
+`127.0.0.1:1025`，那里没有邮件服务；如果触发发信，记录会失败，不会发到正式服务。
+后续先增加本地邮件捕获服务，再测试邮件功能。PDF 字体已包含在 API 镜像中，
+但 PDF 业务验证仍需要对应的练习数据，不能仅凭构建成功就认为已经验证。
+
+### 7. 停止／重启，验证练习数据仍保留
+
+先创建一个测试产品，再停止这套练习容器：
+
+```powershell
+docker compose --env-file .env.docker.local -f compose.local.yml down
+```
+
+普通 `down` 删除本项目容器和网络，但保留数据库 volume。再次启动：
+
+```powershell
+docker compose --env-file .env.docker.local -f compose.local.yml up -d --wait sqlserver
+docker compose --env-file .env.docker.local -f compose.local.yml up -d --wait api
+docker compose --env-file .env.docker.local -f compose.local.yml up -d --wait frontend
+```
+
+重新登录网页，确认刚才的测试产品还在。没有新增 migrations 时不需要重复迁移。
+之后代码新增 migration，要先停止这套练习 API，再手动运行步骤 4，最后重建并启动 API。
+volume 保留数据不等于备份；这轮不修改你已有的 Ubuntu 备份／恢复流程。
+
+**不要使用 `down -v`、`docker volume prune` 或 `docker system prune --volumes`：
+它们可能删除数据库存储。也不要随意改项目名／volume 名或更换已初始化库的 SQL 密码。**
+SQL Server 初始化后，改 `.env.docker.local` 的 `SQL_PASSWORD` 不会自动改变库内的密码。
+
+### 出错时先查看什么
+
+```powershell
+docker compose --env-file .env.docker.local -f compose.local.yml ps
+docker compose --env-file .env.docker.local -f compose.local.yml logs --tail 80 api
+docker compose --env-file .env.docker.local -f compose.local.yml logs --tail 80 sqlserver
+docker compose --env-file .env.docker.local -f compose.local.yml logs --tail 80 frontend
+```
+
+只运行与你的问题有关的查看命令。日志也可能包含测试业务数据，分享前先检查。
+数据库健康检查通过但 API 启动报找不到表：确认步骤 4 已成功。
+前端出现 502：检查 API 状态和前端日志；不要重新迁移或删除 volume 来解决代理问题。
+Products 页面刷新 404：确认访问的是 `8081`，且新前端镜像已经构建并启动。
+`config --quiet` 成功并不验证密码强度、数据库连接或 Docker 引擎是否正在运行。
+当前配置在 Docker Desktop 的 Linux 引擎运行，首次下载需要网络和足够的内存／磁盘。
+只有登录、产品操作、PDF 和数据保留都实际通过，才把对应练习标记完成；
+镜像版本标签后续会更新，正式部署前需要另行固定、测试版本并设计备份。
+
+参考：[微软 .NET Docker 镜像](https://github.com/dotnet/dotnet-docker)、
+[微软 SQL Server 容器](https://learn.microsoft.com/en-us/sql/linux/quickstart-install-connect-docker)、
+[Docker Compose 启动顺序](https://docs.docker.com/compose/how-tos/startup-order/)、
+[Vite 静态部署](https://vite.dev/guide/static-deploy.html)、
+[Vite 环境变量](https://vite.dev/guide/env-and-mode)、
+[Nginx 代理](https://nginx.org/en/docs/http/ngx_http_proxy_module.html)、
+[非 root Nginx 镜像](https://github.com/nginx/docker-nginx-unprivileged)。
 
 ## 独立操作迁移指南
 

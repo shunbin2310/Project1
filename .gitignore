@@ -5,6 +5,7 @@
 
 # dotenv files
 .env
+.env.docker.local
 
 # User-specific files
 *.rsuser

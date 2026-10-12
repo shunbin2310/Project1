@@ -1,0 +1,109 @@
+# LOCAL PRACTICE ONLY. Always pass --env-file .env.docker.local.
+# Uses no production hosts, bind mounts, host-network mode, or Docker socket.
+name: project1-docker-practice
+
+x-practice-environment: &practice-environment
+  ASPNETCORE_ENVIRONMENT: Development
+  ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=Project1DockerPracticeDb;User ID=sa;Password=${SQL_PASSWORD:?Fill SQL_PASSWORD in .env.docker.local};Encrypt=True;TrustServerCertificate=True"
+  Jwt__Issuer: Project1.DockerPractice
+  Jwt__Audience: Project1.DockerPractice.Frontend
+  Jwt__SigningKey: "${JWT_SIGNING_KEY:?Fill JWT_SIGNING_KEY in .env.docker.local}"
+  DemoUsers__Enabled: "true"
+  DemoUsers__DepartmentCode: IT
+  DemoUsers__DefaultPassword: "${DEMO_PASSWORD:?Fill DEMO_PASSWORD in .env.docker.local}"
+  # No SMTP service runs at this address inside the API container.
+  # Initial practice does not send real email; do not issue purchase orders yet.
+  Email__Smtp__Host: "127.0.0.1"
+  Email__Smtp__Port: "1025"
+  Email__Smtp__UseSsl: "false"
+  Email__Smtp__Username: ""
+  Email__Smtp__Password: ""
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: "${SQL_PASSWORD:?Fill SQL_PASSWORD in .env.docker.local}"
+    ports:
+      - "127.0.0.1:14334:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'SQLCMDPASSWORD="$${MSSQL_SA_PASSWORD}" /opt/mssql-tools18/bin/sqlcmd -S tcp:127.0.0.1,1433 -U sa -C -b -I -x -l 5 -Q "SELECT 1" > /dev/null'
+      interval: 10s
+      timeout: 10s
+      retries: 18
+      start_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Project1.Api/Dockerfile
+      target: runtime
+    environment:
+      <<: *practice-environment
+      ASPNETCORE_URLS: "http://+:8080"
+    ports:
+      - "127.0.0.1:5166:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    healthcheck:
+      # Development-only endpoint. This checks HTTP startup, not every DB operation.
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:8080/openapi/v1.json"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runtime
+    ports:
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      # Checks Nginx only. Login and API operations must be verified separately.
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  migrate:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: backend/Project1.Api/Dockerfile
+      target: migrations
+    environment:
+      <<: *practice-environment
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    command:
+      - database
+      - update
+      - --project
+      - backend/Project1.Api
+      - --startup-project
+      - backend/Project1.Api
+      - --configuration
+      - Release
+      - --no-build
+      - --context
+      - AppDbContext
+      - --
+      - --environment
+      - Development
+
+volumes:
+  sqlserver-data:
