@@ -1,0 +1,30 @@
+# Allow only files needed to build the frontend and configure Nginx.
+**
+!package.json
+!package-lock.json
+!index.html
+!env.d.ts
+!tsconfig*.json
+!*.config.ts
+!.oxlintrc.json
+!nginx.conf
+!src/
+!src/**
+!public/
+!public/**
+
+# Keep local configuration, credentials, and generated output out of all layers.
+**/.env
+**/.env.*
+**/*.env
+**/.npmrc
+**/node_modules/**
+**/dist/**
+**/coverage/**
+**/test-results/**
+**/playwright-report/**
+**/*.tsbuildinfo
+**/*.pem
+**/*.key
+**/*.pfx
+**/*.bak

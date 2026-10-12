@@ -1,0 +1,28 @@
+# Allow only API source and the pinned EF tool manifest into the build context.
+# In particular, README, deployment helpers, frontend, and backups are excluded.
+**
+!dotnet-tools.json
+!backend/
+!backend/Project1.Api/
+!backend/Project1.Api/**
+
+# Exclusions also apply inside the allowed API directory.
+**/bin/**
+**/obj/**
+**/.vs/**
+**/.git/**
+**/node_modules/**
+**/.env
+**/.env.*
+**/*.env
+**/appsettings.*.json
+**/secrets.json
+**/*.user
+**/*.bak
+**/*.mdf
+**/*.ldf
+**/*.ndf
+**/*.pfx
+**/*.pem
+**/*.key
+**/TestResults/**
