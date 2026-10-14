@@ -11,15 +11,37 @@ x-practice-environment: &practice-environment
   DemoUsers__Enabled: "true"
   DemoUsers__DepartmentCode: IT
   DemoUsers__DefaultPassword: "${DEMO_PASSWORD:?Fill DEMO_PASSWORD in .env.docker.local}"
-  # No SMTP service runs at this address inside the API container.
-  # Initial practice does not send real email; do not issue purchase orders yet.
-  Email__Smtp__Host: "127.0.0.1"
+  # Capture mail locally only. Mailpit has no external relay/forwarding configured.
+  Email__Smtp__Host: "mailpit"
   Email__Smtp__Port: "1025"
   Email__Smtp__UseSsl: "false"
   Email__Smtp__Username: ""
   Email__Smtp__Password: ""
 
 services:
+  mailpit:
+    image: axllent/mailpit:v1.31.4
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: "500"
+      MP_ALLOWED_HOSTS: "localhost,127.0.0.1,mailpit"
+      MP_DISABLE_VERSION_CHECK: "true"
+    ports:
+      - "127.0.0.1:8026:8025"
+    # SMTP (1025) is reachable only inside the Docker network, not host-published.
+    # No SMTP relay, forwarding, real credentials, or host files are configured.
+    volumes:
+      - mailpit-data:/data
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
@@ -51,6 +73,8 @@ services:
       - "127.0.0.1:5166:8080"
     depends_on:
       sqlserver:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
     healthcheck:
       # Development-only endpoint. This checks HTTP startup, not every DB operation.
@@ -107,3 +131,4 @@ services:
 
 volumes:
   sqlserver-data:
+  mailpit-data:
