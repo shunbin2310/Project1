@@ -6,6 +6,8 @@
 # dotenv files
 .env
 .env.docker.local
+.env.docker.host-sql.local
+.docker.host-sql-state.local.json
 
 # User-specific files
 *.rsuser

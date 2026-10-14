@@ -1,0 +1,56 @@
+# LOCAL WINDOWS ONLY. This profile writes to your ORIGINAL Project1Db.
+# Always pass --env-file .env.docker.host-sql.local. Never combine with compose.local.yml.
+name: project1-host-sql-local
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Project1.Api/Dockerfile
+      target: runtime
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__DefaultConnection: "Server=tcp:host.docker.internal,1433;Database=Project1Db;User ID=project1_docker_local;Password=${HOST_SQL_PASSWORD:?Initialize the private host-SQL configuration first};Encrypt=True;TrustServerCertificate=True"
+      Jwt__Issuer: Project1.HostSql.Local
+      Jwt__Audience: Project1.HostSql.Local.Frontend
+      Jwt__SigningKey: "${JWT_SIGNING_KEY:?Initialize the private host-SQL configuration first}"
+      # Preserve existing accounts: do not create/reset demo users in the original DB.
+      DemoUsers__Enabled: "false"
+      # Used only if an administrator creates a NEW user through the application.
+      DemoUsers__DefaultPassword: "${NEW_USER_PASSWORD:?Initialize the private host-SQL configuration first}"
+      Email__Smtp__Host: smtp.gmail.com
+      Email__Smtp__Port: "587"
+      Email__Smtp__UseSsl: "true"
+      Email__Smtp__Username: "${GMAIL_ADDRESS:?Fill your Gmail address privately}"
+      Email__Smtp__Password: "${GMAIL_APP_PASSWORD:?Fill a Gmail App Password privately, not your Google password}"
+      Email__Smtp__FromAddress: "${GMAIL_ADDRESS:?Fill your Gmail address privately}"
+      Email__Smtp__FromName: Project1 Purchasing
+    ports:
+      - "127.0.0.1:5167:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:8080/openapi/v1.json"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runtime
+    ports:
+      - "127.0.0.1:8082:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+# No SQL Server container, migration service, Mailpit, or DB volume in this profile.
+# Changing the connection does NOT move or merge any database data.
