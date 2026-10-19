@@ -17,6 +17,8 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
     <PackageReference Include="PDFsharp-MigraDoc" Version="6.2.4" />
+    <!-- Override vulnerable 9.0.4 pulled by SqlClient/PDFsharp; keep the same major. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="9.0.21" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,67 @@
+# Manual production cutover ONLY. Do not combine with any practice/Windows profile.
+# The root-installed cutover helper supplies a sealed release and root-only env file.
+name: project1-ubuntu-production
+
+services:
+  api:
+    image: project1-ubuntu-api:${PROD_TAG:?Configure the reviewed production release first}
+    pull_policy: never
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__DefaultConnection: "Server=tcp:host.docker.internal,1433;Database=Project1Db;User ID=project1_docker_production;Password=${PROD_SQL_PASSWORD:?Configure the dedicated runtime login};Encrypt=True;TrustServerCertificate=True"
+      Jwt__Issuer: Project1.UbuntuProduction
+      Jwt__Audience: Project1.UbuntuProduction.Frontend
+      Jwt__SigningKey: "${PROD_JWT_KEY:?Generate the production signing key privately}"
+      # Preserve existing users/passwords. This does not disable normal roles/templates startup.
+      DemoUsers__Enabled: "false"
+      # Used only when an administrator explicitly creates a NEW user in the application.
+      DemoUsers__DefaultPassword: "${PROD_NEW_USER_PASSWORD:?Configure new-user password privately}"
+      Email__Smtp__Host: smtp.gmail.com
+      Email__Smtp__Port: "587"
+      Email__Smtp__UseSsl: "true"
+      Email__Smtp__Username: "${PROD_GMAIL_ADDRESS:?Enter Gmail privately on Ubuntu}"
+      Email__Smtp__Password: "${PROD_GMAIL_APP_PASSWORD:?Enter a Google App Password privately}"
+      Email__Smtp__FromAddress: "${PROD_GMAIL_ADDRESS:?Enter Gmail privately on Ubuntu}"
+      Email__Smtp__FromName: Project1 Purchasing
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    # No host API port and no SDK, SQL admin credentials, migration service or Docker socket.
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+    healthcheck:
+      # Liveness only. Database permissions/schema and business tests are separate checks.
+      test: [CMD, curl, --fail, --silent, --show-error, "http://127.0.0.1:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  frontend:
+    image: project1-ubuntu-frontend:${PROD_TAG:?Configure the reviewed production release first}
+    pull_policy: never
+    ports: ["127.0.0.1:8084:8080"]
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+    healthcheck:
+      test: [CMD, wget, --quiet, --output-document=/dev/null, "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+# No automatic migrations, SQL Server container, volumes, host networking or old env file.
+# Existing host Nginx remains the port-80 entry point; HTTPS is separate work.
