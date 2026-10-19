@@ -8,6 +8,11 @@
 .env.docker.local
 .env.docker.host-sql.local
 .docker.host-sql-state.local.json
+.env.docker.ubuntu-practice.local
+.env.docker.ubuntu-practice.migrate.local
+ubuntu-practice-release/
+.env.docker.ubuntu.local
+ubuntu-production-release/
 
 # User-specific files
 *.rsuser

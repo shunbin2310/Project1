@@ -455,18 +455,21 @@ Follow these phases in order. Phase 3 has been exercised: CI tests/build artifac
 manually triggered Ubuntu application deployment, and separately executed manual
 database migrations (including adding and removing a practice column). Migration
 preparation uploads SQL and creates a backup; it never executes uploaded SQL.
-Phase 4's basic local Docker stack has been exercised. PDF and email business
-verification remain pending. Next, prepare for Phase 5's manual Ubuntu Docker
-practice; public access and HTTPS remain separate work, and the existing Ubuntu
-deployment stays unchanged.
+Phase 4's basic local Docker stack has been exercised. The user also confirmed
+login and real Gmail delivery/receipt through the Windows-host-SQL Docker profile;
+PDF attachment verification remains separate. Phase 5's Ubuntu Docker installation,
+isolated-database migration, two-container startup and browser login passed according
+to the user's output/screenshots. The separately approved original-database production
+cutover has prepared files/local tests, but has NOT been executed on the real server.
+Public access/HTTPS and automatic Docker CI/CD remain separate work.
 
 | Phase | Learning goal | Status | Completion target |
 | --- | --- | --- | --- |
 | 1 | Develop Vue + .NET on the development PC | Completed for the current feature set | Run and test the full purchasing and inventory process locally. |
 | 2 | Manually deploy to Ubuntu Server | LAN deployment tested; public HTTPS not configured | Run the frontend, API, and database on Ubuntu and access the application through a link. |
 | 3 | Automate deployment with CI/CD, without Docker | CI and manual-triggered CD exercised; database migrations remain manual | Use GitHub Actions to test, build, and explicitly deploy the application to Ubuntu. |
-| 4 | Learn Docker and containerize locally | Basic Vue + API + isolated SQL Server stack exercised; PDF and email verification pending | Run Vue + API + SQL Server locally; separately verify PDF and email. |
-| 5 | Manually deploy Docker to Ubuntu Server | Pending | Deploy and verify the containerized application on Ubuntu. |
+| 4 | Learn Docker and containerize locally | Basic stack exercised; Windows-host-SQL login and Gmail receipt user-confirmed; PDF verification pending | Run Vue + API + SQL Server locally; separately verify PDF and email. |
+| 5 | Manually deploy Docker to Ubuntu Server | Isolated practice stack/login user-verified; original-database production cutover prepared, not executed | Deploy and verify the containerized application on Ubuntu. |
 | 6 | Automate Docker build and deployment with CI/CD | Pending | Test the application, build container images, and deploy them to Ubuntu through GitHub Actions. |
 | 7 | Start learning Local LLM / Qwen | Pending | Run a model locally, understand its hardware needs, and evaluate a useful project integration. |
 
@@ -510,6 +513,23 @@ Review production SMTP settings and credentials before the Ubuntu deployment.
 
 #### Phase 5: Manual Docker deployment
 
+- For the separately approved ORIGINAL-database cutover, follow
+  [Ubuntu Docker production cutover](docs/deployment/ubuntu-docker-production.md).
+  Dedicated Production configuration, no migrations/demo initialization, original
+  database retained; fresh backup/restore rehearsal/off-server copy precede activation.
+  Files/local tests do not mean that the real server has been switched.
+- The first production freeze stopped on SQL backup mode `0660`; the user completed
+  a verified rollback (`rolled-back`). Before retrying, follow the
+  [helper repair and rollback retry guide](docs/deployment/ubuntu-docker-production-retry.md).
+  Preserve existing credentials, releases, backups and state; do not rerun initial setup.
+- The repaired retry completed fresh backup/restore/off-server checks. Activation
+  recorded a failure, while subsequent container/URL/SQL checks and original-user
+  login/data viewing passed. Use the [guarded activation recheck](docs/deployment/ubuntu-docker-activation-recheck.md)
+  before business/PDF/email verification and finalization; the initial failure cause is undetermined.
+- Follow [Ubuntu Docker practice: manual deployment and command explanations](docs/deployment/ubuntu-docker-practice.md).
+- The reviewed first deployment uses two application containers and a NEW EMPTY
+  `Project1DockerUbuntuPracticeDb` on the existing SQL Server; it does not cut over
+  the original API, Nginx, or `Project1Db`. Frontend is loopback `8083` via SSH tunnel.
 - Prepare Docker on Ubuntu and configure the server environment.
 - Start with read-only checks of Docker, memory, disk, and ports. Plan an isolated
   practice deployment before changing any existing API service or `Project1Db`.
@@ -896,12 +916,13 @@ Products 页面刷新 404：确认访问的是 `8081`，且新前端镜像已经
   `/api/auth/me` 在未登录时正确返回 401，API startup endpoint 正常。
 - SQL 会话元数据确认运行中的新 API 使用专用账号连接原 `Project1Db`。
   启动前后产品／用户／邮件记录数为 11／11／5，Pending 为 0，迁移 ID 未改变。
-- 尚未验证：用户在新页面的实际登录和 Gmail 收件箱／PDF 附件投递。未自动发送邮件，
-  构建或 Healthy 不代表 Gmail App Password 已通过认证。
+- 后续用户已确认：在 `localhost:8082` 实际登录，并成功发送、收到 Gmail 邮件。
+  PDF 附件内容仍待用户单独验证；没有由助手自动发送邮件。
 - 本轮构建发现 `System.Security.Cryptography.Pkcs` 9.0.4 的 NU1902／NU1903 安全警告，
   对应 [微软公告（中等）](https://github.com/advisories/GHSA-2fmv-rv2c-59x7) 和
-  [微软公告（高）](https://github.com/advisories/GHSA-846f-f764-76mx)。尚未升级该依赖；
-  服务仍只开放本机端口，Ubuntu／公网部署前必须单独审阅升级并验证。
+  [微软公告（高）](https://github.com/advisories/GHSA-846f-f764-76mx)。2026-10-19 已在源码中
+  显式固定同主版本补丁 `9.0.21`，API 测试和离线迁移测试通过，NuGet 当前审计未报告
+  API 项目的已知漏洞。旧镜像／运行中的服务不会因此自动更新，需重新构建并部署。
 
 ### 1. 先审阅管理员初始化脚本
 
