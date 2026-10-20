@@ -1,0 +1,2 @@
+# Administrator installs only after visudo -cf validation. Do not grant Docker group/ALL.
+project1_deploy ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/project1-auto-deploy

@@ -1,4 +1,0 @@
-# REVIEW TEMPLATE ONLY. Install after visudo validation.
-# The helper validates exactly five bounded identifiers, or --help / --check-stopped.
-# It accepts NO SQL, database/path overrides, shell commands or service operations.
-project1_deploy ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/project1-migration-prepare *

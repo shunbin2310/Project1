@@ -53,6 +53,10 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.Configure<DatabaseMigrationOptions>(
+    builder.Configuration.GetSection(DatabaseMigrationOptions.SectionName));
+builder.Services.AddScoped<IStartupMigrationDatabase, EfStartupMigrationDatabase>();
+builder.Services.AddScoped<StartupDatabaseMigrator>();
 
 builder.Services
     .AddIdentityCore<ApplicationUser>(options =>
@@ -184,6 +188,13 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Build() is the EF design-time host boundary. The application has NOT started:
+// no seeds, HTTP requests or hosted background workers can run before this succeeds.
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    await scope.ServiceProvider.GetRequiredService<StartupDatabaseMigrator>().ApplyAsync();
+}
 
 if (app.Environment.IsDevelopment())
 {

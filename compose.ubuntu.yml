@@ -1,32 +1,36 @@
-# Manual production cutover ONLY. Do not combine with any practice/Windows profile.
-# The root-installed cutover helper supplies a sealed release and root-only env file.
-name: project1-ubuntu-production
+# Production: root-owned /opt/project1-auto/compose.yml, used by project1-auto-deploy.
+# API_IMAGE and FRONTEND_IMAGE are exact GHCR digests supplied by the deploy script.
+name: project1-auto
 
 services:
   api:
-    image: project1-ubuntu-api:${PROD_TAG:?Configure the reviewed production release first}
-    pull_policy: never
+    image: ${API_IMAGE:?Use project1-auto-deploy to select the API digest}
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: "http://+:8080"
-      ConnectionStrings__DefaultConnection: "Server=tcp:host.docker.internal,1433;Database=Project1Db;User ID=project1_docker_production;Password=${PROD_SQL_PASSWORD:?Configure the dedicated runtime login};Encrypt=True;TrustServerCertificate=True"
+      Database__MigrateOnStartup: "true"
+      Database__ExpectedDatabase: Project1Db
+      Database__CommandTimeoutSeconds: "180"
+      ConnectionStrings__DefaultConnection: "Server=tcp:host.docker.internal,1433;Database=Project1Db;User ID=${DB_USER:?Set the database login};Password=${DB_PASSWORD:?Set the database password};Encrypt=True;TrustServerCertificate=True"
       Jwt__Issuer: Project1.UbuntuProduction
       Jwt__Audience: Project1.UbuntuProduction.Frontend
-      Jwt__SigningKey: "${PROD_JWT_KEY:?Generate the production signing key privately}"
+      Jwt__SigningKey: "${JWT_SIGNING_KEY:?Set the JWT signing key}"
       # Preserve existing users/passwords. This does not disable normal roles/templates startup.
       DemoUsers__Enabled: "false"
       # Used only when an administrator explicitly creates a NEW user in the application.
-      DemoUsers__DefaultPassword: "${PROD_NEW_USER_PASSWORD:?Configure new-user password privately}"
+      DemoUsers__DefaultPassword: "${NEW_USER_PASSWORD:?Set a password for NEW users only}"
       Email__Smtp__Host: smtp.gmail.com
       Email__Smtp__Port: "587"
       Email__Smtp__UseSsl: "true"
-      Email__Smtp__Username: "${PROD_GMAIL_ADDRESS:?Enter Gmail privately on Ubuntu}"
-      Email__Smtp__Password: "${PROD_GMAIL_APP_PASSWORD:?Enter a Google App Password privately}"
-      Email__Smtp__FromAddress: "${PROD_GMAIL_ADDRESS:?Enter Gmail privately on Ubuntu}"
+      Email__Smtp__Username: "${GMAIL_ADDRESS:?Enter Gmail privately on Ubuntu}"
+      Email__Smtp__Password: "${GMAIL_APP_PASSWORD:?Enter a Google App Password privately}"
+      Email__Smtp__FromAddress: "${GMAIL_ADDRESS:?Enter Gmail privately on Ubuntu}"
       Email__Smtp__FromName: Project1 Purchasing
     extra_hosts: ["host.docker.internal:host-gateway"]
     # No host API port and no SDK, SQL admin credentials, migration service or Docker socket.
-    restart: unless-stopped
+    # Fail a deployment once, not an endless automatic migration retry loop.
+    # The deployment script enables unless-stopped only after successful health checks.
+    restart: "no"
     mem_limit: 1g
     cpus: 1.0
     cap_drop: [ALL]
@@ -40,11 +44,10 @@ services:
       interval: 15s
       timeout: 5s
       retries: 6
-      start_period: 30s
+      start_period: 300s
 
   frontend:
-    image: project1-ubuntu-frontend:${PROD_TAG:?Configure the reviewed production release first}
-    pull_policy: never
+    image: ${FRONTEND_IMAGE:?Use project1-auto-deploy to select the frontend digest}
     ports: ["127.0.0.1:8084:8080"]
     depends_on:
       api: {condition: service_healthy}
@@ -63,5 +66,6 @@ services:
       retries: 6
       start_period: 10s
 
-# No automatic migrations, SQL Server container, volumes, host networking or old env file.
+# API applies reviewed pending migrations before seeding/workers/HTTP startup.
+# SQL Server/data remain on the Ubuntu host. No database container, migration CLI or SDK.
 # Existing host Nginx remains the port-80 entry point; HTTPS is separate work.

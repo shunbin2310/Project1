@@ -811,6 +811,9 @@ namespace Project1.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("TestRemark")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("UnitOfMeasureId")
                         .HasColumnType("int");
 
