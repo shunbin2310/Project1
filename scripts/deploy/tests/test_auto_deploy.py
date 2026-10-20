@@ -83,7 +83,11 @@ class ShellDeploymentTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.bin = self.root / 'bin'
         self.bin.mkdir()
-        self.app = self.root / 'app'
+        # Model the production parent too: GitHub runners make their real /opt
+        # writable. Never depend on or chmod that shared runner directory.
+        self.opt = self.root / 'opt'
+        self.opt.mkdir(mode=0o755)
+        self.app = self.opt / 'project1-auto'
         self.app.mkdir(mode=0o700)
         (self.app / '.env').write_text('PUBLIC_FIXTURE_ONLY=yes\n')
         (self.app / '.env').chmod(0o600)
@@ -109,6 +113,9 @@ fi
 ''')
         self.write_command('curl', '#!/bin/bash\necho curl >> "$TEST_LOG"\n[[ ${FAIL_STAGE:-} != curl ]]\n')
         body = SCRIPT.read_text().replace('APP=/opt/project1-auto', 'APP=' + str(self.app))
+        parent_guard = 'for directory in / /opt "$APP"; do'
+        self.assertEqual(body.count(parent_guard), 1, 'Update the isolated parent fixture when the production guard changes.')
+        body = body.replace(parent_guard, f'for directory in / "{self.opt}" "$APP"; do')
         body = body.replace('export PATH=/usr/sbin:/usr/bin:/sbin:/bin', 'export PATH=' + str(self.bin) + ':/usr/sbin:/usr/bin:/sbin:/bin')
         self.script = self.root / 'deploy.sh'
         self.script.write_text(body)
@@ -179,6 +186,17 @@ fi
         (self.app / '.env').chmod(0o644)
         self.assertNotEqual(self.run_deploy().returncode, 0)
         self.assertEqual(self.log.read_text(), '')
+
+    def test_writable_parent_is_rejected_before_docker_calls(self):
+        for mode in (0o775, 0o777):
+            with self.subTest(mode=oct(mode)):
+                self.opt.chmod(mode)
+                try:
+                    self.assertNotEqual(self.run_deploy().returncode, 0)
+                    self.assertEqual(self.log.read_text(), '')
+                    self.assertFalse((self.app / 'needs-attention').exists())
+                finally:
+                    self.opt.chmod(0o755)
 
     def test_symlink_secret_file_is_rejected(self):
         path = self.app / '.env'
