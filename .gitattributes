@@ -1,8 +1,6 @@
-# Keep administrator-uploaded Unix helper files usable after a Windows checkout.
-scripts/deploy/project1-migration-status text eol=lf
-scripts/deploy/project1-migration-status.sudoers text eol=lf
-scripts/deploy/project1_migration_status.py text eol=lf
-scripts/deploy/project1-migration-prepare text eol=lf
-scripts/deploy/project1-migration-prepare.sudoers text eol=lf
-scripts/deploy/*migration_prepare*.py text eol=lf
-scripts/deploy/install_migration_prepare.sql text eol=lf
+# Unix deployment entry point and public configuration use consistent line endings.
+scripts/deploy/*.sh text eol=lf
+scripts/deploy/*.sudoers text eol=lf
+scripts/docker/Prepare-UbuntuStartupMigrations.sql text eol=lf
+compose.ubuntu.yml text eol=lf
+.env.docker.ubuntu.example text eol=lf

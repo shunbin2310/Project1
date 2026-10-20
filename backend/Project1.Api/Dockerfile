@@ -9,7 +9,8 @@ RUN dotnet restore backend/Project1.Api/Project1.Api.csproj
 COPY backend/Project1.Api/ backend/Project1.Api/
 RUN dotnet build backend/Project1.Api/Project1.Api.csproj --configuration Release --no-restore
 
-# Explicit, one-off migration tool; the API entrypoint never runs migrations.
+# Optional one-off tool for the independent LOCAL practice profile.
+# Production runtime applies pending migrations in Program.cs when explicitly enabled.
 FROM build AS migrations
 RUN dotnet tool restore
 ENTRYPOINT ["dotnet", "tool", "run", "dotnet-ef", "--"]
@@ -20,6 +21,7 @@ RUN dotnet publish backend/Project1.Api/Project1.Api.csproj \
     /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
+LABEL org.project1.startup-migrations="1"
 USER root
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends fonts-dejavu-core curl \

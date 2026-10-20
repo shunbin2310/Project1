@@ -156,7 +156,7 @@ public sealed class MigrationSqlIntegrationTests
     }
 
     [SqlServerCiFact]
-    public async Task GeneratedSql_RemovePracticeNote_NewApiWorksOnBothSchemasAndReplayPreservesRemainingData()
+    public async Task GeneratedSql_RemovePracticeNote_UpgradePreservesOtherDataAndNewApiWorks()
     {
         var batches = MigrationSqlScript.ReadFromCiWorkspace();
         await using var database = await CiDatabase.CreateAsync("upgrade");
@@ -172,7 +172,28 @@ public sealed class MigrationSqlIntegrationTests
         }
         var oldHistory = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
         await AssertPracticeNoteColumnAsync(database);
-        // Release A deploys this service while the old physical column still exists.
+        // Arrange the historic schema with SQL. The latest API must not query it
+        // before startup migrations add all currently mapped columns (TestRemark, etc.).
+        await using (var connection = database.CreateConnection())
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "SELECT CicdPracticeNote FROM dbo.Products;";
+            Assert.Equal("Delete only this value", await command.ExecuteScalarAsync());
+        }
+
+        // Apply the generated SQL before the new API can handle requests.
+        await database.ExecuteScriptAsync(batches);
+        context.ChangeTracker.Clear();
+        await AssertAllMigrationsAppliedAsync(context);
+        var history = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
+        Assert.True(history.Length > oldHistory.Length);
+        Assert.Equal(oldHistory, history.Take(oldHistory.Length));
+        Assert.Contains(history, id => id.EndsWith("_RemoveProductCicdPracticeNote", StringComparison.Ordinal));
+        await AssertPracticeNoteColumnAbsentAsync(database);
+        await AssertNoteColumnAsync(database);
+        await AssertStorageLocationColumnAsync(database);
+        await AssertProductAsync(context, productId, "Keep business note");
         var service = new ProductService(context);
         var product = (await service.GetByIdAsync(productId, CancellationToken.None))!;
         Assert.Equal("Shelf A1", product.StorageLocation);
@@ -183,28 +204,6 @@ public sealed class MigrationSqlIntegrationTests
             DefaultUnitPrice = product.DefaultUnitPrice, ReorderLevel = product.ReorderLevel,
             StorageLocation = "Shelf B2", IsActive = true
         };
-        Assert.Equal(ProductSaveStatus.Success,
-            (await service.UpdateAsync(productId, request, CancellationToken.None)).Status);
-        await using (var connection = database.CreateConnection())
-        {
-            await connection.OpenAsync();
-            await using var command = connection.CreateCommand();
-            command.CommandText = "SELECT CicdPracticeNote FROM dbo.Products;";
-            Assert.Equal("Delete only this value", await command.ExecuteScalarAsync());
-        }
-
-        // Release B uses the exact CI artifact to perform the destructive change.
-        await database.ExecuteScriptAsync(batches);
-        context.ChangeTracker.Clear();
-        await AssertAllMigrationsAppliedAsync(context);
-        var history = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
-        Assert.Equal(oldHistory.Length + 1, history.Length);
-        Assert.EndsWith("_RemoveProductCicdPracticeNote", history.Last());
-        await AssertPracticeNoteColumnAbsentAsync(database);
-        await AssertNoteColumnAsync(database);
-        await AssertStorageLocationColumnAsync(database);
-        await AssertProductAsync(context, productId, "Keep business note");
-        Assert.Equal("Shelf B2", (await service.GetByIdAsync(productId, CancellationToken.None))!.StorageLocation);
         Assert.Single(await service.GetAllAsync(false, CancellationToken.None));
         Assert.Equal(ProductSaveStatus.Success,
             (await service.UpdateAsync(productId, request, CancellationToken.None)).Status);

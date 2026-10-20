@@ -1,4 +1,4 @@
-name: Project1 CI
+name: Project1 CI/CD
 
 on:
   pull_request:
@@ -13,11 +13,11 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   backend:
-    name: Backend tests and Linux publish
+    name: Backend tests and migrations
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
@@ -36,6 +36,8 @@ jobs:
     env:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
+      # Design-time model checks/script generation must never apply migrations.
+      Database__MigrateOnStartup: 'false'
     steps:
       - name: Check out code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -93,73 +95,37 @@ jobs:
           --logger "trx;LogFileName=migrations.trx"
           --results-directory artifacts/backend-test-results
 
-      - name: Generate reviewable migration SQL (no database access)
-        # Generate only: never apply SQL or use deployment credentials.
-        # Explicit non-Development settings avoid local user secrets.
+      - name: Test generated migration SQL in disposable databases only
         env:
-          ConnectionStrings__DefaultConnection: 'Server=tcp:127.0.0.1,1;Database=Project1CiScript;User Id=ci_script;Password=ci-script-not-a-real-password;Encrypt=True;TrustServerCertificate=False;Connect Timeout=1'
+          ConnectionStrings__DefaultConnection: 'Server=tcp:127.0.0.1,1;Database=Project1CiScript;User Id=ci;Password=not-a-real-password;Connect Timeout=1'
           Jwt__SigningKey: 'CI-migration-script-only-not-for-authentication-000000000000'
-          Jwt__Issuer: 'Project1.CI.MigrationScript'
-          Jwt__Audience: 'Project1.CI.MigrationScript'
+          Jwt__Issuer: 'Project1.CI'
+          Jwt__Audience: 'Project1.CI'
+          PROJECT1_CI_MIGRATION_TESTS: 'true'
+          PROJECT1_CI_SQLSERVER_PASSWORD: 'Project1CiOnly-Tests!2026'
         run: |
           mkdir -p artifacts/migrations
           dotnet tool run dotnet-ef -- migrations script 0 --idempotent \
-            --project backend/Project1.Api \
-            --startup-project backend/Project1.Api \
+            --project backend/Project1.Api --startup-project backend/Project1.Api \
             --configuration Release --no-build --context AppDbContext \
-            --output artifacts/migrations/migrations.sql \
-            -- --environment CiMigrationScript
-          test -s artifacts/migrations/migrations.sql
-          dotnet tool run dotnet-ef -- migrations list --no-connect --json --prefix-output \
-            --project backend/Project1.Api \
-            --startup-project backend/Project1.Api \
-            --configuration Release --no-build --context AppDbContext \
-            -- --environment CiMigrationScript > "$RUNNER_TEMP/project1-migration-list.txt"
-          python3 scripts/deploy/migration_package.py \
-            --ef-list "$RUNNER_TEMP/project1-migration-list.txt" \
-            --directory artifacts/migrations
-          printf '%s\n' \
-            "Repository: $GITHUB_REPOSITORY" \
-            "Commit SHA: $GITHUB_SHA" \
-            "Checked-out commit: $(git rev-parse HEAD)" \
-            "CI run ID: $GITHUB_RUN_ID" \
-            "CI run attempt: $GITHUB_RUN_ATTEMPT" \
-            "Event: $GITHUB_EVENT_NAME" \
-            "Ref: $GITHUB_REF" \
-            "Run URL: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-            'Migration range: 0 to latest migration in this commit; idempotent SQL Server script.' \
-            'REVIEW ONLY: CI tests this SQL only in disposable databases. CD never executes it.' \
-            'Review, test against the target schema and back up before manual production use.' \
-            > artifacts/migrations/build-info.txt
-          cd artifacts/migrations
-          sha256sum migrations.sql build-info.txt migration-manifest.json > SHA256SUMS
+            --output artifacts/migrations/migrations.sql -- --environment CiMigrationScript
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+          ids = sorted(p.stem for p in Path("backend/Project1.Api/Migrations").glob("*.cs")
+                       if re.fullmatch(r"[0-9]{14}_[A-Za-z0-9_]+", p.stem))
+          Path("artifacts/migrations/migration-manifest.json").write_text(
+              json.dumps({"schema": 1, "migrations": ids}), encoding="utf-8")
+          PY
+          dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj \
+            --configuration Release --no-build --no-restore \
+            --filter "FullyQualifiedName~MigrationSqlIntegrationTests" \
+            --logger "trx;LogFileName=migration-sql.trx" \
+            --results-directory artifacts/backend-test-results
 
-      - name: Test deployment and read-only migration tooling without server access
-        run: python3 -m unittest discover -s scripts/deploy/tests -v
-
-      - name: Test generated SQL on disposable SQL Server databases
-        # Execute the exact file that will be uploaded, never SQL on the production server.
-        env:
-          PROJECT1_CI_MIGRATION_TESTS: 'true'
-          PROJECT1_CI_SQLSERVER_PASSWORD: 'Project1CiOnly-Tests!2026'
-        run: >-
-          dotnet test tests/Project1.Migrations.Tests/Project1.Migrations.Tests.csproj
-          --configuration Release --no-build --no-restore
-          --filter "FullyQualifiedName~MigrationSqlIntegrationTests"
-          --logger "trx;LogFileName=migration-sql.trx"
-          --results-directory artifacts/backend-test-results
-
-      - name: Verify migration SQL files are unchanged after tests
-        working-directory: artifacts/migrations
-        run: sha256sum -c SHA256SUMS
-
-      - name: Save reviewable migration SQL
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: project1-migrations-sql-${{ github.sha }}
-          path: artifacts/migrations/
-          if-no-files-found: error
-          retention-days: 14
+      - name: Test deployment script contracts without server credentials
+        # Root only inside this disposable GitHub runner; tests use temporary files/fake Docker.
+        run: sudo /usr/bin/python3 -m unittest discover -s scripts/deploy/tests -v
 
       - name: Show migration SQL Server logs on failure
         if: ${{ failure() }}
@@ -172,19 +138,6 @@ jobs:
           name: backend-test-results-${{ github.sha }}
           path: artifacts/backend-test-results/*.trx
           if-no-files-found: ignore
-          retention-days: 14
-
-      - name: Publish backend for Ubuntu x64
-        run: dotnet publish backend/Project1.Api/Project1.Api.csproj --configuration Release --runtime linux-x64 --self-contained false --output artifacts/api
-
-      - name: Save backend build
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: project1-api-linux-x64-${{ github.sha }}
-          path: |
-            artifacts/api/
-            !artifacts/api/appsettings.Development.json
-          if-no-files-found: error
           retention-days: 14
 
   frontend:
@@ -231,10 +184,112 @@ jobs:
           VITE_API_BASE_URL: ''
         run: npm run build
 
-      - name: Save frontend build
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+  images:
+    name: Build and publish API and Vue images
+    needs: [backend, frontend]
+    if: github.repository == 'shunbin2310/Project1' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      api_digest: ${{ steps.api.outputs.digest }}
+      frontend_digest: ${{ steps.frontend.outputs.digest }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          name: project1-frontend-dist-${{ github.sha }}
-          path: frontend/dist/
-          if-no-files-found: error
-          retention-days: 14
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push API
+        id: api
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: backend/Project1.Api/Dockerfile
+          target: runtime
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/shunbin2310/project1-api:${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/shunbin2310/Project1
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+      - name: Build and push Vue
+        id: frontend
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          target: runtime
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/shunbin2310/project1-frontend:${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/shunbin2310/Project1
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  deploy:
+    name: Automatically update Ubuntu
+    needs: images
+    # Enable only after Ubuntu/GHCR/Tailscale one-time setup is complete.
+    if: github.repository == 'shunbin2310/Project1' && github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DOCKER_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      SERVER_TAILSCALE_IP: ${{ vars.SERVER_TAILSCALE_IP }}
+      DEPLOY_SSH_USER: ${{ vars.DEPLOY_SSH_USER || 'project1_deploy' }}
+      API_DIGEST: ${{ needs.images.outputs.api_digest }}
+      FRONTEND_DIGEST: ${{ needs.images.outputs.frontend_digest }}
+    steps:
+      - name: Refuse stale commits and missing configuration
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" == "$GITHUB_SHA" ]]
+          [[ "$SERVER_TAILSCALE_IP" =~ ^100\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$DEPLOY_SSH_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$API_DIGEST" =~ ^sha256:[0-9a-f]{64}$ && "$FRONTEND_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ -n "$TS_OAUTH_CLIENT_ID" && -n "$TS_AUDIENCE" && -n "$DEPLOY_SSH_PRIVATE_KEY" && -n "$DEPLOY_SSH_KNOWN_HOSTS" ]]
+      - name: Connect to the server's Tailscale network
+        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:github-deploy
+          version: '1.102.5'
+          use-cache: 'false'
+      - name: Deploy the exact two image digests through pinned SSH
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          SSH_DIR=$(mktemp -d "$RUNNER_TEMP/project1-ssh.XXXXXX")
+          trap 'rm -f -- "$SSH_DIR/key" "$SSH_DIR/known_hosts"; rmdir -- "$SSH_DIR"' EXIT
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" | tr -d '\r' > "$SSH_DIR/key"
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" | tr -d '\r' > "$SSH_DIR/known_hosts"
+          unset DEPLOY_SSH_PRIVATE_KEY DEPLOY_SSH_KNOWN_HOSTS
+          ssh-keygen -y -P '' -f "$SSH_DIR/key" >/dev/null 2>&1
+          ssh-keygen -F "$SERVER_TAILSCALE_IP" -f "$SSH_DIR/known_hosts" >/dev/null
+          ssh -F /dev/null -T -i "$SSH_DIR/key" \
+            -o IdentitiesOnly=yes -o IdentityAgent=none \
+            -o PreferredAuthentications=publickey -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$SSH_DIR/known_hosts" \
+            -o GlobalKnownHostsFile=/dev/null -o UpdateHostKeys=no \
+            -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+            "$DEPLOY_SSH_USER@$SERVER_TAILSCALE_IP" \
+            "sudo -n /usr/local/sbin/project1-auto-deploy $GITHUB_SHA $API_DIGEST $FRONTEND_DIGEST"

@@ -12,6 +12,11 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080"
       ConnectionStrings__DefaultConnection: "Server=tcp:host.docker.internal,1433;Database=Project1Db;User ID=project1_docker_local;Password=${HOST_SQL_PASSWORD:?Initialize the private host-SQL configuration first};Encrypt=True;TrustServerCertificate=True"
+      # Opt in to startup migrations against the existing LOCAL Windows database.
+      # project1_docker_local needs database-scoped DDL permission; review pending migrations first.
+      Database__MigrateOnStartup: "true"
+      Database__ExpectedDatabase: Project1Db
+      Database__CommandTimeoutSeconds: "180"
       Jwt__Issuer: Project1.HostSql.Local
       Jwt__Audience: Project1.HostSql.Local.Frontend
       Jwt__SigningKey: "${JWT_SIGNING_KEY:?Initialize the private host-SQL configuration first}"
@@ -33,7 +38,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 6
-      start_period: 30s
+      start_period: 300s
 
   frontend:
     build:
