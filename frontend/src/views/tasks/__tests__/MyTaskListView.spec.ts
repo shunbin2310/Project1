@@ -4,6 +4,7 @@ import { createPinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
 import PurchaseRequestDetails from '@/components/purchase-requests/PurchaseRequestDetails.vue'
 import PurchaseRequestForm from '@/components/purchase-requests/PurchaseRequestForm.vue'
+import PurchaseOrderDetails from '@/components/purchase-orders/PurchaseOrderDetails.vue'
 import WorkflowActionDialog from '@/components/purchase-requests/WorkflowActionDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { ApplicationRole } from '@/types/auth'
@@ -38,10 +39,7 @@ const mocks = vi.hoisted(() => ({
     >(),
   updatePurchaseOrder:
     vi.fn<
-      (
-        id: number,
-        payload: Omit<PurchaseOrderFormValues, 'quotationId'>,
-      ) => Promise<PurchaseOrder>
+      (id: number, payload: Omit<PurchaseOrderFormValues, 'quotationId'>) => Promise<PurchaseOrder>
     >(),
   updatePurchaseRequest:
     vi.fn<(id: number, payload: PurchaseRequestFormValues) => Promise<PurchaseRequest>>(),
@@ -227,6 +225,220 @@ describe('MyTaskListView', () => {
     })
   }
 
+  function mockTaskLists(count: number) {
+    const requests = Array.from({ length: count }, (_, index) => ({
+      ...departmentReviewRequest,
+      id: index + 1,
+      requestNumber: `PR-${String(index + 1).padStart(4, '0')}`,
+    }))
+    const orders = Array.from({ length: count }, (_, index) => ({
+      ...pendingPurchaseOrder,
+      id: index + 1,
+      purchaseOrderNumber: `PO-${String(index + 1).padStart(4, '0')}`,
+    }))
+    mocks.getPurchaseRequests.mockResolvedValue(requests)
+    mocks.getPurchaseOrders.mockResolvedValue(orders)
+    return { requests, orders }
+  }
+
+  it.each(['request', 'order'] as const)(
+    'paginates %s tasks independently without refetching',
+    async (kind) => {
+      mockTaskLists(21)
+      const wrapper = mountView('ADMIN', 'Demo Admin')
+      await flushPromises()
+      const panel = wrapper.get(`[aria-labelledby="purchase-${kind}-tasks-title"]`)
+      const otherPanel = wrapper.get(
+        `[aria-labelledby="purchase-${kind === 'request' ? 'order' : 'request'}-tasks-title"]`,
+      )
+      const previous = panel.get('nav button:first-child')
+      const next = panel.get('nav button:last-child')
+      const prefix = kind === 'request' ? 'PR' : 'PO'
+
+      expect(panel.findAll('tbody tr')).toHaveLength(10)
+      expect(panel.get('.pagination-summary').text()).toBe('Showing 1–10 of 21 tasks')
+      expect(panel.get('nav').text()).toContain('Page 1 of 3')
+      expect(previous.attributes('disabled')).toBeDefined()
+
+      await next.trigger('click')
+      expect(panel.get('tbody tr').text()).toContain(`${prefix}-0011`)
+      expect(panel.get('.pagination-summary').text()).toBe('Showing 11–20 of 21 tasks')
+      expect(previous.attributes('disabled')).toBeUndefined()
+      expect(otherPanel.get('nav').text()).toContain('Page 1 of 3')
+      expect(otherPanel.findAll('tbody tr')).toHaveLength(10)
+
+      await next.trigger('click')
+      expect(panel.findAll('tbody tr')).toHaveLength(1)
+      expect(panel.get('tbody tr').text()).toContain(`${prefix}-0021`)
+      expect(panel.get('nav').text()).toContain('Page 3 of 3')
+      expect(next.attributes('disabled')).toBeDefined()
+
+      await previous.trigger('click')
+      expect(panel.get('nav').text()).toContain('Page 2 of 3')
+      expect(mocks.getPurchaseRequests).toHaveBeenCalledTimes(1)
+      expect(mocks.getPurchaseOrders).toHaveBeenCalledTimes(1)
+      wrapper.unmount()
+    },
+  )
+
+  it.each(['request', 'order'] as const)(
+    'changes %s page size and returns to its first page',
+    async (kind) => {
+      mockTaskLists(51)
+      const wrapper = mountView('ADMIN', 'Demo Admin')
+      await flushPromises()
+      const panel = wrapper.get(`[aria-labelledby="purchase-${kind}-tasks-title"]`)
+      const otherPanel = wrapper.get(
+        `[aria-labelledby="purchase-${kind === 'request' ? 'order' : 'request'}-tasks-title"]`,
+      )
+
+      await panel.get('nav button:last-child').trigger('click')
+      await panel.get('nav select').setValue('20')
+      expect(panel.findAll('tbody tr')).toHaveLength(20)
+      expect(panel.get('nav').text()).toContain('Page 1 of 3')
+      expect(panel.get('.pagination-summary').text()).toBe('Showing 1–20 of 51 tasks')
+      expect(otherPanel.findAll('tbody tr')).toHaveLength(10)
+      expect(otherPanel.get<HTMLSelectElement>('nav select').element.value).toBe('10')
+
+      await panel.get('nav button:last-child').trigger('click')
+      await panel.get('nav select').setValue('50')
+      expect(panel.findAll('tbody tr')).toHaveLength(50)
+      expect(panel.get('nav').text()).toContain('Page 1 of 2')
+      await panel.get('nav button:last-child').trigger('click')
+      expect(panel.findAll('tbody tr')).toHaveLength(1)
+      expect(panel.get('.pagination-summary').text()).toBe('Showing 51–51 of 51 tasks')
+      wrapper.unmount()
+    },
+  )
+
+  it.each(['request', 'order'] as const)(
+    'filters authorized %s tasks before counting and paginating',
+    async (kind) => {
+      const { requests, orders } = mockTaskLists(11)
+      mocks.getPurchaseRequests.mockResolvedValue([requesterDraft, ...requests])
+      mocks.getPurchaseOrders.mockResolvedValue([
+        { ...pendingPurchaseOrder, workflow: null },
+        ...orders,
+      ])
+      const wrapper = mountView(
+        kind === 'request' ? 'DEPARTMENT_APPROVER' : 'PURCHASE_ORDER_APPROVER',
+        'Approver',
+      )
+      await flushPromises()
+      const panel = wrapper.get(`[aria-labelledby="purchase-${kind}-tasks-title"]`)
+
+      expect(panel.get('.panel-toolbar').text()).toContain('11 tasks assigned to your account')
+      expect(panel.findAll('tbody tr')).toHaveLength(10)
+      expect(panel.get('.pagination-summary').text()).toBe('Showing 1–10 of 11 tasks')
+      await panel.get('nav button:last-child').trigger('click')
+      expect(panel.findAll('tbody tr')).toHaveLength(1)
+      wrapper.unmount()
+    },
+  )
+
+  it.each(['request', 'order'] as const)(
+    'returns to a valid page after completing the last %s task on a page',
+    async (kind) => {
+      const { requests, orders } = mockTaskLists(11)
+      const wrapper = mountView('ADMIN', 'Demo Admin')
+      await flushPromises()
+      const panel = wrapper.get(`[aria-labelledby="purchase-${kind}-tasks-title"]`)
+      const otherPanel = wrapper.get(
+        `[aria-labelledby="purchase-${kind === 'request' ? 'order' : 'request'}-tasks-title"]`,
+      )
+      await panel.get('nav button:last-child').trigger('click')
+      await otherPanel.get('nav button:last-child').trigger('click')
+      await panel.get('tbody tr button').trigger('click')
+
+      if (kind === 'request') {
+        mocks.getPurchaseRequests.mockResolvedValue(requests.slice(0, 10))
+        wrapper
+          .findComponent(PurchaseRequestDetails)
+          .vm.$emit('action', departmentReviewRequest.workflow.availableActions[0]!)
+      } else {
+        mocks.getPurchaseOrders.mockResolvedValue(orders.slice(0, 10))
+        wrapper
+          .findComponent(PurchaseOrderDetails)
+          .vm.$emit('action', pendingPurchaseOrder.workflow!.availableActions[0]!)
+      }
+      await flushPromises()
+      wrapper.findComponent(WorkflowActionDialog).vm.$emit('execute', null)
+      await flushPromises()
+
+      expect(
+        kind === 'request' ? mocks.executeAction : mocks.executePurchaseOrderAction,
+      ).toHaveBeenCalledWith(11, 'APPROVE', { comment: null })
+      expect(panel.get('nav').text()).toContain('Page 1 of 1')
+      expect(panel.findAll('tbody tr')).toHaveLength(10)
+      expect(panel.get('.pagination-summary').text()).toBe('Showing 1–10 of 10 tasks')
+      expect(panel.get('nav button:last-child').attributes('disabled')).toBeDefined()
+      expect(otherPanel.get('nav').text()).toContain('Page 2 of 2')
+      wrapper.unmount()
+    },
+  )
+
+  it.each<[ApplicationRole[], boolean, boolean]>([
+    [['REQUESTER'], true, false],
+    [['DEPARTMENT_APPROVER'], true, false],
+    [['FINANCE_APPROVER'], true, false],
+    [['PROCUREMENT_OFFICER'], false, true],
+    [['PURCHASE_ORDER_APPROVER'], false, true],
+    [['ADMIN'], true, true],
+    [['WAREHOUSE_OFFICER'], false, false],
+    [['CATALOG_MANAGER'], false, false],
+    [['WAREHOUSE_OFFICER', 'CATALOG_MANAGER'], false, false],
+    [['REQUESTER', 'PROCUREMENT_OFFICER'], true, true],
+    [['WAREHOUSE_OFFICER', 'REQUESTER'], true, false],
+  ])(
+    'shows and loads the permitted task lists for roles %j',
+    async (roles, showRequests, showOrders) => {
+      const wrapper = mountView(roles, 'Demo User')
+      await flushPromises()
+
+      expect(wrapper.find('#purchase-request-tasks-title').exists()).toBe(showRequests)
+      expect(wrapper.find('#purchase-order-tasks-title').exists()).toBe(showOrders)
+      expect(mocks.getPurchaseRequests).toHaveBeenCalledTimes(showRequests ? 1 : 0)
+      expect(mocks.getPurchaseOrders).toHaveBeenCalledTimes(showOrders ? 1 : 0)
+      wrapper.unmount()
+    },
+  )
+
+  it('shows a loading state for a purchase-order-only account', async () => {
+    let resolveOrders!: (orders: PurchaseOrder[]) => void
+    mocks.getPurchaseOrders.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveOrders = resolve
+      }),
+    )
+    const wrapper = mountView('PROCUREMENT_OFFICER', 'Procurement Officer')
+
+    expect(wrapper.find('#purchase-request-tasks-title').exists()).toBe(false)
+    expect(wrapper.get('.panel-state').text()).toContain('Loading your tasks')
+    expect(wrapper.find('nav').exists()).toBe(false)
+
+    resolveOrders([])
+    await flushPromises()
+    expect(wrapper.get('.panel-state').text()).toContain('No purchase order tasks')
+    expect(wrapper.find('nav').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shows purchase order load failures and allows retrying without a request panel', async () => {
+    mocks.getPurchaseOrders.mockRejectedValueOnce(new Error('Purchase orders unavailable'))
+    const wrapper = mountView('PURCHASE_ORDER_APPROVER', 'Purchase Order Approver')
+    await flushPromises()
+
+    expect(wrapper.get('.panel-state-error').text()).toContain('Purchase orders unavailable')
+    expect(wrapper.find('nav').exists()).toBe(false)
+    expect(wrapper.find('#purchase-request-tasks-title').exists()).toBe(false)
+
+    await wrapper.get('.panel-state-error button').trigger('click')
+    await flushPromises()
+    expect(mocks.getPurchaseOrders).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('.panel-state').text()).toContain('No purchase order tasks')
+    wrapper.unmount()
+  })
+
   it('shows only workflow tasks assigned to the signed-in approver', async () => {
     const wrapper = mountView('DEPARTMENT_APPROVER', 'Department Approver')
     await flushPromises()
@@ -356,6 +568,7 @@ describe('MyTaskListView', () => {
     expect(wrapper.findComponent(PurchaseRequestDetails).exists()).toBe(false)
     expect(wrapper.find('tbody').exists()).toBe(false)
     expect(wrapper.get('.panel-state').text()).toContain('No purchase request tasks')
+    expect(wrapper.find('nav').exists()).toBe(false)
     expect(wrapper.get('.success-toast').text()).toContain(
       'PR-0003: Approve department review completed.',
     )
@@ -371,7 +584,7 @@ describe('MyTaskListView', () => {
 
   it('shows purchase order approval tasks to the Purchase Order Approver', async () => {
     mocks.getPurchaseRequests.mockResolvedValue([])
-    mocks.getPurchaseOrders.mockResolvedValue([pendingPurchaseOrder])
+    mocks.getPurchaseOrders.mockResolvedValueOnce([pendingPurchaseOrder]).mockResolvedValue([])
     const wrapper = mountView('PURCHASE_ORDER_APPROVER', 'Purchase Order Approver')
     await flushPromises()
 
@@ -390,5 +603,7 @@ describe('MyTaskListView', () => {
     expect(mocks.executePurchaseOrderAction).toHaveBeenCalledWith(7, 'APPROVE', {
       comment: null,
     })
+    expect(wrapper.find('nav').exists()).toBe(false)
+    expect(wrapper.get('.panel-state').text()).toContain('No purchase order tasks')
   })
 })

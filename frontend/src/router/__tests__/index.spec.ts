@@ -5,7 +5,7 @@ import { pinia } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
 import type { ApplicationRole } from '@/types/auth'
 
-function authenticate(role: ApplicationRole) {
+function authenticate(role: ApplicationRole | ApplicationRole[]) {
   const authStore = useAuthStore(pinia)
   authStore.$patch({
     session: {
@@ -18,7 +18,7 @@ function authenticate(role: ApplicationRole) {
         departmentId: 1,
         departmentCode: 'IT',
         departmentName: 'Information Technology',
-        roles: [role],
+        roles: Array.isArray(role) ? role : [role],
       },
     },
   })
@@ -209,12 +209,23 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('inventory')
   })
 
-  it('allows every authenticated role to open My Tasks', async () => {
-    authenticate('FINANCE_APPROVER')
+  it.each<[ApplicationRole[], string]>([
+    [['REQUESTER'], 'my-tasks'],
+    [['DEPARTMENT_APPROVER'], 'my-tasks'],
+    [['FINANCE_APPROVER'], 'my-tasks'],
+    [['PROCUREMENT_OFFICER'], 'my-tasks'],
+    [['PURCHASE_ORDER_APPROVER'], 'my-tasks'],
+    [['ADMIN'], 'my-tasks'],
+    [['WAREHOUSE_OFFICER'], 'access-denied'],
+    [['CATALOG_MANAGER'], 'access-denied'],
+    [['WAREHOUSE_OFFICER', 'CATALOG_MANAGER'], 'access-denied'],
+    [['WAREHOUSE_OFFICER', 'PROCUREMENT_OFFICER'], 'my-tasks'],
+  ])('guards My Tasks for roles %j with destination %s', async (roles, destination) => {
+    authenticate(roles)
 
     await router.push('/my-tasks')
 
-    expect(router.currentRoute.value.name).toBe('my-tasks')
+    expect(router.currentRoute.value.name).toBe(destination)
   })
 
   it('allows a Purchase Order Approver to open Purchase Orders but not procurement settings', async () => {

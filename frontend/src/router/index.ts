@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import { pinia } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
-import { applicationRoles, type ApplicationRole } from '@/types/auth'
+import { applicationRoles, myTaskRoles, type ApplicationRole } from '@/types/auth'
 
 const adminRoutes: readonly ApplicationRole[] = [applicationRoles.admin]
 const procurementRoutes: readonly ApplicationRole[] = [
@@ -78,7 +78,7 @@ const router = createRouter({
       path: '/my-tasks',
       name: 'my-tasks',
       component: () => import('@/views/tasks/MyTaskListView.vue'),
-      meta: { title: 'My Tasks', requiresAuth: true },
+      meta: { title: 'My Tasks', requiresAuth: true, roles: myTaskRoles },
     },
     {
       path: '/departments',
