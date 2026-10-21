@@ -8,7 +8,7 @@ import type { ApplicationRole } from '@/types/auth'
 import LoginView from '@/views/auth/LoginView.vue'
 import App from '../App.vue'
 
-async function mountForRole(role: ApplicationRole) {
+async function mountForRole(role: ApplicationRole | ApplicationRole[]) {
   const pinia = createPinia()
   const authStore = useAuthStore(pinia)
   authStore.$patch({
@@ -22,7 +22,7 @@ async function mountForRole(role: ApplicationRole) {
         departmentId: 1,
         departmentCode: 'TEST',
         departmentName: 'Test Department',
-        roles: [role],
+        roles: Array.isArray(role) ? role : [role],
       },
     },
   })
@@ -43,6 +43,27 @@ async function mountForRole(role: ApplicationRole) {
 }
 
 describe('App', () => {
+  it.each<[ApplicationRole[], boolean]>([
+    [['REQUESTER'], true],
+    [['DEPARTMENT_APPROVER'], true],
+    [['FINANCE_APPROVER'], true],
+    [['PROCUREMENT_OFFICER'], true],
+    [['PURCHASE_ORDER_APPROVER'], true],
+    [['ADMIN'], true],
+    [['WAREHOUSE_OFFICER'], false],
+    [['CATALOG_MANAGER'], false],
+    [['WAREHOUSE_OFFICER', 'CATALOG_MANAGER'], false],
+    [['WAREHOUSE_OFFICER', 'REQUESTER'], true],
+  ])('shows My Tasks for roles %j: %s', async (roles, visible) => {
+    const wrapper = await mountForRole(roles)
+
+    expect(wrapper.find('a[href="/my-tasks"]').exists()).toBe(visible)
+    expect(wrapper.findAll('.primary-nav p').some((label) => label.text() === 'Tasks')).toBe(
+      visible,
+    )
+    wrapper.unmount()
+  })
+
   it('renders the brand and welcome heading on the login page', async () => {
     const pinia = createPinia()
     const router = createRouter({

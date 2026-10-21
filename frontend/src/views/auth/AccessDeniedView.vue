@@ -3,12 +3,13 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
-import { applicationRoles } from '@/types/auth'
+import { applicationRoles, myTaskRoles } from '@/types/auth'
 
 const authStore = useAuthStore()
-const returnPath = computed(() =>
-  authStore.roles.includes(applicationRoles.admin) ? '/departments' : '/my-tasks',
-)
+const returnPath = computed(() => {
+  if (authStore.roles.includes(applicationRoles.admin)) return '/departments'
+  return authStore.hasAnyRole(myTaskRoles) ? '/my-tasks' : '/dashboard'
+})
 </script>
 
 <template>

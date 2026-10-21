@@ -7,12 +7,14 @@ import PurchaseOrderDetails from '@/components/purchase-orders/PurchaseOrderDeta
 import PurchaseOrderForm from '@/components/purchase-orders/PurchaseOrderForm.vue'
 import WorkflowActionDialog from '@/components/purchase-requests/WorkflowActionDialog.vue'
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import { useToast } from '@/composables/useToast'
 import { productService } from '@/services/productService'
 import { purchaseRequestService } from '@/services/purchaseRequestService'
 import { purchaseOrderService } from '@/services/purchaseOrderService'
 import { useAuthStore } from '@/stores/auth'
-import { applicationRoles } from '@/types/auth'
+import { purchaseOrderTaskRoles, purchaseRequestTaskRoles } from '@/types/auth'
 import type { Product } from '@/types/product'
 import type { PurchaseOrder, PurchaseOrderFormValues } from '@/types/purchaseOrder'
 import type {
@@ -48,21 +50,24 @@ const actor = computed<WorkflowActorIdentity>(() => ({
   name: authStore.user?.fullName ?? 'Current user',
   roles: authStore.roles,
 }))
-const canLoadPurchaseOrders = computed(
-  () =>
-    authStore.roles.includes(applicationRoles.admin) ||
-    authStore.roles.includes(applicationRoles.procurementOfficer) ||
-    authStore.roles.includes(applicationRoles.purchaseOrderApprover),
-)
-const canLoadPurchaseRequests = computed(
-  () => authStore.roles.some((role) => role !== applicationRoles.purchaseOrderApprover),
-)
+const canLoadPurchaseOrders = computed(() => authStore.hasAnyRole(purchaseOrderTaskRoles))
+const canLoadPurchaseRequests = computed(() => authStore.hasAnyRole(purchaseRequestTaskRoles))
 const currentTasks = computed(() =>
   requests.value.filter((request) => authorizedActions(request).length > 0),
 )
 const currentPurchaseOrderTasks = computed(() =>
   purchaseOrders.value.filter((order) => authorizedPurchaseOrderActions(order).length > 0),
 )
+const {
+  page: requestPage,
+  pageSize: requestPageSize,
+  paginatedItems: paginatedRequests,
+} = usePagination(currentTasks)
+const {
+  page: purchaseOrderPage,
+  pageSize: purchaseOrderPageSize,
+  paginatedItems: paginatedPurchaseOrders,
+} = usePagination(currentPurchaseOrderTasks)
 
 onMounted(loadTasks)
 function authorizedActions(request: PurchaseRequest) {
@@ -103,7 +108,7 @@ async function loadTasks() {
     const [requestRecords, purchaseOrderRecords, productRecords] = await Promise.all([
       canLoadPurchaseRequests.value ? purchaseRequestService.getAll() : Promise.resolve([]),
       canLoadPurchaseOrders.value ? purchaseOrderService.getAll() : Promise.resolve([]),
-      productService.getAll(true),
+      canLoadPurchaseRequests.value ? productService.getAll(true) : Promise.resolve([]),
     ])
     requests.value = requestRecords
     purchaseOrders.value = purchaseOrderRecords
@@ -302,7 +307,11 @@ function stepClass(stepCode: string) {
       </div>
     </header>
 
-    <section class="data-panel" aria-labelledby="purchase-request-tasks-title">
+    <section
+      v-if="canLoadPurchaseRequests"
+      class="data-panel"
+      aria-labelledby="purchase-request-tasks-title"
+    >
       <div class="panel-toolbar">
         <div>
           <h2 id="purchase-request-tasks-title">Purchase Request Tasks</h2>
@@ -346,7 +355,7 @@ function stepClass(stepCode: string) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="task in currentTasks" :key="task.id">
+            <tr v-for="task in paginatedRequests" :key="task.id">
               <td>
                 <div class="purchase-request-identity">
                   <span class="code-avatar">RQ</span>
@@ -394,24 +403,44 @@ function stepClass(stepCode: string) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && currentTasks.length > 0"
+        v-model:page="requestPage"
+        v-model:page-size="requestPageSize"
+        :total="currentTasks.length"
+        label="Purchase request tasks"
+      />
     </section>
 
     <section
-      v-if="!loading && !loadError"
+      v-if="canLoadPurchaseOrders"
       class="data-panel"
       aria-labelledby="purchase-order-tasks-title"
     >
       <div class="panel-toolbar">
         <div>
           <h2 id="purchase-order-tasks-title">Purchase Order Tasks</h2>
-          <p>
+          <p v-if="loading">Checking workflow assignments</p>
+          <p v-else>
             {{ currentPurchaseOrderTasks.length }}
             {{ currentPurchaseOrderTasks.length === 1 ? 'task' : 'tasks' }} assigned to your account
           </p>
         </div>
       </div>
 
-      <div v-if="currentPurchaseOrderTasks.length === 0" class="panel-state">
+      <div v-if="loading" class="panel-state" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <strong>Loading your tasks</strong>
+        <p>Checking workflow assignments.</p>
+      </div>
+
+      <div v-else-if="loadError" class="panel-state panel-state-error">
+        <strong>Tasks could not be loaded</strong>
+        <p>{{ loadError }}</p>
+        <button class="button button-secondary" type="button" @click="loadTasks">Try again</button>
+      </div>
+
+      <div v-else-if="currentPurchaseOrderTasks.length === 0" class="panel-state">
         <div class="empty-icon" aria-hidden="true">OK</div>
         <strong>No purchase order tasks</strong>
         <p>No purchase order currently needs an action from you.</p>
@@ -431,7 +460,7 @@ function stepClass(stepCode: string) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="task in currentPurchaseOrderTasks" :key="task.id">
+            <tr v-for="task in paginatedPurchaseOrders" :key="task.id">
               <td>
                 <div class="purchase-order-identity">
                   <span class="code-avatar">PO</span>
@@ -481,6 +510,13 @@ function stepClass(stepCode: string) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && currentPurchaseOrderTasks.length > 0"
+        v-model:page="purchaseOrderPage"
+        v-model:page-size="purchaseOrderPageSize"
+        :total="currentPurchaseOrderTasks.length"
+        label="Purchase order tasks"
+      />
     </section>
 
     <AppToast :toast="toast" @dismiss="dismissToast" />
@@ -534,3 +570,9 @@ function stepClass(stepCode: string) {
     />
   </section>
 </template>
+
+<style scoped>
+.my-task-page > .data-panel + .data-panel {
+  margin-top: 24px;
+}
+</style>

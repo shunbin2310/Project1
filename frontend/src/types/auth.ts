@@ -11,6 +11,23 @@ export const applicationRoles = {
 
 export type ApplicationRole = (typeof applicationRoles)[keyof typeof applicationRoles]
 
+export const purchaseRequestTaskRoles: readonly ApplicationRole[] = [
+  applicationRoles.admin,
+  applicationRoles.requester,
+  applicationRoles.departmentApprover,
+  applicationRoles.financeApprover,
+]
+
+export const purchaseOrderTaskRoles: readonly ApplicationRole[] = [
+  applicationRoles.admin,
+  applicationRoles.procurementOfficer,
+  applicationRoles.purchaseOrderApprover,
+]
+
+export const myTaskRoles: readonly ApplicationRole[] = [
+  ...new Set([...purchaseRequestTaskRoles, ...purchaseOrderTaskRoles]),
+]
+
 export interface AuthenticatedUser {
   id: number
   email: string

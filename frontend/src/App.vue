@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
-import { applicationRoles } from '@/types/auth'
+import { applicationRoles, myTaskRoles } from '@/types/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,6 +13,7 @@ const pageTitle = computed(() =>
 )
 const usesAuthLayout = computed(() => route.meta.layout === 'auth')
 const isAdmin = computed(() => authStore.roles.includes(applicationRoles.admin))
+const canViewMyTasks = computed(() => authStore.hasAnyRole(myTaskRoles))
 const canManageProcurement = computed(
   () => isAdmin.value || authStore.roles.includes(applicationRoles.procurementOfficer),
 )
@@ -76,11 +77,13 @@ async function logout() {
           <span>Dashboard</span>
         </RouterLink>
 
-        <p>Tasks</p>
-        <RouterLink to="/my-tasks">
-          <span class="nav-icon" aria-hidden="true">TK</span>
-          <span>My Tasks</span>
-        </RouterLink>
+        <template v-if="canViewMyTasks">
+          <p>Tasks</p>
+          <RouterLink to="/my-tasks">
+            <span class="nav-icon" aria-hidden="true">TK</span>
+            <span>My Tasks</span>
+          </RouterLink>
+        </template>
 
         <template v-if="isAdmin">
           <p>Administration</p>
