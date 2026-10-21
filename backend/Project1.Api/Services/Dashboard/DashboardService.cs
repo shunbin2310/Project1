@@ -53,13 +53,16 @@ public sealed class DashboardService(
                 order.CreatedAtUtc,
                 order.UpdatedAtUtc,
                 order.IssuedAtUtc,
-                order.IssuedByName))
+                order.IssuedByName,
+                order.CancelledAtUtc,
+                order.CancelledByName))
             .ToListAsync(cancellationToken);
         var goodsReceipts = await dbContext.GoodsReceipts
             .AsNoTracking()
             .Select(receipt => new GoodsReceiptSnapshot(
                 receipt.Id,
                 receipt.GoodsReceiptNumber,
+                receipt.PurchaseOrderId,
                 receipt.Status,
                 receipt.CreatedByUserId,
                 receipt.CreatedByName,
@@ -197,6 +200,7 @@ public sealed class DashboardService(
                 request.Id,
                 request.RequestNumber,
                 request.RequesterUserId,
+                request.RequesterName,
                 instance.Status,
                 step.Code,
                 request.CreatedAtUtc,
@@ -416,46 +420,72 @@ public sealed class DashboardService(
         var activities = new Dictionary<string, DashboardActivityResponse>(StringComparer.Ordinal);
 
         var canSeeAllPurchaseRequests = isAdmin || isDepartmentApprover || isFinanceApprover || isProcurement;
-        var purchaseRequestReferences = purchaseRequests
+        var visiblePurchaseRequests = purchaseRequests
             .Where(request => canSeeAllPurchaseRequests ||
                               (isRequester && request.RequesterUserId == currentUser.UserId))
-            .ToDictionary(request => request.Id, request => request.Number);
-        if (purchaseRequestReferences.Count > 0 && (canSeeAllPurchaseRequests || isRequester))
+            .ToList();
+        if (visiblePurchaseRequests.Count > 0)
         {
-            foreach (var activity in await LoadWorkflowActivityAsync(
-                         PurchaseRequestEntityType,
-                         "Purchase Request",
-                         "/purchase-requests",
-                         purchaseRequestReferences,
-                         cancellationToken))
+            var latestActions = await LoadLatestWorkflowActionsAsync(
+                PurchaseRequestEntityType,
+                visiblePurchaseRequests.Select(request => request.Id).ToArray(),
+                cancellationToken);
+            foreach (var request in visiblePurchaseRequests)
             {
+                latestActions.TryGetValue(request.Id, out var latestAction);
+                var status = SplitWords(request.StepCode);
+                var activity = new DashboardActivityResponse(
+                    $"purchase-request:{request.Id}",
+                    "Purchase Request",
+                    request.Number,
+                    status,
+                    "Purchase Request is currently at " + status + ".",
+                    latestAction?.ActorName ?? request.RequesterName ?? "System",
+                    LatestActivityAt(request.CreatedAtUtc, request.UpdatedAtUtc, latestAction?.OccurredAtUtc),
+                    "/purchase-requests");
                 activities.TryAdd(activity.Key, activity);
             }
         }
 
         if (isAdmin || isProcurement || isPurchaseOrderApprover)
         {
-            var orderReferences = purchaseOrders.ToDictionary(order => order.Id, order => order.Number);
-            foreach (var activity in await LoadWorkflowActivityAsync(
-                         PurchaseOrderEntityType,
-                         "Purchase Order",
-                         "/purchase-orders",
-                         orderReferences,
-                         cancellationToken))
+            var latestActions = await LoadLatestWorkflowActionsAsync(
+                PurchaseOrderEntityType,
+                purchaseOrders.Select(order => order.Id).ToArray(),
+                cancellationToken);
+            var latestReceipts = goodsReceipts
+                .Where(receipt => receipt.Status == GoodsReceiptStatus.Posted)
+                .GroupBy(receipt => receipt.PurchaseOrderId)
+                .ToDictionary(group => group.Key, group => group
+                    .OrderByDescending(receipt => receipt.PostedAtUtc)
+                    .ThenByDescending(receipt => receipt.Id)
+                    .First());
+            foreach (var order in purchaseOrders)
             {
-                activities.TryAdd(activity.Key, activity);
-            }
-
-            foreach (var order in purchaseOrders.Where(order => order.IssuedAtUtc.HasValue))
-            {
+                latestActions.TryGetValue(order.Id, out var latestAction);
+                latestReceipts.TryGetValue(order.Id, out var latestReceipt);
+                var status = order.Status switch
+                {
+                    PurchaseOrderStatus.PendingApproval => "Pending Approval",
+                    PurchaseOrderStatus.PartiallyReceived => "Partially Received",
+                    _ => order.Status.ToString()
+                };
+                var actor = order.Status switch
+                {
+                    PurchaseOrderStatus.Cancelled => order.CancelledByName,
+                    PurchaseOrderStatus.Issued => order.IssuedByName,
+                    PurchaseOrderStatus.PartiallyReceived or PurchaseOrderStatus.Received => latestReceipt?.PostedByName,
+                    _ => latestAction?.ActorName ?? order.CreatedByName
+                };
                 var activity = new DashboardActivityResponse(
-                    $"purchase-order-issued:{order.Id}",
+                    $"purchase-order:{order.Id}",
                     "Purchase Order",
                     order.Number,
-                    "Purchase Order issued",
-                    "Supplier email and PDF were queued for delivery.",
-                    order.IssuedByName ?? "System",
-                    order.IssuedAtUtc!.Value,
+                    status,
+                    "Purchase Order status is " + status + ".",
+                    actor ?? "System",
+                    LatestActivityAt(order.CreatedAtUtc, order.UpdatedAtUtc, order.IssuedAtUtc,
+                        order.CancelledAtUtc, latestAction?.OccurredAtUtc, latestReceipt?.PostedAtUtc),
                     "/purchase-orders");
                 activities.TryAdd(activity.Key, activity);
             }
@@ -465,8 +495,8 @@ public sealed class DashboardService(
         {
             foreach (var quotation in quotations)
             {
-                var occurredAt = quotation.SelectedAtUtc ?? quotation.SubmittedAtUtc ??
-                    quotation.UpdatedAtUtc ?? quotation.CreatedAtUtc;
+                var occurredAt = LatestActivityAt(quotation.CreatedAtUtc, quotation.UpdatedAtUtc,
+                    quotation.SubmittedAtUtc, quotation.SelectedAtUtc);
                 var title = quotation.Status switch
                 {
                     QuotationStatus.Selected => "Quotation selected",
@@ -475,7 +505,7 @@ public sealed class DashboardService(
                     _ => "Quotation draft saved"
                 };
                 var activity = new DashboardActivityResponse(
-                    $"quotation:{quotation.Id}:{quotation.Status}",
+                    $"quotation:{quotation.Id}",
                     "Supplier Quotation",
                     quotation.Number,
                     title,
@@ -488,8 +518,8 @@ public sealed class DashboardService(
 
             foreach (var email in emailRecords)
             {
-                var occurredAt = email.SentAtUtc ?? email.LastAttemptAtUtc ??
-                    email.UpdatedAtUtc ?? email.CreatedAtUtc;
+                var occurredAt = LatestActivityAt(email.CreatedAtUtc, email.UpdatedAtUtc,
+                    email.LastAttemptAtUtc, email.SentAtUtc);
                 var title = email.Status switch
                 {
                     EmailDeliveryStatus.Sent => "Supplier email sent",
@@ -500,7 +530,7 @@ public sealed class DashboardService(
                     ? email.CreatedByName ?? "System"
                     : "Email worker";
                 var activity = new DashboardActivityResponse(
-                    $"email:{email.Id}:{email.Status}",
+                    $"email:{email.Id}",
                     "Email Record",
                     email.Reference,
                     title,
@@ -518,7 +548,7 @@ public sealed class DashboardService(
             {
                 var posted = receipt.Status == GoodsReceiptStatus.Posted;
                 var activity = new DashboardActivityResponse(
-                    $"goods-receipt:{receipt.Id}:{receipt.Status}",
+                    $"goods-receipt:{receipt.Id}",
                     "Goods Receipt",
                     receipt.Number,
                     posted ? "Goods Receipt posted" : "Goods Receipt draft saved",
@@ -526,7 +556,7 @@ public sealed class DashboardService(
                         ? "Inventory was updated from a supplier delivery."
                         : "Delivery details are waiting to be posted.",
                     posted ? receipt.PostedByName ?? "System" : receipt.CreatedByName,
-                    receipt.PostedAtUtc ?? receipt.UpdatedAtUtc ?? receipt.CreatedAtUtc,
+                    LatestActivityAt(receipt.CreatedAtUtc, receipt.UpdatedAtUtc, receipt.PostedAtUtc),
                     "/goods-receipts");
                 activities.TryAdd(activity.Key, activity);
             }
@@ -538,7 +568,7 @@ public sealed class DashboardService(
             {
                 var updated = product.UpdatedAtUtc.HasValue;
                 var activity = new DashboardActivityResponse(
-                    $"product:{product.Id}:{product.UpdatedAtUtc?.Ticks ?? 0}",
+                    $"product:{product.Id}",
                     "Product",
                     product.Code,
                     updated ? "Product updated" : "Product created",
@@ -557,64 +587,43 @@ public sealed class DashboardService(
             .ToList();
     }
 
-    private async Task<IReadOnlyList<DashboardActivityResponse>> LoadWorkflowActivityAsync(
+    private async Task<IReadOnlyDictionary<int, LatestWorkflowAction>> LoadLatestWorkflowActionsAsync(
         string entityType,
-        string module,
-        string route,
-        IReadOnlyDictionary<int, string> references,
+        int[] entityIds,
         CancellationToken cancellationToken)
     {
-        if (references.Count == 0)
+        if (entityIds.Length == 0)
         {
-            return [];
+            return new Dictionary<int, LatestWorkflowAction>();
         }
 
-        var entityIds = references.Keys.ToArray();
-        var history = await dbContext.WorkflowHistory
+        // Workflow history is appended in sequence. Select one action per record
+        // before limiting the dashboard, so a busy workflow cannot hide other records.
+        var latestActionIds = dbContext.WorkflowHistory
             .AsNoTracking()
             .Where(item =>
                 item.ProcessInstance.EntityType == entityType &&
                 entityIds.Contains(item.ProcessInstance.EntityId))
-            .OrderByDescending(item => item.Id)
-            .Take(50)
+            .GroupBy(item => item.ProcessInstanceId)
+            .Select(group => group.Max(item => item.Id));
+
+        return await dbContext.WorkflowHistory
+            .AsNoTracking()
+            .Where(item => latestActionIds.Contains(item.Id))
             .Select(item => new
             {
-                item.Id,
                 item.ProcessInstance.EntityId,
-                item.ActionCode,
-                item.FromStepCode,
-                item.ToStepCode,
                 item.ActionBy,
                 item.ActionAtUtc
             })
-            .ToListAsync(cancellationToken);
-
-        return history
-            .OrderByDescending(item => item.ActionAtUtc)
-            .ThenByDescending(item => item.Id)
-            .Take(20)
-            .Select(item => new DashboardActivityResponse(
-                $"workflow:{entityType}:{item.Id}",
-                module,
-                references[item.EntityId],
-                WorkflowActionTitle(item.ActionCode),
-                item.FromStepCode is null
-                    ? "Workflow started at " + SplitWords(item.ToStepCode) + "."
-                    : SplitWords(item.FromStepCode) + " → " + SplitWords(item.ToStepCode) + ".",
-                item.ActionBy,
-                item.ActionAtUtc,
-                route))
-            .ToList();
+            .ToDictionaryAsync(item => item.EntityId,
+                item => new LatestWorkflowAction(item.ActionBy, item.ActionAtUtc), cancellationToken);
     }
 
-    private static string WorkflowActionTitle(string actionCode) => actionCode switch
-    {
-        "START" => "Workflow started",
-        "SUBMIT" => "Submitted for approval",
-        "APPROVE" => "Approval completed",
-        "REJECT" => "Request rejected",
-        _ => SplitWords(actionCode)
-    };
+    private static DateTimeOffset LatestActivityAt(DateTimeOffset createdAtUtc, params DateTimeOffset?[] timestamps) =>
+        timestamps.Append(createdAtUtc).Max()!.Value;
+
+    private sealed record LatestWorkflowAction(string ActorName, DateTimeOffset OccurredAtUtc);
 
     private static string SplitWords(string value) =>
         string.Join(' ', value.Split('_', StringSplitOptions.RemoveEmptyEntries)
@@ -651,6 +660,7 @@ public sealed class DashboardService(
         int Id,
         string Number,
         int? RequesterUserId,
+        string? RequesterName,
         WorkflowInstanceStatus WorkflowStatus,
         string StepCode,
         DateTimeOffset CreatedAtUtc,
@@ -677,11 +687,14 @@ public sealed class DashboardService(
         DateTimeOffset CreatedAtUtc,
         DateTimeOffset? UpdatedAtUtc,
         DateTimeOffset? IssuedAtUtc,
-        string? IssuedByName);
+        string? IssuedByName,
+        DateTimeOffset? CancelledAtUtc,
+        string? CancelledByName);
 
     private sealed record GoodsReceiptSnapshot(
         int Id,
         string Number,
+        int PurchaseOrderId,
         GoodsReceiptStatus Status,
         int CreatedByUserId,
         string CreatedByName,

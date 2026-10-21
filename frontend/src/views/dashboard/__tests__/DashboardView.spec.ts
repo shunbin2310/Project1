@@ -38,11 +38,11 @@ const populatedDashboard: Dashboard = {
   ],
   recentActivity: [
     {
-      key: 'workflow:PurchaseRequest:9',
+      key: 'purchase-request:9',
       module: 'Purchase Request',
       reference: 'PR-0009',
-      title: 'Submitted for approval',
-      description: 'Draft → Department Review.',
+      title: 'Department Review',
+      description: 'Purchase Request is currently at Department Review.',
       actorName: 'Demo Requester',
       occurredAtUtc: '2026-10-01T08:30:00Z',
       route: '/purchase-requests',
@@ -98,6 +98,7 @@ describe('DashboardView', () => {
     expect(wrapper.get('.dashboard-summary-card').text()).toContain('3')
     expect(wrapper.get('.dashboard-reminder').text()).toContain('Department approvals waiting')
     expect(wrapper.get('.dashboard-activity-list').text()).toContain('PR-0009')
+    expect(wrapper.get('.dashboard-activity-copy strong').text()).toBe('Department Review')
     expect(wrapper.get('.dashboard-summary-card').attributes('href')).toBe('/my-tasks')
     expect(wrapper.get('.dashboard-activity-link').attributes('href')).toBe('/purchase-requests')
   })

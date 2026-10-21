@@ -132,7 +132,7 @@ function formatDateTime(value: string) {
           <div class="panel-toolbar">
             <div>
               <h2 id="dashboard-activity-title">Recent activity</h2>
-              <p>Latest records available to your roles</p>
+              <p>Latest status of your 10 most recently updated records</p>
             </div>
             <span class="dashboard-panel-count">{{ dashboard.recentActivity.length }}</span>
           </div>
