@@ -5,6 +5,8 @@ import QuotationComparison from '@/components/quotations/QuotationComparison.vue
 import QuotationDetails from '@/components/quotations/QuotationDetails.vue'
 import QuotationForm from '@/components/quotations/QuotationForm.vue'
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import { useToast } from '@/composables/useToast'
 import { purchaseRequestService } from '@/services/purchaseRequestService'
 import { quotationService } from '@/services/quotationService'
@@ -98,6 +100,12 @@ const visibleQuotations = computed(() => {
     ].some((value) => value.toLowerCase().includes(term))
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedQuotations,
+} = usePagination(visibleQuotations, [search, selectedPurchaseRequestId, selectedStatus])
 
 onMounted(loadData)
 async function loadData() {
@@ -406,7 +414,7 @@ function formatDate(value: string | null) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="quotation in visibleQuotations" :key="quotation.id">
+            <tr v-for="quotation in paginatedQuotations" :key="quotation.id">
               <td>
                 <div class="quotation-identity">
                   <span class="code-avatar">QT</span>
@@ -481,6 +489,13 @@ function formatDate(value: string | null) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visibleQuotations.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visibleQuotations.length"
+        label="Quotations"
+      />
     </section>
 
     <QuotationForm

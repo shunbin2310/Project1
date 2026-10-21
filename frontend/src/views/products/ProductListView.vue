@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 
 import ProductForm from '@/components/products/ProductForm.vue'
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import { useToast } from '@/composables/useToast'
 import { productCategoryService } from '@/services/productCategoryService'
 import { productService } from '@/services/productService'
@@ -47,6 +49,12 @@ const visibleProducts = computed(() => {
     ].some((value) => value.toLowerCase().includes(term))
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedProducts,
+} = usePagination(visibleProducts, [search, includeInactive])
 
 onMounted(loadProducts)
 
@@ -285,7 +293,7 @@ function formatQuantity(value: number) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="product in visibleProducts" :key="product.id">
+            <tr v-for="product in paginatedProducts" :key="product.id">
               <td>
                 <div class="product-identity">
                   <span class="code-avatar">{{ product.code.slice(0, 2) }}</span>
@@ -343,6 +351,13 @@ function formatQuantity(value: number) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visibleProducts.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visibleProducts.length"
+        label="Products"
+      />
     </section>
 
     <ProductForm

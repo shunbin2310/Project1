@@ -127,4 +127,53 @@ describe('InventoryListView', () => {
     expect(wrapper.get('[role="dialog"]').text()).toContain('GR-0009')
     expect(wrapper.get('[role="dialog"]').text()).toContain('+4')
   })
+
+  it('paginates stock movements locally and resets after applying ledger filters', async () => {
+    const transactions = Array.from({ length: 21 }, (_, index) => ({
+      ...transaction,
+      id: index + 1,
+      referenceNumber: `GR-${String(index + 1).padStart(4, '0')}`,
+    }))
+    mocks.getTransactions.mockResolvedValue(transactions)
+    const wrapper = mount(InventoryListView)
+    try {
+      await flushPromises()
+      await wrapper.get('tbody button').trigger('click')
+      await flushPromises()
+      const dialog = wrapper.get('[role="dialog"]')
+      const pagination = dialog.get('.table-pagination')
+      const next = pagination.get('button:last-child')
+
+      expect(dialog.findAll('tbody tr')).toHaveLength(10)
+      expect(pagination.text()).toContain('Showing 1–10 of 21 transactions')
+      await next.trigger('click')
+      expect(dialog.get('tbody tr').text()).toContain('GR-0011')
+      await next.trigger('click')
+      expect(dialog.findAll('tbody tr')).toHaveLength(1)
+      expect(next.attributes('disabled')).toBeDefined()
+      expect(mocks.getTransactions).toHaveBeenCalledTimes(1)
+
+      await dialog.get('.inventory-history-filters select').setValue('GoodsReceipt')
+      await dialog.get('form').trigger('submit')
+      await flushPromises()
+      expect(mocks.getTransactions).toHaveBeenLastCalledWith(3, {
+        type: 'GoodsReceipt',
+        dateFrom: undefined,
+        dateTo: undefined,
+      })
+      expect(dialog.get('.table-pagination').text()).toContain('Page 1 of 3')
+      expect(dialog.get('tbody tr').text()).toContain('GR-0001')
+      await dialog.get('.table-pagination select').setValue('20')
+      expect(dialog.findAll('tbody tr')).toHaveLength(20)
+      expect(mocks.getTransactions).toHaveBeenCalledTimes(2)
+
+      mocks.getTransactions.mockResolvedValue([])
+      await dialog.get('form').trigger('submit')
+      await flushPromises()
+      expect(dialog.find('.table-pagination').exists()).toBe(false)
+      expect(dialog.text()).toContain('No stock movements found')
+    } finally {
+      wrapper.unmount()
+    }
+  })
 })

@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import UnitOfMeasureForm from '@/components/units-of-measure/UnitOfMeasureForm.vue'
 import { useToast } from '@/composables/useToast'
 import { unitOfMeasureService } from '@/services/unitOfMeasureService'
@@ -34,6 +36,12 @@ const visibleUnits = computed(() => {
     )
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedUnits,
+} = usePagination(visibleUnits, [search, includeInactive])
 
 onMounted(loadUnits)
 
@@ -249,7 +257,7 @@ function formatDate(value: string | null) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="unit in visibleUnits" :key="unit.id">
+            <tr v-for="unit in paginatedUnits" :key="unit.id">
               <td>
                 <div class="unit-identity">
                   <span class="code-avatar">{{ unit.code.slice(0, 2) }}</span>
@@ -294,6 +302,13 @@ function formatDate(value: string | null) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visibleUnits.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visibleUnits.length"
+        label="Units of measure"
+      />
     </section>
 
     <UnitOfMeasureForm

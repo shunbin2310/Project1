@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 
 import EmailRecordDetailsDialog from '@/components/email-records/EmailRecordDetails.vue'
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import { useToast } from '@/composables/useToast'
 import { emailRecordService } from '@/services/emailRecordService'
 import type {
@@ -59,6 +61,18 @@ const visibleEmailRecords = computed(() => {
     )
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedEmailRecords,
+} = usePagination(visibleEmailRecords, [
+  search,
+  selectedStatus,
+  selectedSourceType,
+  createdFrom,
+  createdTo,
+])
 
 onMounted(loadEmailRecords)
 
@@ -241,7 +255,11 @@ function sourceTypeLabel(value: string) {
           <label class="search-control">
             <span class="sr-only">Search email records</span>
             <span aria-hidden="true">⌕</span>
-            <input v-model="search" type="search" placeholder="Search reference, recipient, or subject" />
+            <input
+              v-model="search"
+              type="search"
+              placeholder="Search reference, recipient, or subject"
+            />
           </label>
           <label class="relationship-filter-control">
             <span class="sr-only">Filter by delivery status</span>
@@ -287,7 +305,9 @@ function sourceTypeLabel(value: string) {
 
       <div v-else-if="!visibleEmailRecords.length" class="panel-state">
         <div class="empty-icon" aria-hidden="true">EM</div>
-        <strong>{{ emailRecords.length ? 'No matching email records' : 'No emails have been queued' }}</strong>
+        <strong>{{
+          emailRecords.length ? 'No matching email records' : 'No emails have been queued'
+        }}</strong>
         <p>Issue a Purchase Order to create the first outgoing email record.</p>
       </div>
 
@@ -306,7 +326,7 @@ function sourceTypeLabel(value: string) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="record in visibleEmailRecords" :key="record.id">
+            <tr v-for="record in paginatedEmailRecords" :key="record.id">
               <td>
                 <div class="email-record-identity">
                   <span class="code-avatar">EM</span>
@@ -318,7 +338,9 @@ function sourceTypeLabel(value: string) {
               </td>
               <td>
                 <span class="table-primary">{{ record.recipientEmail }}</span>
-                <small v-if="record.ccRecipients" class="table-secondary">CC: {{ record.ccRecipients }}</small>
+                <small v-if="record.ccRecipients" class="table-secondary"
+                  >CC: {{ record.ccRecipients }}</small
+                >
               </td>
               <td class="email-record-subject">{{ record.subject }}</td>
               <td>
@@ -345,6 +367,13 @@ function sourceTypeLabel(value: string) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visibleEmailRecords.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visibleEmailRecords.length"
+        label="Email records"
+      />
     </section>
 
     <EmailRecordDetailsDialog

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import { inventoryService } from '@/services/inventoryService'
 import type {
   InventoryBalance,
@@ -29,6 +31,7 @@ const dateFrom = ref('')
 const dateTo = ref('')
 const loading = ref(true)
 const loadError = ref('')
+const { page, pageSize, paginatedItems: paginatedTransactions } = usePagination(transactions)
 
 const invalidDateRange = computed(() =>
   Boolean(dateFrom.value && dateTo.value && dateFrom.value > dateTo.value),
@@ -47,6 +50,7 @@ async function loadTransactions() {
       dateFrom: dateFrom.value || undefined,
       dateTo: dateTo.value || undefined,
     })
+    page.value = 1
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : 'Unable to load inventory history.'
   } finally {
@@ -198,7 +202,7 @@ function typeLabel(type: InventoryTransactionType) {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="transaction in transactions" :key="transaction.id">
+                <tr v-for="transaction in paginatedTransactions" :key="transaction.id">
                   <td>{{ formatDateTime(transaction.occurredAtUtc) }}</td>
                   <td>{{ typeLabel(transaction.type) }}</td>
                   <td>
@@ -220,6 +224,14 @@ function typeLabel(type: InventoryTransactionType) {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            v-if="!loading && !loadError && transactions.length > 0"
+            v-model:page="page"
+            v-model:page-size="pageSize"
+            :total="transactions.length"
+            label="Stock movements"
+            item-label="transactions"
+          />
         </section>
 
         <footer class="modal-actions">
@@ -234,18 +246,19 @@ function typeLabel(type: InventoryTransactionType) {
 
 <style scoped>
 .inventory-history-modal {
-  width: min(1120px, 100%);
+  width: min(var(--modal-width-extra-large), 100%);
 }
 
 .inventory-history-code {
   margin: 6px 0 0;
   color: #7c8987;
-  font-size: 10px;
+  font-size: var(--font-size-caption);
   font-weight: 700;
 }
 
 .inventory-history-content {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   padding: 23px 25px 25px;
 }
@@ -276,7 +289,7 @@ function typeLabel(type: InventoryTransactionType) {
 
 .inventory-balance-summary span {
   color: #788783;
-  font-size: 8px;
+  font-size: var(--font-size-label);
   font-weight: 800;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -285,17 +298,17 @@ function typeLabel(type: InventoryTransactionType) {
 .inventory-balance-summary strong {
   margin-top: 7px;
   color: #1c3b36;
-  font-size: 20px;
+  font-size: var(--font-size-metric);
 }
 
 .inventory-balance-summary small {
   margin-top: 3px;
   color: #70807d;
-  font-size: 9px;
+  font-size: var(--font-size-caption);
 }
 
 .inventory-balance-summary .inventory-date-value {
-  font-size: 12px;
+  font-size: var(--font-size-body);
   line-height: 1.5;
 }
 
@@ -322,7 +335,7 @@ function typeLabel(type: InventoryTransactionType) {
   display: block;
   margin-bottom: 6px;
   color: #596b68;
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 750;
 }
 
@@ -331,6 +344,7 @@ function typeLabel(type: InventoryTransactionType) {
   width: 100%;
   min-height: 40px;
   padding: 0 10px;
+  font-size: var(--font-size-control);
   color: #213b38;
   background: #fff;
   border: 1px solid #d3dfdc;
@@ -340,7 +354,7 @@ function typeLabel(type: InventoryTransactionType) {
 .field-error {
   margin: 10px 18px;
   color: #a33f3f;
-  font-size: 10px;
+  font-size: var(--font-size-caption);
 }
 
 .inventory-history-state {
@@ -354,13 +368,13 @@ function typeLabel(type: InventoryTransactionType) {
 
 .inventory-empty-history strong {
   color: #29413e;
-  font-size: 13px;
+  font-size: var(--font-size-body);
 }
 
 .inventory-empty-history p {
   margin: 7px 0 0;
   color: #7b8987;
-  font-size: 10px;
+  font-size: var(--font-size-body);
 }
 
 .details-table td strong,
@@ -371,7 +385,7 @@ function typeLabel(type: InventoryTransactionType) {
 .details-table td small {
   margin-top: 4px;
   color: #82908d;
-  font-size: 8px;
+  font-size: var(--font-size-caption);
 }
 
 .quantity-change.is-increase {

@@ -6,6 +6,8 @@ import PurchaseRequestDetails from '@/components/purchase-requests/PurchaseReque
 import PurchaseRequestForm from '@/components/purchase-requests/PurchaseRequestForm.vue'
 import WorkflowActionDialog from '@/components/purchase-requests/WorkflowActionDialog.vue'
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import { useToast } from '@/composables/useToast'
 import { productService } from '@/services/productService'
 import { purchaseRequestService } from '@/services/purchaseRequestService'
@@ -88,6 +90,12 @@ const visibleRequests = computed(() => {
     ].some((value) => value.toLowerCase().includes(term))
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedRequests,
+} = usePagination(visibleRequests, [search, selectedStep])
 
 onMounted(async () => {
   await loadData()
@@ -412,7 +420,7 @@ function stepClass(stepCode: string) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="request in visibleRequests" :key="request.id">
+            <tr v-for="request in paginatedRequests" :key="request.id">
               <td>
                 <div class="purchase-request-identity">
                   <span class="code-avatar">RQ</span>
@@ -463,6 +471,13 @@ function stepClass(stepCode: string) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visibleRequests.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visibleRequests.length"
+        label="Purchase requests"
+      />
     </section>
 
     <PurchaseRequestForm

@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 
 import DepartmentForm from '@/components/departments/DepartmentForm.vue'
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import { useToast } from '@/composables/useToast'
 import { ApiError, departmentService } from '@/services/departmentService'
 import type { Department, DepartmentFormValues } from '@/types/department'
@@ -34,6 +36,12 @@ const visibleDepartments = computed(() => {
     )
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedDepartments,
+} = usePagination(visibleDepartments, [search, includeInactive])
 
 onMounted(loadDepartments)
 
@@ -253,7 +261,7 @@ function formatDate(value: string | null) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="department in visibleDepartments" :key="department.id">
+            <tr v-for="department in paginatedDepartments" :key="department.id">
               <td>
                 <div class="department-identity">
                   <span class="code-avatar">{{ department.code.slice(0, 2) }}</span>
@@ -303,6 +311,13 @@ function formatDate(value: string | null) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visibleDepartments.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visibleDepartments.length"
+        label="Departments"
+      />
     </section>
 
     <DepartmentForm

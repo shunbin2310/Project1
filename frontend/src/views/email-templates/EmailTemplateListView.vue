@@ -4,6 +4,8 @@ import { computed, onMounted, ref } from 'vue'
 import EmailTemplateEditor from '@/components/email-templates/EmailTemplateEditor.vue'
 import EmailTemplatePreview from '@/components/email-templates/EmailTemplatePreview.vue'
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import { useToast } from '@/composables/useToast'
 import { ApiError, emailTemplateService } from '@/services/emailTemplateService'
 import type {
@@ -51,6 +53,12 @@ const visibleTemplates = computed(() => {
     )
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedTemplates,
+} = usePagination(visibleTemplates, [search, statusFilter])
 
 onMounted(loadTemplates)
 
@@ -283,13 +291,17 @@ function getErrorMessage(error: unknown, fallback: string) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Email templates could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadTemplates">Try again</button>
+        <button class="button button-secondary" type="button" @click="loadTemplates">
+          Try again
+        </button>
       </div>
 
       <div v-else-if="visibleTemplates.length === 0" class="panel-state">
         <div class="empty-icon" aria-hidden="true">ET</div>
         <strong>No email template versions found</strong>
-        <p>Apply the latest database migration and restart the API to create the default template.</p>
+        <p>
+          Apply the latest database migration and restart the API to create the default template.
+        </p>
       </div>
 
       <div v-else class="table-scroll">
@@ -305,11 +317,14 @@ function getErrorMessage(error: unknown, fallback: string) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="template in visibleTemplates" :key="template.id">
+            <tr v-for="template in paginatedTemplates" :key="template.id">
               <td>
                 <div class="email-template-identity">
                   <span class="code-avatar">ET</span>
-                  <span><strong>{{ template.name }}</strong><small>{{ template.code }}</small></span>
+                  <span
+                    ><strong>{{ template.name }}</strong
+                    ><small>{{ template.code }}</small></span
+                  >
                 </div>
               </td>
               <td>Supplier Email</td>
@@ -372,6 +387,14 @@ function getErrorMessage(error: unknown, fallback: string) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visibleTemplates.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visibleTemplates.length"
+        label="Email templates"
+        item-label="versions"
+      />
     </section>
 
     <EmailTemplateEditor

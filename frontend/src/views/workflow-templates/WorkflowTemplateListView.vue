@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import WorkflowTemplateDetails from '@/components/workflow-templates/WorkflowTemplateDetails.vue'
 import WorkflowTemplateForm from '@/components/workflow-templates/WorkflowTemplateForm.vue'
 import { useToast } from '@/composables/useToast'
@@ -55,6 +57,12 @@ const visibleTemplates = computed(() => {
     )
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedTemplates,
+} = usePagination(visibleTemplates, [search, statusFilter])
 
 onMounted(loadPage)
 
@@ -334,7 +342,7 @@ function getErrorMessage(error: unknown, fallback: string) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="template in visibleTemplates" :key="template.id">
+            <tr v-for="template in paginatedTemplates" :key="template.id">
               <td>
                 <div class="workflow-template-identity">
                   <span class="code-avatar">WF</span>
@@ -407,6 +415,14 @@ function getErrorMessage(error: unknown, fallback: string) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visibleTemplates.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visibleTemplates.length"
+        label="Workflow templates"
+        item-label="versions"
+      />
     </section>
 
     <WorkflowTemplateForm
