@@ -137,7 +137,7 @@ function submit() {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="emit('cancel')">
+  <div class="modal-backdrop">
     <section
       class="modal-card modal-card-wide"
       role="dialog"

@@ -12,7 +12,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="modal-backdrop email-template-preview-backdrop" @click.self="emit('close')">
+  <div class="modal-backdrop email-template-preview-backdrop">
     <section
       class="modal-card email-template-preview-modal"
       role="dialog"

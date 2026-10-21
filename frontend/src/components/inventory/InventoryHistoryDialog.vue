@@ -84,7 +84,7 @@ function typeLabel(type: InventoryTransactionType) {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
+  <div class="modal-backdrop">
     <section
       class="modal-card inventory-history-modal"
       role="dialog"

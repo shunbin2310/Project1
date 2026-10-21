@@ -33,7 +33,7 @@ function formatQuantity(value: number) {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
+  <div class="modal-backdrop">
     <section
       class="modal-card quotation-details-modal"
       role="dialog"
