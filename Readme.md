@@ -62,7 +62,7 @@ Choose the guide that matches what you want to do:
 - [UI Test Guide](docs/UI_TEST_GUIDE.md) — complete browser walkthrough using every business role.
 - [Workflow Engine](docs/WORKFLOW_ENGINE.md) — templates, instances, actions, authorization, and module integration.
 - [Architecture](docs/ARCHITECTURE.md) — frontend/backend structure, authentication, email, inventory, validation, and testing.
-- [Docker 自动部署](docs/deployment/docker-cicd.md) — PR 测试；main push 自动构建 GHCR 镜像并更新 Ubuntu。首次服务器准备尚待执行。
+- [Docker 自动部署：从零设置指南](docs/deployment/docker-cicd.md) — 全新 Ubuntu 的 Docker / SQL Server / Nginx、GitHub / GHCR、Tailscale OIDC / SSH、首次部署及日常迁移。
 - [API 启动自动迁移](docs/deployment/api-startup-migrations.md) — 本地生成 migration，API 启动应用 pending migrations。
 
 ## User roles
