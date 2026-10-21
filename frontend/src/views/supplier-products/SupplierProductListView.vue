@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 
 import SupplierProductForm from '@/components/supplier-products/SupplierProductForm.vue'
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import { useToast } from '@/composables/useToast'
 import { productService } from '@/services/productService'
 import { supplierProductService } from '@/services/supplierProductService'
@@ -56,6 +58,12 @@ const visibleSupplierProducts = computed(() => {
     )
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedSupplierProducts,
+} = usePagination(visibleSupplierProducts, [search, supplierFilter, productFilter, statusFilter])
 
 onMounted(loadData)
 
@@ -313,7 +321,7 @@ function formatCurrency(value: number) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="supplierProduct in visibleSupplierProducts" :key="supplierProduct.id">
+            <tr v-for="supplierProduct in paginatedSupplierProducts" :key="supplierProduct.id">
               <td>
                 <div class="supplier-identity">
                   <span class="code-avatar">{{ supplierProduct.supplierCode.slice(0, 2) }}</span>
@@ -374,6 +382,14 @@ function formatCurrency(value: number) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visibleSupplierProducts.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visibleSupplierProducts.length"
+        label="Supplier products"
+        item-label="relationships"
+      />
     </section>
 
     <SupplierProductForm

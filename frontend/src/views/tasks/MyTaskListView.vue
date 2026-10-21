@@ -409,6 +409,7 @@ function stepClass(stepCode: string) {
         v-model:page-size="requestPageSize"
         :total="currentTasks.length"
         label="Purchase request tasks"
+        item-label="tasks"
       />
     </section>
 
@@ -516,6 +517,7 @@ function stepClass(stepCode: string) {
         v-model:page-size="purchaseOrderPageSize"
         :total="currentPurchaseOrderTasks.length"
         label="Purchase order tasks"
+        item-label="tasks"
       />
     </section>
 

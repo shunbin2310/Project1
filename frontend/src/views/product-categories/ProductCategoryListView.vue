@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 
 import ProductCategoryForm from '@/components/product-categories/ProductCategoryForm.vue'
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import { useToast } from '@/composables/useToast'
 import { productCategoryService } from '@/services/productCategoryService'
 import type { ProductCategory, ProductCategoryFormValues } from '@/types/productCategory'
@@ -34,6 +36,12 @@ const visibleCategories = computed(() => {
     )
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedCategories,
+} = usePagination(visibleCategories, [search, includeInactive])
 
 onMounted(loadCategories)
 
@@ -246,7 +254,7 @@ function formatDate(value: string | null) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="category in visibleCategories" :key="category.id">
+            <tr v-for="category in paginatedCategories" :key="category.id">
               <td>
                 <div class="category-identity">
                   <span class="code-avatar">{{ category.code.slice(0, 2) }}</span>
@@ -293,6 +301,13 @@ function formatDate(value: string | null) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visibleCategories.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visibleCategories.length"
+        label="Product categories"
+      />
     </section>
 
     <ProductCategoryForm

@@ -4,6 +4,8 @@ import { computed, onMounted, ref } from 'vue'
 import GoodsReceiptDetails from '@/components/goods-receipts/GoodsReceiptDetails.vue'
 import GoodsReceiptForm from '@/components/goods-receipts/GoodsReceiptForm.vue'
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import { useToast } from '@/composables/useToast'
 import { goodsReceiptService } from '@/services/goodsReceiptService'
 import { purchaseOrderService } from '@/services/purchaseOrderService'
@@ -114,6 +116,12 @@ const visibleReceipts = computed(() => {
     ].some((value) => value.toLowerCase().includes(term))
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedReceipts,
+} = usePagination(visibleReceipts, [search, selectedStatus])
 
 onMounted(loadData)
 
@@ -360,7 +368,7 @@ function formatQuantity(value: number) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="receipt in visibleReceipts" :key="receipt.id">
+            <tr v-for="receipt in paginatedReceipts" :key="receipt.id">
               <td>
                 <div class="goods-receipt-identity">
                   <span class="code-avatar">GR</span>
@@ -434,6 +442,13 @@ function formatQuantity(value: number) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visibleReceipts.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visibleReceipts.length"
+        label="Goods receipts"
+      />
     </section>
 
     <GoodsReceiptForm

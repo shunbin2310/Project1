@@ -22,7 +22,11 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn<(id: number, payload: UpdatePurchaseOrderRequest) => Promise<PurchaseOrder>>(),
   executeAction:
     vi.fn<
-      (id: number, actionCode: string, payload: { comment: string | null }) => Promise<PurchaseOrder>
+      (
+        id: number,
+        actionCode: string,
+        payload: { comment: string | null },
+      ) => Promise<PurchaseOrder>
     >(),
   issue: vi.fn<(id: number) => Promise<PurchaseOrder>>(),
   cancel: vi.fn<(id: number, reason: string) => Promise<PurchaseOrder>>(),
@@ -181,6 +185,33 @@ describe('PurchaseOrderListView', () => {
     expect(wrapper.get('tbody').text()).not.toContain('Issue')
     expect(wrapper.get('tbody').text()).toContain('Delete')
     expect(wrapper.get('tbody').text()).not.toContain('Cancel')
+  })
+
+  it('returns to a valid page after deleting the final order on the last page', async () => {
+    const orders = Array.from({ length: 11 }, (_, index) => ({
+      ...purchaseOrder(),
+      id: index + 1,
+      purchaseOrderNumber: `PO-${String(index + 1).padStart(4, '0')}`,
+    }))
+    mocks.getPurchaseOrders.mockResolvedValue(orders)
+    const wrapper = mountView()
+    try {
+      await flushPromises()
+      await wrapper.get('.table-pagination button:last-child').trigger('click')
+      expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+      expect(wrapper.get('tbody').text()).toContain('PO-0011')
+
+      mocks.getPurchaseOrders.mockResolvedValue(orders.slice(0, 10))
+      await wrapper.get('tbody .text-button-danger').trigger('click')
+      await flushPromises()
+
+      expect(mocks.delete).toHaveBeenCalledWith(11)
+      expect(wrapper.findAll('tbody tr')).toHaveLength(10)
+      expect(wrapper.get('.table-pagination').text()).toContain('Page 1 of 1')
+      expect(wrapper.get('.pagination-summary').text()).toBe('Showing 1–10 of 10 records')
+    } finally {
+      wrapper.unmount()
+    }
   })
 
   it('issues an approved order, shows a toast, and reloads the register', async () => {
