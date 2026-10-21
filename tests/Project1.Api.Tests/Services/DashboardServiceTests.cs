@@ -4,6 +4,7 @@ using Project1.Api.Authentication;
 using Project1.Api.Data;
 using Project1.Api.Entities;
 using Project1.Api.Entities.Identity;
+using Project1.Api.Entities.Workflows;
 using Project1.Api.Services.Authentication;
 using Project1.Api.Services.Dashboard;
 using Project1.Api.Services.Workflows;
@@ -93,6 +94,130 @@ public sealed class DashboardServiceTests
             activity.Module == "Purchase Request");
     }
 
+    [Fact]
+    public async Task GetAsync_ShowsOnlyCurrentRequestStatusAndKeepsFullHistory()
+    {
+        await using var fixture = await DashboardFixture.CreateAsync();
+        var engine = new WorkflowEngine(fixture.DbContext);
+        await engine.ExecuteActionAsync("PurchaseRequest", fixture.OtherRequest.Id, "APPROVE",
+            new WorkflowActor(2, "Department Approver", [ApplicationRoles.DepartmentApprover]),
+            null, CancellationToken.None);
+        await engine.ExecuteActionAsync("PurchaseRequest", fixture.OtherRequest.Id, "APPROVE",
+            new WorkflowActor(4, "Finance Approver", [ApplicationRoles.FinanceApprover]),
+            null, CancellationToken.None);
+
+        var dashboard = await fixture.CreateService(4, ApplicationRoles.Admin).GetAsync(CancellationToken.None);
+
+        var activity = Assert.Single(dashboard.RecentActivity,
+            item => item.Reference == fixture.OtherRequest.RequestNumber);
+        Assert.Equal("Approved", activity.Title);
+        Assert.Equal("Purchase Request is currently at Approved.", activity.Description);
+        Assert.Equal("Finance Approver", activity.ActorName);
+        var history = await fixture.DbContext.WorkflowHistory
+            .Where(item => item.ProcessInstance.EntityType == "PurchaseRequest" &&
+                           item.ProcessInstance.EntityId == fixture.OtherRequest.Id)
+            .OrderBy(item => item.Id)
+            .ToListAsync();
+        Assert.Equal(4, history.Count);
+        Assert.Equal(history[^1].ActionAtUtc, activity.OccurredAtUtc);
+        Assert.Equal(2, dashboard.RecentActivity.Count(item => item.Module == "Purchase Request"));
+    }
+
+    [Fact]
+    public async Task GetAsync_TakesTenDistinctRecordsAfterLatestUpdatesEvenWithManyHistoryEntries()
+    {
+        await using var fixture = await DashboardFixture.CreateAsync();
+        var engine = new WorkflowEngine(fixture.DbContext);
+        var baseline = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        for (var index = 0; index < 11; index++)
+        {
+            var request = new PurchaseRequest
+            {
+                RequestNumber = $"PR-RECENT-{index:D2}",
+                RequesterUserId = 1,
+                RequesterName = "Demo Requester",
+                CreatedAtUtc = baseline,
+                UpdatedAtUtc = baseline.AddDays(index + 1)
+            };
+            fixture.DbContext.PurchaseRequests.Add(request);
+            await fixture.DbContext.SaveChangesAsync();
+            await engine.StartAsync("PurchaseRequest", request.Id,
+                new WorkflowActor(1, "Demo Requester", [ApplicationRoles.Requester]), CancellationToken.None);
+        }
+
+        var busiest = await fixture.DbContext.WorkflowProcessInstances
+            .SingleAsync(instance => instance.EntityType == "PurchaseRequest" &&
+                instance.EntityId == fixture.DbContext.PurchaseRequests
+                    .Where(request => request.RequestNumber == "PR-RECENT-10")
+                    .Select(request => request.Id).Single());
+        for (var index = 0; index < 60; index++)
+        {
+            busiest.History.Add(new WorkflowHistory
+            {
+                ActionCode = "START",
+                ToStepCode = "DRAFT",
+                ActionBy = $"Actor {index}",
+                ActionAtUtc = baseline
+            });
+        }
+        await fixture.DbContext.SaveChangesAsync();
+
+        var dashboard = await fixture.CreateService(1, ApplicationRoles.Requester).GetAsync(CancellationToken.None);
+
+        Assert.Equal(Enumerable.Range(1, 10).Reverse().Select(index => $"PR-RECENT-{index:D2}"),
+            dashboard.RecentActivity.Select(activity => activity.Reference));
+        Assert.Equal(10, dashboard.RecentActivity.Select(activity => activity.Key).Distinct().Count());
+        Assert.All(dashboard.RecentActivity, activity => Assert.Equal("Draft", activity.Title));
+        Assert.Equal(baseline.AddDays(11), dashboard.RecentActivity[0].OccurredAtUtc);
+        Assert.Equal("Actor 59", dashboard.RecentActivity[0].ActorName);
+    }
+
+    [Theory]
+    [InlineData(PurchaseOrderStatus.Issued, "Issued", "Procurement Officer")]
+    [InlineData(PurchaseOrderStatus.PartiallyReceived, "Partially Received", "Warehouse Officer")]
+    [InlineData(PurchaseOrderStatus.Received, "Received", "Warehouse Officer")]
+    [InlineData(PurchaseOrderStatus.Cancelled, "Cancelled", "Cancelling Officer")]
+    public async Task GetAsync_ShowsOneOrderWithCurrentStatusAfterApproval(
+        PurchaseOrderStatus status, string expectedTitle, string expectedActor)
+    {
+        await using var fixture = await DashboardFixture.CreateAsync();
+        var order = await fixture.CreateApprovedOrderAsync();
+        var issuedAt = DateTimeOffset.UtcNow.AddDays(1);
+        var updatedAt = issuedAt.AddDays(1);
+        order.Status = status;
+        order.IssuedAtUtc = issuedAt;
+        order.IssuedByName = "Procurement Officer";
+        order.UpdatedAtUtc = updatedAt;
+        if (status == PurchaseOrderStatus.Cancelled)
+        {
+            order.CancelledAtUtc = updatedAt;
+            order.CancelledByName = "Cancelling Officer";
+        }
+        if (status is PurchaseOrderStatus.PartiallyReceived or PurchaseOrderStatus.Received)
+        {
+            fixture.DbContext.GoodsReceipts.Add(new GoodsReceipt
+            {
+                GoodsReceiptNumber = "GR-001",
+                PurchaseOrder = order,
+                SupplierId = order.SupplierId,
+                Status = GoodsReceiptStatus.Posted,
+                CreatedByUserId = 4,
+                CreatedByName = "Warehouse Officer",
+                PostedAtUtc = updatedAt,
+                PostedByName = "Warehouse Officer"
+            });
+        }
+        await fixture.DbContext.SaveChangesAsync();
+
+        var dashboard = await fixture.CreateService(4, ApplicationRoles.Admin).GetAsync(CancellationToken.None);
+
+        var activity = Assert.Single(dashboard.RecentActivity, item => item.Module == "Purchase Order");
+        Assert.Equal(order.PurchaseOrderNumber, activity.Reference);
+        Assert.Equal(expectedTitle, activity.Title);
+        Assert.Equal(expectedActor, activity.ActorName);
+        Assert.Equal(updatedAt, activity.OccurredAtUtc);
+    }
+
     private static Project1.Api.DTOs.Dashboard.DashboardSummaryCardResponse Card(
         Project1.Api.DTOs.Dashboard.DashboardResponse dashboard,
         string key) => dashboard.SummaryCards.Single(card => card.Key == key);
@@ -121,6 +246,49 @@ public sealed class DashboardServiceTests
 
         public DashboardService CreateService(int userId, params string[] roles) =>
             new(DbContext, new FakeCurrentUserContext(userId, roles));
+
+        public async Task<PurchaseOrder> CreateApprovedOrderAsync()
+        {
+            var supplier = new Supplier { Code = "SUP-001", Name = "Supplier" };
+            var order = new PurchaseOrder
+            {
+                PurchaseOrderNumber = "PO-001",
+                PurchaseRequest = OwnRequest,
+                Supplier = supplier,
+                Quotation = new Quotation
+                {
+                    QuotationNumber = "QT-001",
+                    PurchaseRequest = OwnRequest,
+                    Supplier = supplier,
+                    CreatedByUserId = 4,
+                    CreatedByName = "Demo Admin"
+                },
+                CreatedByUserId = 4,
+                CreatedByName = "Demo Admin",
+                Status = PurchaseOrderStatus.Approved
+            };
+            var draft = new WorkflowStepTemplate { Code = "DRAFT", Name = "Draft", IsInitial = true };
+            var approved = new WorkflowStepTemplate { Code = "APPROVED", Name = "Approved", IsTerminal = true };
+            draft.Actions.Add(new WorkflowActionTemplate
+            {
+                Code = "APPROVE",
+                Name = "Approve",
+                ToStepTemplate = approved,
+                Actioners = [new WorkflowActionerTemplate { ActionerType = WorkflowActionerType.Requester }]
+            });
+            DbContext.WorkflowProcessTemplates.Add(new WorkflowProcessTemplate
+            {
+                Code = "PO-TEST", Name = "Purchase Order", EntityType = "PurchaseOrder",
+                Version = 1, IsPublished = true, IsActive = true, Steps = [draft, approved]
+            });
+            DbContext.PurchaseOrders.Add(order);
+            await DbContext.SaveChangesAsync();
+            var engine = new WorkflowEngine(DbContext);
+            var actor = new WorkflowActor(4, "Demo Admin", [ApplicationRoles.Admin]);
+            await engine.StartAsync("PurchaseOrder", order.Id, actor, CancellationToken.None);
+            await engine.ExecuteActionAsync("PurchaseOrder", order.Id, "APPROVE", actor, null, CancellationToken.None);
+            return order;
+        }
 
         public static async Task<DashboardFixture> CreateAsync()
         {
