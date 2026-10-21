@@ -61,7 +61,7 @@ describe('App', () => {
     const wrapper = mount(App, { global: { plugins: [pinia, router] } })
 
     expect(wrapper.get('.auth-brand strong').text()).toBe('Project1 Inventory')
-    expect(wrapper.get('#login-title').text()).toBe('Welcome to Project1 Inventory test 123')
+    expect(wrapper.get('#login-title').text()).toBe('Welcome to Project1 Inventory')
     wrapper.unmount()
   })
 
