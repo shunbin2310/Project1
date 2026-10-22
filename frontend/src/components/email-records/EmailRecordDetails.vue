@@ -30,7 +30,7 @@ function formatFileSize(bytes: number) {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="!busy && emit('close')">
+  <div class="modal-backdrop">
     <section
       class="modal-card email-record-details-modal"
       role="dialog"

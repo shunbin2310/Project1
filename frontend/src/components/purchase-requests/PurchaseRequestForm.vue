@@ -165,7 +165,7 @@ function formatCurrency(value: number) {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="emit('cancel')">
+  <div class="modal-backdrop">
     <section
       class="modal-card purchase-request-form-modal"
       role="dialog"

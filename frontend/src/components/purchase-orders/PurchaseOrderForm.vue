@@ -124,7 +124,7 @@ function formatQuantity(value: number) {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="emit('cancel')">
+  <div class="modal-backdrop">
     <section
       class="modal-card purchase-order-form-modal"
       role="dialog"

@@ -42,7 +42,7 @@ function formatDate(value: string | null) {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
+  <div class="modal-backdrop">
     <section
       class="modal-card workflow-template-details-modal"
       role="dialog"

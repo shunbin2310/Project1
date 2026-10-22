@@ -79,7 +79,7 @@ function formatPlaceholder(placeholder: string) {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="!saving && emit('cancel')">
+  <div class="modal-backdrop">
     <section
       class="modal-card email-template-editor-modal"
       role="dialog"
