@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 
 import InventoryHistoryDialog from '@/components/inventory/InventoryHistoryDialog.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import { inventoryService } from '@/services/inventoryService'
 import type { InventoryBalance, InventoryStockStatus } from '@/types/inventory'
 
@@ -65,6 +67,12 @@ const visibleBalances = computed(() => {
     ].some((value) => value.toLowerCase().includes(term))
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedBalances,
+} = usePagination(visibleBalances, [search, selectedCategoryId, selectedStatus, showInactive])
 
 onMounted(loadInventory)
 
@@ -214,7 +222,7 @@ function formatDateTime(value: string | null) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="balance in visibleBalances" :key="balance.productId">
+            <tr v-for="balance in paginatedBalances" :key="balance.productId">
               <td>
                 <div class="inventory-product-identity">
                   <span class="code-avatar">IN</span>
@@ -258,6 +266,14 @@ function formatDateTime(value: string | null) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visibleBalances.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visibleBalances.length"
+        label="Inventory"
+        item-label="products"
+      />
     </section>
 
     <InventoryHistoryDialog
@@ -304,25 +320,26 @@ function formatDateTime(value: string | null) {
 
 .inventory-product-identity strong {
   color: #203331;
-  font-size: 12px;
+  font-size: var(--font-size-body);
 }
 
 .inventory-product-identity small {
   margin-top: 4px;
   color: #83908e;
-  font-size: 9px;
+  font-size: var(--font-size-caption);
 }
 
 .inventory-quantity {
   color: #1a4f46;
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 
 .inventory-stock-status {
   display: inline-flex;
   align-items: center;
   padding: 6px 9px;
-  font-size: 8px;
+  font-size: var(--font-size-badge);
+  line-height: 1.4;
   font-weight: 800;
   white-space: nowrap;
   border-radius: 999px;

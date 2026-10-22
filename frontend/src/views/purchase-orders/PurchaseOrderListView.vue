@@ -6,6 +6,8 @@ import PurchaseOrderDetails from '@/components/purchase-orders/PurchaseOrderDeta
 import PurchaseOrderForm from '@/components/purchase-orders/PurchaseOrderForm.vue'
 import WorkflowActionDialog from '@/components/purchase-requests/WorkflowActionDialog.vue'
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import { useToast } from '@/composables/useToast'
 import { purchaseOrderService } from '@/services/purchaseOrderService'
 import { quotationService } from '@/services/quotationService'
@@ -115,6 +117,12 @@ const visiblePurchaseOrders = computed(() => {
     ].some((value) => value.toLowerCase().includes(term))
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedPurchaseOrders,
+} = usePagination(visiblePurchaseOrders, [search, selectedStatus])
 
 function canSubmitPurchaseOrder(order: PurchaseOrder) {
   if (!canManagePurchaseOrders.value || order.status !== 'Draft') return false
@@ -472,7 +480,7 @@ function statusLabel(status: PurchaseOrderStatus) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="order in visiblePurchaseOrders" :key="order.id">
+            <tr v-for="order in paginatedPurchaseOrders" :key="order.id">
               <td>
                 <div class="purchase-order-identity">
                   <span class="code-avatar">PO</span>
@@ -555,6 +563,13 @@ function statusLabel(status: PurchaseOrderStatus) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visiblePurchaseOrders.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visiblePurchaseOrders.length"
+        label="Purchase orders"
+      />
     </section>
 
     <PurchaseOrderForm

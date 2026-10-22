@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 
 import SupplierForm from '@/components/suppliers/SupplierForm.vue'
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import { useToast } from '@/composables/useToast'
 import { supplierService } from '@/services/supplierService'
 import type { Supplier, SupplierFormValues } from '@/types/supplier'
@@ -38,6 +40,12 @@ const visibleSuppliers = computed(() => {
     ].some((value) => value.toLowerCase().includes(term))
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedSuppliers,
+} = usePagination(visibleSuppliers, [search, includeInactive])
 
 onMounted(loadSuppliers)
 
@@ -269,7 +277,7 @@ function formatDate(value: string | null) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="supplier in visibleSuppliers" :key="supplier.id">
+            <tr v-for="supplier in paginatedSuppliers" :key="supplier.id">
               <td>
                 <div class="supplier-identity">
                   <span class="code-avatar">{{ supplier.code.slice(0, 2) }}</span>
@@ -320,6 +328,13 @@ function formatDate(value: string | null) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visibleSuppliers.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visibleSuppliers.length"
+        label="Suppliers"
+      />
     </section>
 
     <SupplierForm

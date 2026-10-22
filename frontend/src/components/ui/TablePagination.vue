@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-const props = defineProps<{
-  page: number
-  pageSize: number
-  total: number
-  label: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    page: number
+    pageSize: number
+    total: number
+    label: string
+    itemLabel?: string
+  }>(),
+  { itemLabel: 'records' },
+)
 
 const emit = defineEmits<{
   'update:page': [value: number]
@@ -25,7 +29,7 @@ function changePageSize(event: Event) {
 <template>
   <nav class="table-pagination" :aria-label="`${label} pagination`">
     <p class="pagination-summary" aria-live="polite">
-      Showing {{ firstItem }}–{{ lastItem }} of {{ total }} tasks
+      Showing {{ firstItem }}–{{ lastItem }} of {{ total }} {{ itemLabel }}
     </p>
     <label class="pagination-size">
       <span>Rows per page</span>
@@ -68,7 +72,7 @@ function changePageSize(event: Event) {
   justify-content: space-between;
   padding: 16px 22px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--font-size-caption);
   border-top: 1px solid var(--line);
 }
 
@@ -88,6 +92,7 @@ function changePageSize(event: Event) {
   padding: 4px 8px;
   color: inherit;
   font: inherit;
+  font-size: var(--font-size-control);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 6px;

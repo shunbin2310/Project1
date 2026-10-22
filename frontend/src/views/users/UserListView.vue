@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppToast from '@/components/ui/AppToast.vue'
+import TablePagination from '@/components/ui/TablePagination.vue'
+import { usePagination } from '@/composables/usePagination'
 import UserForm from '@/components/users/UserForm.vue'
 import { useToast } from '@/composables/useToast'
 import { departmentService } from '@/services/departmentService'
@@ -50,6 +52,12 @@ const visibleUsers = computed(() => {
     ].some((value) => value.toLowerCase().includes(term))
   })
 })
+
+const {
+  page,
+  pageSize,
+  paginatedItems: paginatedUsers,
+} = usePagination(visibleUsers, [search, statusFilter])
 
 onMounted(loadPage)
 
@@ -295,7 +303,7 @@ function formatDate(value: string) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="user in visibleUsers" :key="user.id">
+            <tr v-for="user in paginatedUsers" :key="user.id">
               <td>
                 <div class="user-identity">
                   <span class="code-avatar">{{ initials(user) }}</span>
@@ -360,6 +368,13 @@ function formatDate(value: string) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-if="!loading && !loadError && visibleUsers.length > 0"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="visibleUsers.length"
+        label="Users"
+      />
     </section>
 
     <UserForm
