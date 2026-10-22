@@ -4,3 +4,4 @@ scripts/deploy/*.sudoers text eol=lf
 scripts/docker/Prepare-UbuntuStartupMigrations.sql text eol=lf
 compose.ubuntu.yml text eol=lf
 .env.docker.ubuntu.example text eol=lf
+scripts/homelab/** text eol=lf

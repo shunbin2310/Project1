@@ -1,0 +1,32 @@
+[Unit]
+Description=Project1 Quick Tunnel and GitHub demo link
+Wants=network-online.target
+After=network-online.target docker.service nginx.service mssql-server.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+DynamicUser=yes
+EnvironmentFile=/etc/project1-demo/config
+Environment=PYTHONUNBUFFERED=1
+LoadCredential=github-token:/etc/project1-demo/github-token
+ExecStart=/usr/bin/python3 -B /opt/project1-demo/quick_tunnel.py
+Restart=always
+RestartSec=15
+# Let the supervisor terminate and reap cloudflared before systemd kills the group.
+KillMode=mixed
+TimeoutStopSec=45
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
