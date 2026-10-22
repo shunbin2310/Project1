@@ -1,5 +1,5 @@
 [Unit]
-Description=Project1 Quick Tunnel and GitHub demo link
+Description=Project1 Quick Tunnel and GitHub Pages redirect
 Wants=network-online.target
 After=network-online.target docker.service nginx.service mssql-server.service
 StartLimitIntervalSec=0

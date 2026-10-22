@@ -1,88 +1,170 @@
-# Ubuntu：Quick Tunnel 开机启动与 GitHub Demo 链接更新
+# Ubuntu：Quick Tunnel 开机启动与固定 Demo 入口
 
-适用于已经能通过 `http://127.0.0.1` 打开 Project1 的 Ubuntu。
-每天手动开机后，网站服务恢复运行；本服务等待网站就绪，再启动 Quick Tunnel，
-确认公网入口和 API 正常后，更新 `shunbin2310/Project1` 的根目录 `Readme.md`。
+面试官的访问路径：
 
-README 只保留项目名称、技术栈、Live Demo、开放时间。
-简历放固定链接 `https://github.com/shunbin2310/Project1` 或个人主页链接；
-服务器上的脚本负责更新会变化的 Demo 链接。
-
-## 1. 先把 README 发布到 GitHub
-
-本次修改的根目录 `Readme.md` 必须先通过你平时的 Git 提交／PR 流程合并到 `main`。
-安装文件同样可以一起提交。第一次提交正常运行 CI，不要手动加 `[skip ci]`。
-打开 GitHub 的 Project1，确认根目录 README 已经显示 Live Demo 和 Availability。
-实际文件名是 `Readme.md`，GitHub API 区分大小写；不要改成另一个大小写不同的文件。
-原有开发和运行说明保留在 `docs/PROJECT_NOTES.md`，其中的命令仍从仓库根目录运行。
-
-README 中这两个隐藏标记供脚本定位，请保留，各出现一次：
-
-```markdown
-<!-- demo-link:start -->
-The demo link will appear here after the server starts and the website is reachable.
-<!-- demo-link:end -->
+```text
+简历 → GitHub Project1 → Open Live Demo
+     → https://shunbin2310.github.io/Project1/
+     → 当天最新的 Quick Tunnel → Project1
 ```
 
-以后只替换标记之间的内容，不覆盖其他作者对 README 的修改。
-如果仓库是 Private，面试官需要仓库权限才能看到 README。
+根目录 `Readme.md` 使用固定 Pages 链接，随本次 PR 修改一次。
+Ubuntu 等待本机网站就绪，启动 Tunnel，确认公网首页和 API 正常后，
+将最新地址写到 `demo-links` 分支的 `index.html`，由 GitHub Pages 发布跳转页。
+`main` 继续保留必须通过 PR 和两项 CI 检查的规则。
 
-## 2. 把安装文件复制到 Ubuntu
+## A. 已安装旧版本：按此升级
 
-在 **Windows PowerShell，Project1 仓库目录**执行。将 `YOUR_UBUNTU_IP` 替换为
-你 SSH 连接 Ubuntu 使用的 IP 或主机名；`shunbin` 是示例中的 Ubuntu 用户名。
+如果已经安装服务和 Token，并遇到 `HTTP 409: Changes must be made through a pull request`，
+从本节开始。已有 Token 和网站配置可以继续使用。
+
+### A1. 合并修正
+
+将本次修改按正常 PR 流程合并到 `main`，完成现有 CI。
+确认 GitHub 根目录 README 的 **Open Live Demo** 已指向固定 Pages 地址。
+
+### A2. 上传并重启新版服务
+
+在 **Windows PowerShell，Project1 仓库目录**执行。
+`192.168.1.125` 是此次安装使用的 Ubuntu 地址；若已变化，请替换。
+
+```powershell
+scp .\scripts\homelab\quick_tunnel.py .\scripts\homelab\project1-demo.service .\scripts\homelab\demo.env.example .\scripts\homelab\install.sh shunbin@192.168.1.125:~/project1-homelab/
+```
+
+在 **Ubuntu Terminal / SSH** 执行：
+
+```bash
+cd ~/project1-homelab
+sudo bash install.sh
+sudo systemctl restart project1-demo.service
+sudo journalctl -u project1-demo.service --since '2 minutes ago' --no-pager
+```
+
+安装器保留已有 config 和 Token。新版固定使用 `demo-links`，
+旧 config 中的 `GITHUB_BRANCH=main` 会被忽略，无需手动修改。
+重启服务会结束旧 Tunnel，生成新地址。
+
+预期日志：
+
+```text
+Detected demo URL: https://....trycloudflare.com
+Redirect updated on demo-links: https://....trycloudflare.com
+```
+
+这表示分支已经更新；还需下一节的一次性 Pages 设置。
+
+### A3. 开启 GitHub Pages（只做一次）
+
+脚本第一次成功发布时自动创建 `demo-links`。
+不要提前从 `main` 手动创建该分支，也不要将它合并到 `main`。
+
+打开 **GitHub Project1 → Settings → Pages**，在 **Build and deployment** 设置：
+
+| 设置 | 值 |
+| --- | --- |
+| Source | Deploy from a branch |
+| Branch | demo-links |
+| Folder | / (root) |
+
+点击 **Save**。若看不到 `demo-links`，先确认 A2 的成功日志，再刷新设置页面。
+如果仓库已有 Pages 网站，先确认它的用途；更换来源会替换该仓库现有 Pages 内容。
+
+GitHub 官方说明发布可能需要最多约 10 分钟。
+在 **Actions** 查看 Pages 的构建／发布任务；它与 Project1 的应用 CI/CD 分开。
+现有应用工作流只监听 `main`，不会因 `demo-links` 提交而构建或部署应用镜像。
+
+Pages 生效后，**Settings → Pages → Visit site** 应打开固定入口：
+
+```text
+https://shunbin2310.github.io/Project1/
+```
+
+浏览器自动跳转到最新 Tunnel；页面还提供手动链接。
+JavaScript 不可用时仍可通过 HTML 自动跳转或点击链接访问。
+
+### A4. 验证
+
+1. 手机关闭 Wi-Fi，用移动数据打开 GitHub Project1。
+2. 点击 README 的 **Open Live Demo**，确认自动进入网站。
+3. 测试登录和业务列表。
+4. 关闭 SSH 窗口，确认仍能访问。
+
+然后在方便中断访问时重启笔电：
+
+```bash
+sudo reboot
+```
+
+重新连接 SSH 后检查：
+
+```bash
+sudo systemctl status project1-demo.service --no-pager
+sudo journalctl -u project1-demo.service -b -n 100 --no-pager
+```
+
+确认 `Redirect updated on demo-links`，等待 Pages 发布完成后再用手机点击相同入口。
+发布期间旧 Tunnel 可能已经失效，Pages 还没发布新内容；稍等后刷新或用无痕窗口重试。
+
+## B. 新机器：首次安装
+
+已经完成 A 节的机器无需重复安装。
+
+### B1. 网站和安装文件
+
+网站、Docker、Nginx、主机 SQL Server 应已正常部署。
+在 **Ubuntu** 确认：
+
+```bash
+curl -I http://127.0.0.1
+curl -fsS http://127.0.0.1/api/health
+cloudflared --version
+python3 --version
+```
+
+先将本次根目录 `Readme.md` 和脚本按正常 PR 流程合并到 `main`。
+在 **Windows PowerShell，仓库目录**执行，将 `YOUR_UBUNTU_IP` 换成实际 SSH 地址：
 
 ```powershell
 scp -r .\scripts\homelab shunbin@YOUR_UBUNTU_IP:~/project1-homelab
 ```
 
-这是首次复制到 `~/project1-homelab` 的命令。以后升级时，可明确复制目录内的文件，
-避免已有目录中多出一层 `homelab`：
-
-```powershell
-scp .\scripts\homelab\quick_tunnel.py .\scripts\homelab\project1-demo.service .\scripts\homelab\demo.env.example .\scripts\homelab\install.sh shunbin@YOUR_UBUNTU_IP:~/project1-homelab/
-```
-
-然后在 **Ubuntu Terminal / SSH** 执行：
+这是首次复制到该目录的命令，重复上传请使用 A2 的明确文件列表。
+然后在 **Ubuntu** 执行：
 
 ```bash
-cloudflared --version
-python3 --version
 cd ~/project1-homelab
 sudo bash install.sh
 ```
 
-安装器写入：
+安装器只安装文件，不启动服务：
 
 | 路径 | 用途 |
 | --- | --- |
 | `/opt/project1-demo/quick_tunnel.py` | 自动化脚本 |
 | `/etc/systemd/system/project1-demo.service` | 开机服务 |
-| `/etc/project1-demo/config` | 仓库名、分支名，不包含 Token |
+| `/etc/project1-demo/config` | 仓库名，不包含 Token |
 | `/etc/project1-demo/github-token` | 下一步手动创建的私密 Token 文件 |
 
-安装器不会启动服务，也不会修改现有网站、Compose、数据库、部署脚本。
-再次安装会更新脚本和 unit，但保留已有 config 和 Token；升级后需手动重启服务。
+### B2. GitHub Token
 
-## 3. 创建 GitHub Fine-grained Token
-
-GitHub 头像 → **Settings → Developer settings → Personal access tokens →
+现有 Project1 Fine-grained Token 有 **Contents: Read and write** 时可以复用。
+首次创建：GitHub 头像 → **Settings → Developer settings → Personal access tokens →
 Fine-grained tokens → Generate new token**。
 
 | 设置 | 值 |
 | --- | --- |
-| Token name | `project1-demo-link` |
-| Expiration | 例如 90 days；到期前更换 |
-| Resource owner | `shunbin2310` |
-| Repository access | Only select repositories → `Project1` |
+| Token name | project1-demo-link |
+| Expiration | 例如 90 days，到期前更换 |
+| Resource owner | shunbin2310 |
+| Repository access | Only select repositories → Project1 |
 | Repository permissions | Contents → Read and write |
 
-不需要 Actions、Workflows、Administration 的写权限。
-Token 无法绕过分支保护：目标 `main` 必须允许该账号通过 Contents API 更新 README。
-若分支规则要求所有更改必须走 PR，直接更新会失败；先反馈规则，不要为了本服务
-关闭现有保护或开启强制推送。
+不需要 Actions、Workflows、Administration 或 Pages 的写权限。
+Pages 发布来源通过 GitHub 设置页面配置。
+Token 需要能创建并更新 `demo-links`；若该分支也被通用规则要求 PR／CI，先反馈具体规则。
 
-在 **Ubuntu** 执行下面这一整段。Token 输入时不会显示，也不会写入 shell history：
+在 **Ubuntu** 执行下面整段代码。提示出现后才粘贴 Token，输入不会显示：
 
 ```bash
 sudo python3 - <<'PY'
@@ -102,27 +184,24 @@ print('Token saved. Its value was not printed.')
 PY
 ```
 
-Token 保留在 Ubuntu 的 `root:root 0600` 文件，父目录为 `0700`。
+Token 文件为 `root:root 0600`，父目录为 `0700`。
 systemd 使用 `LoadCredential` 让动态服务用户读取副本。
-不要将 Token 发到聊天、放到 README 或提交到 Git。
+不要将 Token 发到聊天或提交到 Git。
 
-## 4. 确认网站自身会开机启动
-
-本服务只负责 Tunnel 和链接，不执行部署、拉取镜像或重跑迁移。
-网站仍由现有 Docker、Nginx 和主机 SQL Server 管理。
+### B3. 确认网站会开机恢复
 
 ```bash
 systemctl is-active docker nginx mssql-server
 systemctl is-enabled docker nginx mssql-server
 ```
 
-三项应为 active，并且 enabled。若这些现有服务 active 但未 enabled，可以启用开机启动：
+三项应为 active 和 enabled。若现有服务 active 但未 enabled，可执行：
 
 ```bash
 sudo systemctl enable docker nginx mssql-server
 ```
 
-检查当前部署容器的 restart policy：
+检查当前容器和 restart policy：
 
 ```bash
 sudo docker ps -a --filter 'label=com.docker.compose.project=project1-auto'
@@ -130,74 +209,39 @@ sudo docker ps -aq --filter 'label=com.docker.compose.project=project1-auto' \
   | xargs -r sudo docker inspect --format '{{.Name}} restart={{.HostConfig.RestartPolicy.Name}}'
 ```
 
-正常成功部署后的 API 和 frontend 应为 `unless-stopped`，且处于运行状态。
-仓库里的部署脚本在成功健康检查后才启用 API 的 restart policy。
-如果不是这个项目名、没有容器、API 是 `no` 或容器已停止，先检查现有部署，
-不要盲目执行 Compose 重建或为失败的迁移开启重试。
+成功部署后的 API 和 frontend 应运行健康，restart policy 为 `unless-stopped`。
+如果没有容器、项目名不同或 API 是 `no`，先检查部署。
+本服务不负责重新部署、拉取镜像或为失败的迁移开启重试。
 
-确认本机访问仍正常：
+### B4. 启动
 
-```bash
-curl -I http://127.0.0.1
-curl -fsS http://127.0.0.1/api/health
-```
-
-## 5. 停止手动 Tunnel，启动后台服务
-
-在原来运行 `cloudflared tunnel --url ...` 的终端按 **Ctrl+C**，
-只停止这次手动测试的 Tunnel。原来的测试链接将失效。
-
-然后在 **Ubuntu** 执行：
+若手动测试的 cloudflared 仍运行，在那个终端按 Ctrl+C 停止手动 Tunnel。
 
 ```bash
 sudo systemctl enable --now project1-demo.service
-sudo systemctl status project1-demo.service --no-pager
-sudo journalctl -u project1-demo.service -n 80 --no-pager
+sudo journalctl -u project1-demo.service -n 80 -f
 ```
 
-日志应依次出现：
+看到 `Redirect updated on demo-links` 后，继续 **A3 开启 Pages → A4 验证**。
+Ctrl+C 只退出日志查看，不停止后台服务。
 
-```text
-Waiting for the local website and Project1 API
-Detected demo URL: https://....trycloudflare.com
-README updated: https://....trycloudflare.com
-```
+## 日常行为和限制
 
-第一次新地址可能要等待 DNS／Tunnel 生效；未通过公网检查前不会更新 README。
-再打开 GitHub Project1 的 README，用手机移动数据点击 **Open Live Demo**，
-验证登录和业务列表。此后可以关闭 SSH 窗口，服务继续运行。
+- 每天手动开机即可；此方案不设置午夜自动关机。
+- 网站关机后 Live Demo 离线；Pages 入口仍指向上次的 Tunnel。README 的 Availability 解释开放限制。
+- Pages 只托管跳转页面；Vue、API 和数据库仍在 Ubuntu 上运行。
+- 发布前检查本机和公网首页，以及 Project1 `/api/health` 的 JSON 内容。
+- GitHub 失败每 30 秒重试，每次重新取得文件 SHA；冲突不会强制覆盖分支历史。
+- cloudflared 处理短暂断线，进程退出由 systemd 重启并创建新 Tunnel。
+- 原地址相同的重连不反复提交，地址变化才更新跳转页。
+- 首次创建 `demo-links` 使用独立根提交，仅含 `index.html` 和 `.nojekyll`，没有应用代码或 CI workflow。
+- 同名分支没有本脚本页面标记时，脚本拒绝覆盖；不要将 `demo-links` 合并到 `main`。
+- `index.html` 由脚本生成，请不要手动编辑。额外文件不会被更新操作修改。
+- 发布提交不带 `[skip ci]`，让 Pages 正常发布；应用 CI/CD 只监听 `main`。
+- 分支更新成功不代表 Pages 已立即生效，还需要 Pages 发布和缓存传播时间。
+- Python 只使用标准库，不需要 pip install 或服务器 Git checkout。
 
-## 6. 验证重启后的行为
-
-先测试只重启 Tunnel 服务：
-
-```bash
-sudo systemctl restart project1-demo.service
-sudo journalctl -u project1-demo.service -n 80 --no-pager
-```
-
-会创建新的 Quick Tunnel 地址，公网检查通过后 README 自动更新。
-原地址相同的短暂断线重连，不会反复创建提交。
-
-最后在你方便中断访问时，重启笔电验证完整开机流程：
-
-```bash
-sudo reboot
-```
-
-重新连接 SSH 后查看服务日志及 GitHub README，再用手机测试。
-如果只有服务启动但网站没有恢复，日志会一直等待本机网站；先排查 Docker／SQL／Nginx。
-
-## 日常行为与排查
-
-- 每天手动开机即可。此方案不设置午夜自动关机；你关机后 Live Demo 离线。
-- README 的链接不会在关机时自动删除，也不显示实时在线状态；Availability 解释开放限制。
-- cloudflared 自己处理短暂断线。进程退出由 systemd 重启，取得新地址后再更新 README。
-- GitHub 更新失败不停止正在运行的 Tunnel；每 30 秒重试，且重新读取远程 README 和 SHA。
-- 自动链接提交包含 `[skip ci]`，避免触发现有 push CI/CD；普通代码提交正常运行 CI。
-- 本脚本使用标准 Python 库，不需要 pip install，也不依赖本地 Git checkout。
-
-常用命令：
+## 排查与维护
 
 ```bash
 sudo systemctl status project1-demo.service --no-pager
@@ -207,28 +251,30 @@ sudo systemctl restart project1-demo.service
 
 | 日志 / 现象 | 检查 |
 | --- | --- |
-| Waiting for the local website | 本机首页和 `/api/health`，Docker／SQL／Nginx |
-| Waiting for the local and public website/API | 新地址的 DNS／Tunnel 是否生效，网络是否恢复 |
-| GitHub HTTP 401 | Token 是否无效或过期 |
-| GitHub HTTP 403 / 429 | Contents 写权限、分支规则或 API 限流 |
-| GitHub HTTP 404 | 仓库名、分支、Token 授权和根目录 README 是否已发布 |
-| GitHub HTTP 409 / 422 | 并发提交或分支规则；脚本下次重新获取 README，再检查 GitHub 规则 |
-| README update failed (ValueError) | README 是否各保留一个 start/end 标记，顺序是否正确 |
-| No Quick Tunnel URL appeared | cloudflared 日志、网络，以及已有 `/etc/cloudflared` 配置是否影响 Quick Tunnel |
+| Waiting for the local website | 本机首页、`/api/health`，Docker／SQL／Nginx |
+| Waiting for the local and public website/API | 新地址的 DNS、Tunnel 和网络 |
+| GitHub HTTP 401 | Token 是否失效或过期 |
+| GitHub HTTP 403 / 429 | Contents 写权限或 API 限流，结合 GitHub message 判断 |
+| GitHub HTTP 404 | 仓库名和 Token 的仓库授权；分支首次不存在时会自动初始化 |
+| GitHub HTTP 409 / 422 | 查看 message，检查 demo-links 的 PR／CI 限制或并发创建／更新 |
+| Redirect update failed (ValueError) | 同名分支是否缺少受管理的 index.html，或页面是否缺少唯一标记 |
+| Redirect updated，但入口 404 | Pages 是否选 demo-links / (root)，Pages 部署是否完成 |
+| 固定入口跳到旧网址 | 等待发布和缓存刷新，查看 Actions，用无痕窗口测试 |
+| No Quick Tunnel URL appeared | cloudflared 日志、网络、已有 `/etc/cloudflared` 配置 |
 
-更换 Token：重复第 3 步的隐藏输入命令，再执行 `sudo systemctl restart project1-demo.service`。
+HTTP 错误只显示经过长度限制和 Token 隐去处理的 GitHub `message`，
+不打印 Token、Authorization header 或完整响应体。
+更换 Token 后重启服务。
 
-停用服务及开机启动：
+停用 Tunnel 和开机启动（保留网站容器）：
 
 ```bash
 sudo systemctl disable --now project1-demo.service
 ```
 
-此命令停止 Demo Tunnel，不停止现有网站容器。
-
 ## 本地验证
 
-在仓库目录执行（不访问真实 Cloudflare 或 GitHub）：
+不访问真实 Cloudflare 或 GitHub：
 
 ```powershell
 python -m unittest discover -s scripts/homelab/tests -v
@@ -237,7 +283,11 @@ python -m unittest discover -s scripts/homelab/tests -v
 ## 官方参考
 
 - [Cloudflare Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)
+- [GitHub Pages 发布来源](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
+- [GitHub Pages 创建与发布时间](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site)
 - [GitHub 更新文件 API](https://docs.github.com/en/rest/repos/contents#create-or-update-file-contents)
+- [GitHub Git trees](https://docs.github.com/en/rest/git/trees#create-a-tree)
+- [GitHub Git commits](https://docs.github.com/en/rest/git/commits#create-a-commit)
+- [GitHub Git refs](https://docs.github.com/en/rest/git/refs#create-a-reference)
 - [GitHub Fine-grained Token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
-- [GitHub 跳过指定提交的 CI](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs)
 - [systemd LoadCredential](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#LoadCredential=ID[:PATH])

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Supervise a Quick Tunnel and publish its reachable URL to the project README.
+"""Supervise a Quick Tunnel and publish a redirect on the demo-links branch.
 
 Python standard library only. The GitHub credential is read from systemd's
 LoadCredential directory; it is never passed on the command line or to cloudflared.
@@ -24,8 +24,8 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 
 
 LOG = logging.getLogger("project1-demo")
-START = "<!-- demo-link:start -->"
-END = "<!-- demo-link:end -->"
+PAGES_BRANCH = "demo-links"
+PAGE_MARKER = "<!-- project1-demo-redirect:v1 -->"
 TUNNEL_URL = re.compile(r"https://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.trycloudflare\.com")
 LOG_URL = re.compile(TUNNEL_URL.pattern + r"(?![a-zA-Z0-9./:_-])")
 ORIGIN = "http://127.0.0.1:80"
@@ -71,43 +71,67 @@ def site_ready(url):
         return False
 
 
-def replace_demo_link(readme, url):
+def redirect_page(url):
     if not TUNNEL_URL.fullmatch(url):
         raise ValueError("Expected an HTTPS trycloudflare.com URL")
-    if readme.count(START) != 1 or readme.count(END) != 1:
-        raise ValueError("README must contain exactly one pair of demo-link markers")
-    start = readme.index(START) + len(START)
-    end = readme.index(END)
-    if end < start:
-        raise ValueError("README demo-link markers are in the wrong order")
-    newline = "\r\n" if "\r\n" in readme else "\n"
-    return readme[:start] + newline + f"[Open Live Demo]({url})" + newline + readme[end:]
+    # The strict URL allowlist also makes interpolation safe in HTML and JS.
+    return f'''<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="refresh" content="0; url={url}">
+  <title>Project1 Live Demo</title>
+  {PAGE_MARKER}
+  <script>window.location.replace({json.dumps(url)});</script>
+</head>
+<body>
+  <p>Opening Project1…</p>
+  <p><a href="{url}">Open Live Demo</a></p>
+</body>
+</html>
+'''
+
+
+def github_error_message(error, token):
+    """Return only GitHub's message, bounded and redacted, never headers/body."""
+    try:
+        body = json.loads(error.read(16384))
+        message = str(body.get("message", "No error message returned"))
+        message = message.replace(token, "[REDACTED]") if token else message
+        return " ".join(message.split())[:500]
+    except (OSError, ValueError, AttributeError):
+        return "Could not read the GitHub error message"
+    finally:
+        error.close()
 
 
 @dataclass(frozen=True)
 class Settings:
     repository: str = "shunbin2310/Project1"
-    branch: str = "main"
+    branch: str = PAGES_BRANCH
     interval: float = 30
     startup_timeout: float = 180
 
     @classmethod
     def from_environment(cls):
         repository = os.environ.get("GITHUB_REPOSITORY", cls.repository)
-        branch = os.environ.get("GITHUB_BRANCH", cls.branch)
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
             raise ValueError("GITHUB_REPOSITORY must be owner/repository")
-        if not branch or any(ord(char) < 32 for char in branch):
-            raise ValueError("GITHUB_BRANCH must be a branch name")
-        return cls(repository=repository, branch=branch)
+        # The previous version used GITHUB_BRANCH=main. Deliberately ignore that
+        # legacy setting so upgrading cannot keep writing to the protected branch.
+        return cls(repository=repository)
 
 
 class GitHub:
     def __init__(self, settings, token):
+        if settings.branch != PAGES_BRANCH:
+            raise ValueError("The redirect publisher can write only to demo-links")
         self.settings = settings
         self.token = token
-        # Match the tracked filename exactly: GitHub paths are case-sensitive.
-        self.endpoint = f"https://api.github.com/repos/{settings.repository}/contents/Readme.md"
+        self.base = f"https://api.github.com/repos/{settings.repository}"
+        self.endpoint = self.base + "/contents/index.html"
 
     def request(self, method, url, payload=None):
         data = None if payload is None else json.dumps(payload).encode("utf-8")
@@ -125,23 +149,59 @@ class GitHub:
         )))
 
     def publish(self, url):
-        # Read the current remote file and SHA on EVERY attempt, including retries.
-        # A concurrent edit produces a conflict; the next cycle fetches it again.
-        if not TUNNEL_URL.fullmatch(url):
-            raise ValueError("Refusing to publish an invalid tunnel URL")
-        current = self.request("GET", self.endpoint + "?" + urlencode({"ref": self.settings.branch}))
+        updated = redirect_page(url)
+        # Fetch the current SHA on every attempt. Do not replace branch history
+        # or write any file on main, even when an old config still names main.
+        try:
+            current = self.request("GET", self.endpoint + "?" + urlencode({"ref": PAGES_BRANCH}))
+        except HTTPError as error:
+            if error.code != 404:
+                raise
+            error.close()
+            return self.create_branch(updated)
         if current.get("type") != "file" or current.get("encoding") != "base64":
-            raise ValueError("GitHub README response is not a base64-encoded file")
+            raise ValueError("GitHub index.html response is not a base64-encoded file")
         encoded = "".join(current["content"].split())
         original = base64.b64decode(encoded, validate=True).decode("utf-8")
-        updated = replace_demo_link(original, url)
+        if original.count(PAGE_MARKER) != 1:
+            raise ValueError("demo-links/index.html is not a managed redirect; refusing to replace it")
         if updated == original:
             return False
         self.request("PUT", self.endpoint, {
-            "message": "docs: update live demo link [skip ci]",
+            # Pages must publish this commit. App CI/CD only watches main.
+            "message": "docs: update live demo redirect",
             "content": base64.b64encode(updated.encode("utf-8")).decode("ascii"),
             "sha": current["sha"],
-            "branch": self.settings.branch,
+            "branch": PAGES_BRANCH,
+        })
+        return True
+
+    def create_branch(self, page):
+        try:
+            self.request("GET", self.base + f"/git/ref/heads/{PAGES_BRANCH}")
+        except HTTPError as error:
+            if error.code != 404:
+                raise
+            error.close()
+        else:
+            # A pre-existing branch with a missing index might contain other
+            # work. Do not reset it or silently replace an unrelated Pages site.
+            raise ValueError("demo-links already exists without a managed index.html")
+        tree = self.request("POST", self.base + "/git/trees", {
+            "tree": [
+                {"path": "index.html", "mode": "100644", "type": "blob", "content": page},
+                {"path": ".nojekyll", "mode": "100644", "type": "blob", "content": ""},
+            ],
+        })
+        commit = self.request("POST", self.base + "/git/commits", {
+            "message": "docs: initialize live demo redirect",
+            "tree": tree["sha"],
+            "parents": [],
+        })
+        # Create only: never force-update an existing reference. If another
+        # instance wins this race, the next publish cycle reads its index/SHA.
+        self.request("POST", self.base + "/git/refs", {
+            "ref": f"refs/heads/{PAGES_BRANCH}", "sha": commit["sha"],
         })
         return True
 
@@ -222,16 +282,15 @@ def serve(settings, github, stop, health=site_ready, process_factory=subprocess.
                         changed = github.publish(candidate)
                         # Do not remember failed attempts: retry with a fresh remote SHA.
                         published = candidate
-                        LOG.info("README %s: %s", "updated" if changed else "already current", candidate)
+                        LOG.info("Redirect %s on demo-links: %s", "updated" if changed else "already current", candidate)
                     except HTTPError as error:
-                        # Never print response bodies, request headers or the token.
+                        detail = github_error_message(error, github.token)
                         LOG.warning(
-                            "GitHub HTTP %s; retrying. Check token expiry, Contents write permission, "
-                            "branch rules, and that README is published with both markers.", error.code
+                            "GitHub HTTP %s: %s; retrying. Check Contents write permission "
+                            "and rules applying to demo-links.", error.code, detail
                         )
-                        error.close()
                     except (OSError, URLError, ValueError, KeyError, TypeError, binascii.Error) as error:
-                        LOG.warning("README update failed (%s); will retry", type(error).__name__)
+                        LOG.warning("Redirect update failed (%s); will retry", type(error).__name__)
                 else:
                     LOG.info("Waiting for the local and public website/API before publishing")
                 next_check = time.monotonic() + settings.interval

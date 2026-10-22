@@ -4,9 +4,7 @@ Vue.js · ASP.NET Core · SQL Server
 
 ## Live Demo
 
-<!-- demo-link:start -->
-The demo link will appear here after the server starts and the website is reachable.
-<!-- demo-link:end -->
+[Open Live Demo](https://shunbin2310.github.io/Project1/)
 
 ## Availability
 
