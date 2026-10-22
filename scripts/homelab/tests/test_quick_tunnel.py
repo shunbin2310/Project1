@@ -1,10 +1,12 @@
 """Behavior checks without Cloudflare/GitHub credentials or external requests."""
 
 import base64
+from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -21,7 +23,7 @@ sys.modules[SPEC.name] = demo
 SPEC.loader.exec_module(demo)
 
 URL = "https://project1-demo-test.trycloudflare.com"
-README = "# Project1\n\n" + demo.START + "\npending\n" + demo.END + "\n\nAvailability\n"
+OLD_URL = "https://previous-demo-test.trycloudflare.com"
 
 
 def remote_file(text, sha="first-sha"):
@@ -31,79 +33,138 @@ def remote_file(text, sha="first-sha"):
     }
 
 
-class ReadmeTests(unittest.TestCase):
-    def test_updates_only_marked_region_and_is_idempotent(self):
-        expected = README.replace("pending", f"[Open Live Demo]({URL})")
-        updated = demo.replace_demo_link(README, URL)
-        self.assertEqual(updated, expected)
-        self.assertEqual(demo.replace_demo_link(updated, URL), updated)
+def http_error(code, message="Error"):
+    return HTTPError("https://api.github.com/test", code, message, {}, io.BytesIO())
 
-    def test_preserves_crlf_and_unicode(self):
-        original = (README + "中文说明\n").replace("\n", "\r\n")
-        self.assertEqual(
-            demo.replace_demo_link(original, URL),
-            original.replace("pending", f"[Open Live Demo]({URL})"),
-        )
 
-    def test_refuses_missing_duplicate_and_reversed_markers(self):
-        for text in ("no markers", README + demo.START, README + demo.END, demo.END + demo.START):
-            with self.subTest(text=text), self.assertRaises(ValueError):
-                demo.replace_demo_link(text, URL)
+class PageTests(unittest.TestCase):
+    def test_automatic_redirect_and_clickable_fallback_agree(self):
+        class Elements(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.tags = []
 
-    def test_refuses_links_outside_the_expected_hostname(self):
+            def handle_starttag(self, tag, attrs):
+                self.tags.append((tag, dict(attrs)))
+
+        page = demo.redirect_page(URL)
+        parser = Elements()
+        parser.feed(page)
+        refresh = [attrs for tag, attrs in parser.tags if tag == "meta" and attrs.get("http-equiv") == "refresh"]
+        anchors = [attrs for tag, attrs in parser.tags if tag == "a"]
+        self.assertEqual(refresh, [{"http-equiv": "refresh", "content": f"0; url={URL}"}])
+        self.assertEqual(anchors, [{"href": URL}])
+        self.assertIn(f"window.location.replace({json.dumps(URL)})", page)
+        self.assertEqual(page.count(demo.PAGE_MARKER), 1)
+
+    def test_refuses_external_urls_paths_and_html_or_script_injection(self):
         for url in (
             "http://example.trycloudflare.com", "https://trycloudflare.com",
-            URL + ".example.org", URL + "/path", URL + ":443", URL + ") injected",
+            URL + ".example.org", URL + "/path", URL + ":443", URL + '"><script>alert(1)</script>',
             "https://user:password@example.trycloudflare.com", "https://example.com",
         ):
             with self.subTest(url=url), self.assertRaises(ValueError):
-                demo.replace_demo_link(README, url)
+                demo.redirect_page(url)
 
 
 class GitHubTests(unittest.TestCase):
     def setUp(self):
-        self.client = demo.GitHub(demo.Settings(branch="demo links"), "test-token-not-real")
+        self.client = demo.GitHub(demo.Settings(), "test-token-not-real")
         self.client.request = Mock()
 
-    def test_uses_remote_sha_branch_and_skip_ci(self):
-        self.client.request.side_effect = [remote_file(README), {}]
+    def test_updates_only_index_on_demo_links_with_fresh_sha_and_allows_pages_build(self):
+        self.client.request.side_effect = [remote_file(demo.redirect_page(OLD_URL)), {}]
         self.assertTrue(self.client.publish(URL))
         get_call, put_call = self.client.request.call_args_list
-        self.assertTrue(get_call.args[1].endswith("?ref=demo+links"))
+        self.assertTrue(get_call.args[1].endswith("?ref=demo-links"))
         method, endpoint, payload = put_call.args
         self.assertEqual(method, "PUT")
-        self.assertEqual(endpoint, "https://api.github.com/repos/shunbin2310/Project1/contents/Readme.md")
+        self.assertEqual(endpoint, "https://api.github.com/repos/shunbin2310/Project1/contents/index.html")
         self.assertEqual(payload["sha"], "first-sha")
-        self.assertEqual(payload["branch"], "demo links")
-        self.assertIn("[skip ci]", payload["message"])
-        self.assertEqual(base64.b64decode(payload["content"]).decode(), demo.replace_demo_link(README, URL))
+        self.assertEqual(payload["branch"], "demo-links")
+        self.assertNotIn("[skip ci]", payload["message"])
+        self.assertEqual(base64.b64decode(payload["content"]).decode(), demo.redirect_page(URL))
 
     def test_does_not_commit_an_unchanged_link(self):
-        self.client.request.return_value = remote_file(demo.replace_demo_link(README, URL))
+        self.client.request.return_value = remote_file(demo.redirect_page(URL))
         self.assertFalse(self.client.publish(URL))
         self.client.request.assert_called_once()
 
-    def test_conflict_retry_refetches_and_preserves_concurrent_edit(self):
-        concurrent = README + "Another author's new paragraph.\n"
-        conflict = HTTPError(self.client.endpoint, 409, "Conflict", {}, None)
+    def test_conflict_retry_refetches_sha_and_never_resets_branch_history(self):
         self.client.request.side_effect = [
-            remote_file(README), conflict, remote_file(concurrent, "new-sha"), {},
+            remote_file(demo.redirect_page(OLD_URL)), http_error(409),
+            remote_file(demo.redirect_page(OLD_URL), "new-sha"), {},
         ]
         with self.assertRaises(HTTPError):
             self.client.publish(URL)
         self.assertTrue(self.client.publish(URL))
-        payload = self.client.request.call_args_list[-1].args[2]
-        self.assertEqual(payload["sha"], "new-sha")
-        self.assertIn("Another author's new paragraph.", base64.b64decode(payload["content"]).decode())
+        calls = self.client.request.call_args_list
+        self.assertEqual([call.args[0] for call in calls], ["GET", "PUT", "GET", "PUT"])
+        self.assertEqual(calls[-1].args[2]["sha"], "new-sha")
+        self.assertTrue(all("/contents/index.html" in call.args[1] for call in calls))
 
-    def test_invalid_url_and_missing_markers_cannot_write(self):
+    def test_bootstrap_creates_orphan_branch_containing_only_redirect_and_nojekyll(self):
+        self.client.request.side_effect = [
+            http_error(404), http_error(404), {"sha": "tree-sha"}, {"sha": "commit-sha"}, {},
+        ]
+        self.assertTrue(self.client.publish(URL))
+        calls = self.client.request.call_args_list
+        self.assertEqual([call.args[0] for call in calls], ["GET", "GET", "POST", "POST", "POST"])
+        tree = calls[2].args[2]
+        self.assertEqual({entry["path"] for entry in tree["tree"]}, {"index.html", ".nojekyll"})
+        self.assertNotIn("base_tree", tree)
+        self.assertTrue(all(entry["type"] == "blob" for entry in tree["tree"]))
+        self.assertEqual(tree["tree"][0]["content"], demo.redirect_page(URL))
+        commit = calls[3].args[2]
+        self.assertEqual(commit["parents"], [])
+        self.assertEqual(commit["tree"], "tree-sha")
+        self.assertEqual(calls[4].args[2], {"ref": "refs/heads/demo-links", "sha": "commit-sha"})
+        self.assertNotIn("[skip ci]", commit["message"])
+        self.assertFalse(any("PATCH" == call.args[0] for call in calls))
+
+    def test_existing_branch_without_index_is_not_replaced(self):
+        self.client.request.side_effect = [http_error(404), {"ref": "refs/heads/demo-links"}]
+        with self.assertRaisesRegex(ValueError, "already exists"):
+            self.client.publish(URL)
+        self.assertEqual(self.client.request.call_count, 2)
+        self.assertTrue(all(call.args[0] == "GET" for call in self.client.request.call_args_list))
+
+    def test_branch_creation_race_recovers_by_reading_existing_file_next_cycle(self):
+        self.client.request.side_effect = [
+            http_error(404), http_error(404), {"sha": "tree"}, {"sha": "commit"}, http_error(422),
+            remote_file(demo.redirect_page(URL)),
+        ]
+        with self.assertRaises(HTTPError):
+            self.client.publish(URL)
+        self.assertFalse(self.client.publish(URL))
+        self.assertEqual(self.client.request.call_args_list[-1].args[0], "GET")
+
+    def test_unrelated_page_and_duplicate_markers_are_not_overwritten(self):
+        for original in ("Unrelated website", demo.redirect_page(OLD_URL) + demo.PAGE_MARKER):
+            with self.subTest(original=original):
+                self.client.request.reset_mock()
+                self.client.request.return_value = remote_file(original)
+                with self.assertRaises(ValueError):
+                    self.client.publish(URL)
+                self.client.request.assert_called_once()
+
+    def test_invalid_url_cannot_make_any_api_requests(self):
         with self.assertRaises(ValueError):
             self.client.publish("https://example.com")
         self.client.request.assert_not_called()
-        self.client.request.return_value = remote_file("README without markers")
-        with self.assertRaises(ValueError):
+
+    def test_non_404_read_error_cannot_initialize_a_branch(self):
+        self.client.request.side_effect = http_error(403)
+        with self.assertRaises(HTTPError):
             self.client.publish(URL)
         self.client.request.assert_called_once()
+
+    def test_legacy_main_config_is_ignored_and_main_writer_is_rejected(self):
+        with patch.dict(os.environ, {"GITHUB_BRANCH": "main"}, clear=True):
+            settings = demo.Settings.from_environment()
+        self.assertEqual(settings.branch, "demo-links")
+        with self.assertRaises(ValueError):
+            demo.GitHub(demo.Settings(branch="main"), "test-token-not-real")
 
     def test_token_is_used_only_on_the_github_api_request(self):
         client = demo.GitHub(demo.Settings(), "test-token-not-real")
@@ -113,6 +174,15 @@ class GitHubTests(unittest.TestCase):
         self.assertEqual(request.get_header("Authorization"), "Bearer test-token-not-real")
         self.assertEqual(request.get_header("X-github-api-version"), "2026-03-10")
         self.assertEqual(request.host, "api.github.com")
+
+    def test_error_logging_redacts_token_and_omits_other_response_fields(self):
+        payload = {"message": "Protected branch.\n secret-token", "errors": ["unrelated-private-detail"]}
+        stream = io.BytesIO(json.dumps(payload).encode())
+        error = HTTPError("https://api.github.com/test", 409, "Conflict", {}, stream)
+        message = demo.github_error_message(error, "secret-token")
+        self.assertEqual(message, "Protected branch. [REDACTED]")
+        self.assertNotIn("unrelated-private-detail", message)
+        self.assertTrue(stream.closed)
 
 
 class HealthTests(unittest.TestCase):
