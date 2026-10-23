@@ -31,7 +31,6 @@ function receipt(): GoodsReceipt {
         productId: 3,
         productCode: 'ITEM-0003',
         productName: 'Office Chair',
-        unitOfMeasureCode: 'UNIT',
         orderedQuantity: 10,
         quantityReceived: 4,
       },

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -90,7 +90,10 @@ namespace Project1.Api.Migrations
                 table: "InventoryTransactions",
                 columns: new[] { "ProductId", "OccurredDate", "Id" });
 
+            // Defer binding the historic unit column until this migration actually runs.
+            // Full idempotent scripts must remain replayable after that column is removed.
             migrationBuilder.Sql(
+                "EXEC(N'" +
                 """
                 INSERT INTO [InventoryTransactions]
                 (
@@ -173,7 +176,7 @@ namespace Project1.Api.Migrations
                     MAX([OccurredAtUtc])
                 FROM [InventoryTransactions]
                 GROUP BY [ProductId];
-                """);
+                """.Replace("'", "''") + "');");
         }
 
         /// <inheritdoc />

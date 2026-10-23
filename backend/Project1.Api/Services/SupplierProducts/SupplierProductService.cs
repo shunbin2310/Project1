@@ -64,7 +64,7 @@ public sealed class SupplierProductService(AppDbContext dbContext) : ISupplierPr
         }
 
         var product = await dbContext.Products
-            .Include(item => item.UnitOfMeasure)
+
             .SingleOrDefaultAsync(
                 item => item.Id == request.ProductId && item.IsActive,
                 cancellationToken);
@@ -109,7 +109,7 @@ public sealed class SupplierProductService(AppDbContext dbContext) : ISupplierPr
         var supplierProduct = await dbContext.SupplierProducts
             .Include(item => item.Supplier)
             .Include(item => item.Product)
-                .ThenInclude(product => product.UnitOfMeasure)
+
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
 
         if (supplierProduct is null)
@@ -170,8 +170,6 @@ public sealed class SupplierProductService(AppDbContext dbContext) : ISupplierPr
             item.ProductId,
             item.Product.Code,
             item.Product.Name,
-            item.Product.UnitOfMeasure.Code,
-            item.Product.UnitOfMeasure.Name,
             item.Product.DefaultUnitPrice,
             item.IsPreferred,
             item.IsActive,
@@ -188,8 +186,6 @@ public sealed class SupplierProductService(AppDbContext dbContext) : ISupplierPr
             item.ProductId,
             item.Product.Code,
             item.Product.Name,
-            item.Product.UnitOfMeasure.Code,
-            item.Product.UnitOfMeasure.Name,
             item.Product.DefaultUnitPrice,
             item.IsPreferred,
             item.IsActive,

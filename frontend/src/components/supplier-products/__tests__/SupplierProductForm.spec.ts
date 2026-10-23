@@ -40,12 +40,6 @@ const products: Product[] = [
     name: 'Dell Monitor',
     description: null,
     storageLocation: null,
-    productCategoryId: 1,
-    productCategoryCode: 'CAT-0001',
-    productCategoryName: 'Electronics',
-    unitOfMeasureId: 1,
-    unitOfMeasureCode: 'UNIT',
-    unitOfMeasureName: 'Unit',
     defaultUnitPrice: 1399.9,
     reorderLevel: 5,
     isActive: true,
@@ -62,8 +56,6 @@ const relationship: SupplierProduct = {
   productId: 1,
   productCode: 'ITEM-0001',
   productName: 'Dell Monitor',
-  unitOfMeasureCode: 'UNIT',
-  unitOfMeasureName: 'Unit',
   productDefaultUnitPrice: 1399.9,
   isPreferred: false,
   isActive: true,
@@ -109,7 +101,7 @@ describe('SupplierProductForm', () => {
     await wrapper.findAll('input[type="checkbox"]')[0]!.setValue(true)
     await wrapper.get('form').trigger('submit')
 
-    expect(wrapper.text().replace(/\s/g, '')).toContain('RM1,399.90/UNIT')
+    expect(wrapper.text().replace(/\s/g, '')).toContain('RM1,399.90')
     expect(wrapper.emitted('save')?.[0]).toEqual([
       {
         supplierId: 1,

@@ -12,6 +12,31 @@ namespace Project1.Api.Tests.Services;
 public sealed class GoodsReceiptServiceTests
 {
     [Fact]
+    public async Task CreateAndUpdate_RejectFractionalReceivedQuantitiesWithoutChangingDraft()
+    {
+        await using var fixture = await GoodsReceiptFixture.CreateAsync();
+        var rejected = await fixture.Service.CreateAsync(
+            fixture.Request((fixture.FirstOrderItem.Id, 1.004m)), CancellationToken.None);
+        Assert.Equal(GoodsReceiptOperationStatus.ValidationFailed, rejected.Status);
+        Assert.Empty(await fixture.DbContext.GoodsReceipts.ToListAsync());
+
+        var created = await fixture.Service.CreateAsync(
+            fixture.Request((fixture.FirstOrderItem.Id, 2m)), CancellationToken.None);
+        var rejectedUpdate = await fixture.Service.UpdateAsync(created.GoodsReceipt!.Id,
+            new UpdateGoodsReceiptRequest
+            {
+                ReceivedDate = fixture.Today,
+                Items = [new GoodsReceiptItemInput
+                {
+                    PurchaseOrderItemId = fixture.FirstOrderItem.Id, QuantityReceived = 2.5m
+                }]
+            }, CancellationToken.None);
+        Assert.Equal(GoodsReceiptOperationStatus.ValidationFailed, rejectedUpdate.Status);
+        var stored = await fixture.Service.GetByIdAsync(created.GoodsReceipt.Id, CancellationToken.None);
+        Assert.Equal(2m, Assert.Single(stored!.Items).QuantityReceived);
+    }
+
+    [Fact]
     public async Task CreateAsync_CreatesDraftWithOrderSnapshotsAndAudit()
     {
         await using var fixture = await GoodsReceiptFixture.CreateAsync();
@@ -283,22 +308,16 @@ public sealed class GoodsReceiptServiceTests
             var dbContext = new AppDbContext(options);
             await dbContext.Database.EnsureCreatedAsync();
 
-            var category = new ProductCategory { Code = "CAT-TEST", Name = "Test Category" };
-            var unit = new UnitOfMeasure { Code = "UNIT", Name = "Unit" };
             var firstProduct = new Product
             {
                 Code = "ITEM-0001",
                 Name = "Monitor",
-                ProductCategory = category,
-                UnitOfMeasure = unit,
                 DefaultUnitPrice = 100m
             };
             var secondProduct = new Product
             {
                 Code = "ITEM-0002",
                 Name = "Keyboard",
-                ProductCategory = category,
-                UnitOfMeasure = unit,
                 DefaultUnitPrice = 50m
             };
             var supplier = new Supplier { Code = "SUP-0001", Name = "Supplier One" };
@@ -326,7 +345,6 @@ public sealed class GoodsReceiptServiceTests
                 Product = firstProduct,
                 ProductCode = firstProduct.Code,
                 ProductName = firstProduct.Name,
-                UnitOfMeasureCode = unit.Code,
                 Quantity = 10m,
                 UnitPrice = 90m
             };
@@ -336,7 +354,6 @@ public sealed class GoodsReceiptServiceTests
                 Product = secondProduct,
                 ProductCode = secondProduct.Code,
                 ProductName = secondProduct.Name,
-                UnitOfMeasureCode = unit.Code,
                 Quantity = 5m,
                 UnitPrice = 45m
             };
@@ -380,7 +397,6 @@ public sealed class GoodsReceiptServiceTests
                         Product = firstProduct,
                         ProductCode = firstProduct.Code,
                         ProductName = firstProduct.Name,
-                        UnitOfMeasureCode = unit.Code,
                         Quantity = 10m,
                         UnitPrice = 90m
                     },
@@ -390,7 +406,6 @@ public sealed class GoodsReceiptServiceTests
                         Product = secondProduct,
                         ProductCode = secondProduct.Code,
                         ProductName = secondProduct.Name,
-                        UnitOfMeasureCode = unit.Code,
                         Quantity = 5m,
                         UnitPrice = 45m
                     }

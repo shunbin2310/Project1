@@ -313,7 +313,6 @@ function formatCurrency(value: number) {
             <tr>
               <th>Supplier</th>
               <th>Product</th>
-              <th>Unit</th>
               <th>Default price</th>
               <th>Preference</th>
               <th>Status</th>
@@ -338,12 +337,6 @@ function formatCurrency(value: number) {
                     <strong>{{ supplierProduct.productName }}</strong>
                     <small>{{ supplierProduct.productCode }}</small>
                   </span>
-                </div>
-              </td>
-              <td>
-                <div class="contact-stack">
-                  <span>{{ supplierProduct.unitOfMeasureCode }}</span>
-                  <small>{{ supplierProduct.unitOfMeasureName }}</small>
                 </div>
               </td>
               <td>{{ formatCurrency(supplierProduct.productDefaultUnitPrice) }}</td>

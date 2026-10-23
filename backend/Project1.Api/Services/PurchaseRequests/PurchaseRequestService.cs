@@ -6,6 +6,7 @@ using Project1.Api.DTOs.Workflows;
 using Project1.Api.Entities;
 using Project1.Api.Services.Workflows;
 using Project1.Api.Services.Authentication;
+using Project1.Api.Validation;
 
 namespace Project1.Api.Services.PurchaseRequests;
 
@@ -287,16 +288,14 @@ public sealed class PurchaseRequestService(
             .AsSplitQuery()
             .Include(request => request.Department)
             .Include(request => request.Items)
-                .ThenInclude(item => item.Product)
-                    .ThenInclude(product => product.UnitOfMeasure);
+                .ThenInclude(item => item.Product);
 
     private IQueryable<PurchaseRequest> TrackedQuery() =>
         dbContext.PurchaseRequests
             .AsSplitQuery()
             .Include(request => request.Department)
             .Include(request => request.Items)
-                .ThenInclude(item => item.Product)
-                    .ThenInclude(product => product.UnitOfMeasure);
+                .ThenInclude(item => item.Product);
 
     private static string? ValidateForSubmission(PurchaseRequest request)
     {
@@ -326,9 +325,9 @@ public sealed class PurchaseRequestService(
             return "All products must be active before submitting.";
         }
 
-        if (request.Items.Any(item => item.Quantity <= 0))
+        if (request.Items.Any(item => !QuantityRules.IsValid(item.Quantity) || item.Quantity == 0))
         {
-            return "Every item quantity must be greater than zero before submitting.";
+            return "Every item quantity must be a positive whole number before submitting.";
         }
 
         return null;
@@ -342,9 +341,9 @@ public sealed class PurchaseRequestService(
             return ValidationFailed("A product can only appear once in a purchase request.");
         }
 
-        if (items.Any(item => item.ProductId < 1 || item.Quantity < 0))
+        if (items.Any(item => item.ProductId < 1 || !QuantityRules.IsValid(item.Quantity)))
         {
-            return ValidationFailed("Purchase request item values are invalid.");
+            return ValidationFailed("Purchase request item quantities must be non-negative whole numbers and products must be valid.");
         }
 
         return null;
@@ -378,7 +377,6 @@ public sealed class PurchaseRequestService(
     {
         var productIds = items.Select(item => item.ProductId).Distinct().ToList();
         var products = await dbContext.Products
-            .Include(product => product.UnitOfMeasure)
             .Where(product => productIds.Contains(product.Id))
             .ToDictionaryAsync(product => product.Id, cancellationToken);
 
@@ -433,7 +431,6 @@ public sealed class PurchaseRequestService(
                 item.ProductId,
                 item.Product.Code,
                 item.Product.Name,
-                item.Product.UnitOfMeasure.Code,
                 item.Quantity,
                 item.EstimatedUnitPrice,
                 item.Quantity * item.EstimatedUnitPrice))

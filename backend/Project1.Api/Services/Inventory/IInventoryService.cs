@@ -6,7 +6,6 @@ namespace Project1.Api.Services.Inventory;
 public interface IInventoryService
 {
     Task<IReadOnlyList<InventoryBalanceResponse>> GetBalancesAsync(
-        int? productCategoryId,
         bool? lowStock,
         bool includeInactive,
         string? search,

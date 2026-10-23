@@ -28,7 +28,6 @@ export interface PurchaseOrderItem {
   productId: number
   productCode: string
   productName: string
-  unitOfMeasureCode: string
   quantity: number
   unitPrice: number
   lineTotal: number

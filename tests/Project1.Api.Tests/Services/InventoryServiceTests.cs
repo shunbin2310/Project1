@@ -14,7 +14,6 @@ public sealed class InventoryServiceTests
         await using var fixture = await InventoryFixture.CreateAsync();
 
         var balances = await fixture.Service.GetBalancesAsync(
-            productCategoryId: null,
             lowStock: null,
             includeInactive: false,
             search: null,
@@ -32,12 +31,11 @@ public sealed class InventoryServiceTests
     }
 
     [Fact]
-    public async Task GetBalancesAsync_AppliesCategoryLowStockActiveAndSearchFilters()
+    public async Task GetBalancesAsync_AppliesLowStockActiveAndSearchFilters()
     {
         await using var fixture = await InventoryFixture.CreateAsync();
 
         var lowStock = await fixture.Service.GetBalancesAsync(
-            fixture.Category.Id,
             lowStock: true,
             includeInactive: false,
             search: "keyboard",
@@ -74,19 +72,15 @@ public sealed class InventoryServiceTests
         private InventoryFixture(
             SqliteConnection connection,
             AppDbContext dbContext,
-            ProductCategory category,
             Product monitor)
         {
             this.connection = connection;
             DbContext = dbContext;
-            Category = category;
             Monitor = monitor;
             Service = new InventoryService(dbContext);
         }
 
         public AppDbContext DbContext { get; }
-
-        public ProductCategory Category { get; }
 
         public Product Monitor { get; }
 
@@ -102,18 +96,10 @@ public sealed class InventoryServiceTests
             var dbContext = new AppDbContext(options);
             await dbContext.Database.EnsureCreatedAsync();
 
-            var category = new ProductCategory
-            {
-                Code = "CAT-0001",
-                Name = "Electronics"
-            };
-            var unit = new UnitOfMeasure { Code = "UNIT", Name = "Unit" };
             var monitor = new Product
             {
                 Code = "ITEM-0001",
                 Name = "Monitor",
-                ProductCategory = category,
-                UnitOfMeasure = unit,
                 DefaultUnitPrice = 1200m,
                 ReorderLevel = 5m
             };
@@ -121,8 +107,6 @@ public sealed class InventoryServiceTests
             {
                 Code = "ITEM-0002",
                 Name = "Keyboard",
-                ProductCategory = category,
-                UnitOfMeasure = unit,
                 DefaultUnitPrice = 100m,
                 ReorderLevel = 3m
             };
@@ -130,8 +114,6 @@ public sealed class InventoryServiceTests
             {
                 Code = "ITEM-0003",
                 Name = "Mouse",
-                ProductCategory = category,
-                UnitOfMeasure = unit,
                 DefaultUnitPrice = 50m,
                 ReorderLevel = 2m,
                 IsActive = false
@@ -157,7 +139,6 @@ public sealed class InventoryServiceTests
                     QuantityAfter = 8m,
                     ProductCode = monitor.Code,
                     ProductName = monitor.Name,
-                    UnitOfMeasureCode = unit.Code,
                     ReferenceType = nameof(GoodsReceipt),
                     ReferenceId = 1,
                     ReferenceNumber = "GRN-0001",
@@ -175,7 +156,6 @@ public sealed class InventoryServiceTests
                     QuantityAfter = 9m,
                     ProductCode = monitor.Code,
                     ProductName = monitor.Name,
-                    UnitOfMeasureCode = unit.Code,
                     ReferenceType = "Adjustment",
                     ReferenceId = 2,
                     ReferenceNumber = "ADJ-0001",
@@ -186,7 +166,7 @@ public sealed class InventoryServiceTests
                 });
             await dbContext.SaveChangesAsync();
 
-            return new InventoryFixture(connection, dbContext, category, monitor);
+            return new InventoryFixture(connection, dbContext, monitor);
         }
 
         public async ValueTask DisposeAsync()

@@ -47,8 +47,7 @@ All Development demo accounts use password `Project1Demo123!`.
 
 | Account | Role | Work performed in this guide |
 | --- | --- | --- |
-| `catalog@demo.local` | Catalog Manager | Creates Category, Unit, and Product. |
-| `procurement@demo.local` | Procurement Officer | Creates Suppliers, links Products, records Quotations, and prepares/issues the PO. |
+| `procurement@demo.local` | Procurement Officer | Creates Products and Suppliers, links Products, records Quotations, and prepares/issues the PO. |
 | `requester@demo.local` | Requester | Creates and submits the Purchase Request. |
 | `department@demo.local` | Department Approver | Performs Department Review. |
 | `finance@demo.local` | Finance Approver | Performs Finance Review. |
@@ -60,20 +59,21 @@ Admin is a Super Admin for support and demonstrations. The normal walkthrough us
 
 ## Role and page matrix
 
-| Page or action | Requester | Dept. | Finance | Procurement | PO Approver | Warehouse | Catalog | Admin |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Dashboard | Own work | Approval queue | Approval queue | Purchasing work | PO approvals | Receiving/stock | Stock health | Company-wide |
-| Own Purchase Request Draft | Manage | View | View | View | — | View | View | Manage |
-| Department approval | — | Act | — | — | — | — | — | Act |
-| Finance approval | — | — | Act | — | — | — | — | Act |
-| Product Categories, Units, Products pages | — | — | — | — | — | — | Manage | Manage |
-| Suppliers and Supplier Products | — | — | — | Manage | — | — | — | Manage |
-| Supplier Quotations | — | — | — | Manage | — | — | — | Manage |
-| Purchase Orders | — | — | — | Prepare/issue | Approve | View | — | Manage |
-| Goods Receiving | — | — | — | View | — | Manage | — | Manage |
-| Inventory | — | — | — | View | — | View | — | View |
-| Email Records | — | — | — | Manage delivery | — | — | — | Manage |
-| Email and Workflow Templates | — | — | — | — | — | — | — | Manage |
+| Page or action | Requester | Dept. | Finance | Procurement | PO Approver | Warehouse | Admin |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Dashboard | Own work | Approval queue | Approval queue | Purchasing/products | PO approvals | Receiving/stock | Company-wide |
+| Own Purchase Request Draft | Manage | View | View | View | — | View | Manage |
+| Department approval | — | Act | — | — | — | — | Act |
+| Finance approval | — | — | Act | — | — | — | Act |
+| Products pages | — | — | — | Manage | — | — | Manage |
+| Suppliers and Supplier Products | — | — | — | Manage | — | — | Manage |
+| Supplier Quotations | — | — | — | Manage | — | — | Manage |
+| Purchase Orders | — | — | — | Prepare/issue | Approve | View | Manage |
+| Goods Receiving | — | — | — | View | — | Manage | Manage |
+| Inventory | — | — | — | View | — | View | View |
+| Email Records | — | — | — | Manage delivery | — | — | Manage |
+| Email and Workflow Templates | — | — | — | — | — | — | Manage |
+
 
 ## Dashboard checks for every role
 
@@ -92,10 +92,9 @@ Expected role focus:
 | Requester | Own Draft, in-review, approved, and rejected Purchase Requests. |
 | Department Approver | Purchase Requests waiting at Department Review. |
 | Finance Approver | Purchase Requests waiting at Finance Review. |
-| Procurement Officer | Quotations to prepare/compare, Purchase Orders to create/issue, and failed supplier emails. |
+| Procurement Officer | Product maintenance and stock settings, Quotations to prepare/compare, Purchase Orders to create/issue, and failed supplier emails. |
 | Purchase Order Approver | Purchase Orders waiting for approval. |
 | Warehouse Officer | Orders ready to receive, Draft receipts, and stock warnings. |
-| Catalog Manager | Active/inactive Products and low/out-of-stock Products. |
 | Admin | A company-wide combined view of approvals, receiving, stock, and email failures. |
 
 A user with multiple business roles receives a merged view. Repeated summary or reminder types are displayed once. Admin always receives the company-wide Super Admin view.
@@ -120,40 +119,14 @@ Expected result:
 
 If a required active template is missing, do not continue. A Purchase Request or Purchase Order cannot start its workflow without an active published workflow template, and a Purchase Order cannot be issued without an active email template.
 
-## Step 2: Create catalog data
+## Step 2: Create a Product
 
-Sign out and sign in as `catalog@demo.local`.
-
-### 2.1 Create a Product Category
-
-1. Open **Product Categories**.
-2. Click **New category**.
-3. Enter:
-   - Name: `Interview Equipment UI1001A`
-   - Description: `Complete UI test category`
-4. Submit the form.
-
-Expected result: a success toast appears and the active Category is listed.
-
-### 2.2 Create a Unit of Measure
-
-1. Open **Units of Measure**.
-2. Click **New unit**.
-3. Enter:
-   - Code: `TST1001A`
-   - Name: `Test Unit UI1001A`
-4. Submit the form.
-
-Expected result: the Unit is active and available when creating a Product.
-
-### 2.3 Create a Product
+Sign in as `procurement@demo.local`.
 
 1. Open **Products**.
 2. Click **New product**.
 3. Enter:
    - Name: `Ergonomic Keyboard UI1001A`
-   - Category: `Interview Equipment UI1001A`
-   - Unit: `Test Unit UI1001A`
    - Default unit price: `120.00`
    - Reorder level: `3`
 4. Submit the form.
@@ -161,8 +134,9 @@ Expected result: the Unit is active and available when creating a Product.
 Expected result:
 
 - The system generates a Product code such as `ITEM-0001`.
-- The Product is active.
+- The Product is active and requires no category or unit selection.
 - Its default price will be used as the Purchase Request estimate.
+- A fractional reorder level such as `1.004` is rejected; prices may contain decimals.
 
 ## Step 3: Create suppliers and eligibility
 
@@ -479,7 +453,7 @@ Perform a few direct URL checks:
 1. As Requester, open `/users` or `/inventory`.
 2. As Procurement Officer, open `/users` or `/email-templates`.
 3. As Warehouse Officer, open `/quotations`.
-4. As Catalog Manager, open `/purchase-orders`.
+4. As Warehouse Officer, open `/products`.
 
 Expected result: each unauthorized route opens the `403 Access Denied` page.
 

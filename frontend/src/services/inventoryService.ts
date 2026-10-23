@@ -19,9 +19,6 @@ const request = <T>(path: string, options?: RequestInit) =>
 export const inventoryService = {
   getAll(filters: InventoryBalanceFilters = {}) {
     const query = new URLSearchParams()
-    if (filters.productCategoryId) {
-      query.set('productCategoryId', String(filters.productCategoryId))
-    }
     if (filters.lowStock !== undefined) query.set('lowStock', String(filters.lowStock))
     if (filters.includeInactive) query.set('includeInactive', 'true')
     if (filters.search?.trim()) query.set('search', filters.search.trim())

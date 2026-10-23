@@ -28,11 +28,11 @@ test('signs in with a demo account', async ({ page }) => {
   await expect(page.locator('.demo-account')).toHaveCount(7)
   await expect(page.getByRole('button', { name: /Procurement Officer/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /Warehouse Officer/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: /Catalog Manager/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Catalog Manager/ })).toHaveCount(0)
   await page.getByRole('button', { name: /Demo Admin/ }).click()
 
-  await expect(page).toHaveURL(/\/departments$/)
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Departments')
+  await expect(page).toHaveURL(/\/dashboard$/)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Welcome back, Demo')
 })
 
 test.describe('authenticated administration workspace', () => {
@@ -68,7 +68,6 @@ test.describe('authenticated administration workspace', () => {
           'FINANCE_APPROVER',
           'PROCUREMENT_OFFICER',
           'WAREHOUSE_OFFICER',
-          'CATALOG_MANAGER',
           'ADMIN',
         ]),
       })
@@ -87,7 +86,7 @@ test.describe('authenticated administration workspace', () => {
     await expect(page.getByLabel('Temporary password')).toHaveCount(0)
     await expect(page.getByText('Procurement Officer', { exact: true })).toBeVisible()
     await expect(page.getByText('Warehouse Officer', { exact: true })).toBeVisible()
-    await expect(page.getByText('Catalog Manager', { exact: true })).toBeVisible()
+    await expect(page.getByText('Catalog Manager', { exact: true })).toHaveCount(0)
   })
 
   test('opens workflow template administration and its create form', async ({ page }) => {
@@ -188,28 +187,44 @@ test.describe('authenticated administration workspace', () => {
     await expect(page.getByRole('heading', { name: 'New supplier product' })).toBeVisible()
   })
 
-  test('opens the product category management page and create form', async ({ page }) => {
-    await page.goto('/product-categories')
-
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Product Categories')
-    await expect(page.getByRole('link', { name: 'Product Categories' })).toBeVisible()
-
-    await page.getByRole('button', { name: 'New category' }).click()
-
-    await expect(page.getByRole('dialog')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Create product category' })).toBeVisible()
-  })
-
-  test('opens the units of measure management page and create form', async ({ page }) => {
-    await page.goto('/units-of-measure')
-
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Units of Measure')
-    await expect(page.getByRole('link', { name: 'Units of Measure' })).toBeVisible()
-
-    await page.getByRole('button', { name: 'New unit' }).click()
-
-    await expect(page.getByRole('dialog')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Create unit of measure' })).toBeVisible()
+  test('creates products without category or unit and rejects fractional reorder levels', async ({
+    page,
+  }) => {
+    const saved: Record<string, unknown>[] = []
+    await page.route('http://localhost:5165/api/products*', async (route) => {
+      if (route.request().method() === 'POST') {
+        saved.push(route.request().postDataJSON())
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({ id: 1, code: 'ITEM-0001' }),
+        })
+      } else {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+      }
+    })
+    await page.goto('/products')
+    await expect(page.getByRole('link', { name: 'Product Categories', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Units of Measure', exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: 'New product' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByLabel('Product category', { exact: true })).toHaveCount(0)
+    await expect(dialog.getByLabel('Unit of measure', { exact: true })).toHaveCount(0)
+    await dialog.getByLabel('Product name').fill('Whole quantity product')
+    await dialog.getByLabel('Default unit price (MYR)').fill('12.50')
+    await dialog.getByLabel('Reorder level', { exact: true }).fill('1.004')
+    await dialog.getByRole('button', { name: 'Create product', exact: true }).click()
+    await expect(
+      dialog.getByText('Reorder level must be a non-negative whole number.'),
+    ).toBeVisible()
+    expect(saved).toHaveLength(0)
+    await dialog.getByLabel('Reorder level', { exact: true }).fill('4')
+    await dialog.getByRole('button', { name: 'Create product', exact: true }).click()
+    await expect(dialog).toBeHidden()
+    expect(saved).toHaveLength(1)
+    expect(saved[0]).toMatchObject({ reorderLevel: 4, defaultUnitPrice: 12.5 })
+    expect(saved[0]).not.toHaveProperty('productCategoryId')
+    expect(saved[0]).not.toHaveProperty('unitOfMeasureId')
   })
 
   test('opens the product management page and create form', async ({ page }) => {
@@ -224,16 +239,49 @@ test.describe('authenticated administration workspace', () => {
     await expect(page.getByRole('heading', { name: 'Create product' })).toBeVisible()
   })
 
-  test('opens the purchase request page and create form', async ({ page }) => {
+  test('creates purchase requests with whole quantities and blocks decimals', async ({ page }) => {
+    const saved: Record<string, unknown>[] = []
+    await page.route('http://localhost:5165/api/products?includeInactive=true', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { id: 1, code: 'ITEM-0001', name: 'Monitor', isActive: true, defaultUnitPrice: 12.5 },
+        ]),
+      })
+    })
+    await page.route('http://localhost:5165/api/purchase-requests', async (route) => {
+      if (route.request().method() === 'POST') {
+        saved.push(route.request().postDataJSON())
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 1,
+            requestNumber: 'PR-0001',
+            workflow: { currentStepCode: 'DRAFT' },
+          }),
+        })
+      } else {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+      }
+    })
     await page.goto('/purchase-requests')
-
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Purchase Requests')
-    await expect(page.getByRole('link', { name: 'Purchase Requests' })).toBeVisible()
-
     await page.getByRole('button', { name: 'New purchase request' }).click()
-
-    await expect(page.getByRole('dialog')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Create purchase request' })).toBeVisible()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('button', { name: /Add item/ }).click()
+    await dialog.locator('#purchase-product-0').selectOption('1')
+    await dialog.locator('#purchase-quantity-0').fill('1.004')
+    await dialog.getByRole('button', { name: 'Create draft', exact: true }).click()
+    await expect(dialog.getByText('Quantity must be a non-negative whole number.')).toBeVisible()
+    expect(saved).toHaveLength(0)
+    await dialog.locator('#purchase-quantity-0').fill('3')
+    await expect(dialog.locator('.request-total')).toContainText('37.50')
+    await dialog.getByRole('button', { name: 'Create draft', exact: true }).click()
+    await expect(dialog).toBeHidden()
+    expect(saved).toHaveLength(1)
+    expect(saved[0]).toMatchObject({ items: [{ productId: 1, quantity: 3 }] })
   })
 
   test('opens supplier quotations and loads eligible suppliers into the create form', async ({
@@ -267,7 +315,6 @@ test.describe('authenticated administration workspace', () => {
                   productId: 1,
                   productCode: 'ITEM-0001',
                   productName: 'Monitor',
-                  unitOfMeasureCode: 'UNIT',
                   quantity: 2,
                   estimatedUnitPrice: 1200,
                   lineTotal: 2400,
@@ -321,8 +368,6 @@ test.describe('authenticated administration workspace', () => {
             productId: 1,
             productCode: 'ITEM-0001',
             productName: 'Monitor',
-            unitOfMeasureCode: 'UNIT',
-            unitOfMeasureName: 'Unit',
             productDefaultUnitPrice: 1200,
             isPreferred: true,
             isActive: true,
@@ -348,51 +393,47 @@ test.describe('authenticated administration workspace', () => {
     await page.route('http://localhost:5165/api/purchase-orders', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
     })
-    await page.route(
-      'http://localhost:5165/api/quotations?status=Selected',
-      async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify([
-            {
-              id: 8,
-              quotationNumber: 'QT-0008',
-              purchaseRequestId: 4,
-              purchaseRequestNumber: 'PR-0004',
-              supplierId: 2,
-              supplierCode: 'SUP-0002',
-              supplierName: 'Office Supply Co',
-              supplierQuotationReference: 'REF-08',
-              quotationDate: '2026-09-15',
-              validUntil: '2030-10-15',
-              notes: null,
-              status: 'Selected',
-              totalAmount: 1500,
-              createdByUserId: 4,
-              createdByName: 'Demo Admin',
-              createdAtUtc: '2026-09-15T00:00:00Z',
-              updatedAtUtc: null,
-              submittedAtUtc: '2026-09-15T01:00:00Z',
-              selectedAtUtc: '2026-09-15T02:00:00Z',
-              items: [
-                {
-                  id: 12,
-                  purchaseRequestItemId: 9,
-                  productId: 3,
-                  productCode: 'ITEM-0003',
-                  productName: 'Office Chair',
-                  unitOfMeasureCode: 'UNIT',
-                  quantity: 3,
-                  unitPrice: 500,
-                  lineTotal: 1500,
-                },
-              ],
-            },
-          ]),
-        })
-      },
-    )
+    await page.route('http://localhost:5165/api/quotations?status=Selected', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: 8,
+            quotationNumber: 'QT-0008',
+            purchaseRequestId: 4,
+            purchaseRequestNumber: 'PR-0004',
+            supplierId: 2,
+            supplierCode: 'SUP-0002',
+            supplierName: 'Office Supply Co',
+            supplierQuotationReference: 'REF-08',
+            quotationDate: '2026-09-15',
+            validUntil: '2030-10-15',
+            notes: null,
+            status: 'Selected',
+            totalAmount: 1500,
+            createdByUserId: 4,
+            createdByName: 'Demo Admin',
+            createdAtUtc: '2026-09-15T00:00:00Z',
+            updatedAtUtc: null,
+            submittedAtUtc: '2026-09-15T01:00:00Z',
+            selectedAtUtc: '2026-09-15T02:00:00Z',
+            items: [
+              {
+                id: 12,
+                purchaseRequestItemId: 9,
+                productId: 3,
+                productCode: 'ITEM-0003',
+                productName: 'Office Chair',
+                quantity: 3,
+                unitPrice: 500,
+                lineTotal: 1500,
+              },
+            ],
+          },
+        ]),
+      })
+    })
 
     await page.goto('/purchase-orders')
 
@@ -418,6 +459,7 @@ test.describe('authenticated administration workspace', () => {
       bccRecipients: null,
       subject: 'Purchase Order PO-0005',
       htmlBody: '<h1>PO-0005</h1>',
+      attachments: [],
       status: 'Sent',
       attemptCount: 1,
       createdByUserId: 4,
@@ -504,7 +546,6 @@ test.describe('authenticated administration workspace', () => {
                 productId: 3,
                 productCode: 'ITEM-0003',
                 productName: 'Office Chair',
-                unitOfMeasureCode: 'UNIT',
                 quantity: 10,
                 unitPrice: 150,
                 lineTotal: 1500,
@@ -572,6 +613,9 @@ test.describe('authenticated administration workspace', () => {
   })
 
   test('opens the My Tasks workflow inbox', async ({ page }) => {
+    await page.route('http://localhost:5165/api/purchase-orders', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    })
     await page.route('http://localhost:5165/api/purchase-requests', async (route) => {
       await route.fulfill({
         status: 200,
@@ -593,7 +637,8 @@ test.describe('authenticated administration workspace', () => {
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('My Tasks')
     await expect(page.getByRole('link', { name: 'My Tasks' })).toBeVisible()
-    await expect(page.getByText("You're all caught up")).toBeVisible()
+    await expect(page.getByText('No purchase request tasks', { exact: true })).toBeVisible()
+    await expect(page.getByText('No purchase order tasks', { exact: true })).toBeVisible()
   })
 
   test('opens inventory and reviews a product stock ledger', async ({ page }) => {
@@ -606,11 +651,6 @@ test.describe('authenticated administration workspace', () => {
             productId: 3,
             productCode: 'ITEM-0003',
             productName: 'Office Chair',
-            productCategoryId: 2,
-            productCategoryCode: 'FURNITURE',
-            productCategoryName: 'Furniture',
-            unitOfMeasureCode: 'UNIT',
-            unitOfMeasureName: 'Unit',
             quantityOnHand: 4,
             reorderLevel: 2,
             isLowStock: false,
@@ -630,7 +670,6 @@ test.describe('authenticated administration workspace', () => {
             productId: 3,
             productCode: 'ITEM-0003',
             productName: 'Office Chair',
-            unitOfMeasureCode: 'UNIT',
             type: 'GoodsReceipt',
             quantityChange: 4,
             quantityBefore: 0,
@@ -656,5 +695,66 @@ test.describe('authenticated administration workspace', () => {
     await expect(page.getByRole('dialog')).toBeVisible()
     await expect(page.getByRole('dialog').getByText('GR-0009')).toBeVisible()
     await expect(page.getByRole('dialog').getByText('+4')).toBeVisible()
+  })
+})
+
+test.describe('product management permissions', () => {
+  test('procurement officer can create a product', async ({ page }) => {
+    const session = {
+      ...adminSession,
+      user: {
+        ...adminSession.user,
+        id: 7,
+        email: 'procurement@demo.local',
+        fullName: 'Procurement Officer',
+        roles: ['PROCUREMENT_OFFICER'],
+      },
+    }
+    await page.addInitScript((value) => {
+      window.sessionStorage.setItem('project1.auth.session', JSON.stringify(value))
+    }, session)
+    const saved: Record<string, unknown>[] = []
+    await page.route('http://localhost:5165/api/products*', async (route) => {
+      if (route.request().method() === 'POST') {
+        saved.push(route.request().postDataJSON())
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({ id: 9, code: 'ITEM-0009' }),
+        })
+      } else {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+      }
+    })
+    await page.goto('/products')
+    await expect(page.getByRole('link', { name: 'Products', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'New product' }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByLabel('Product name').fill('Procurement product')
+    await dialog.getByRole('button', { name: 'Create product', exact: true }).click()
+    await expect(dialog).toBeHidden()
+    expect(saved).toHaveLength(1)
+    expect(saved[0]).toMatchObject({ name: 'Procurement product' })
+    await expect(page.getByRole('status')).toContainText('ITEM-0009 was created successfully.')
+  })
+
+  test('warehouse officer cannot access product maintenance', async ({ page }) => {
+    const session = {
+      ...adminSession,
+      user: {
+        ...adminSession.user,
+        id: 8,
+        email: 'warehouse@demo.local',
+        fullName: 'Warehouse Officer',
+        roles: ['WAREHOUSE_OFFICER'],
+      },
+    }
+    await page.addInitScript((value) => {
+      window.sessionStorage.setItem('project1.auth.session', JSON.stringify(value))
+    }, session)
+    await page.goto('/products')
+    await expect(page).toHaveURL(/\/access-denied$/)
+    await expect(page.getByRole('link', { name: 'Products', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'New product' })).toHaveCount(0)
   })
 })

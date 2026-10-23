@@ -3,33 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ProductForm from '../ProductForm.vue'
 
-const category = {
-  id: 1,
-  code: 'CAT-0001',
-  name: 'Office Supplies',
-  description: null,
-  isActive: true,
-  createdAtUtc: '2026-08-29T00:00:00Z',
-  updatedAtUtc: null,
-}
-
-const unit = {
-  id: 1,
-  code: 'REAM',
-  name: 'Ream',
-  description: null,
-  isActive: true,
-  createdAtUtc: '2026-08-29T00:00:00Z',
-  updatedAtUtc: null,
-}
-
 describe('ProductForm', () => {
   it('does not show a product code when creating', () => {
     const wrapper = mount(ProductForm, {
       props: {
         product: null,
-        categories: [category],
-        units: [unit],
         saving: false,
         errorMessage: '',
       },
@@ -47,20 +25,12 @@ describe('ProductForm', () => {
           name: 'A4 Paper',
           description: null,
           storageLocation: 'Shelf A1',
-          productCategoryId: 1,
-          productCategoryCode: 'CAT-0001',
-          productCategoryName: 'Office Supplies',
-          unitOfMeasureId: 1,
-          unitOfMeasureCode: 'REAM',
-          unitOfMeasureName: 'Ream',
           defaultUnitPrice: 18.9,
           reorderLevel: 10,
           isActive: true,
           createdAtUtc: '2026-08-29T00:00:00Z',
           updatedAtUtc: null,
         },
-        categories: [category],
-        units: [unit],
         saving: false,
         errorMessage: '',
       },
@@ -70,7 +40,9 @@ describe('ProductForm', () => {
     expect(codeInput.attributes('readonly')).toBeDefined()
     expect((codeInput.element as HTMLInputElement).value).toBe('ITEM-0001')
     expect(wrapper.find('#product-cicd-practice-note').exists()).toBe(false)
-    expect((wrapper.get('#product-storage-location').element as HTMLInputElement).value).toBe('Shelf A1')
+    expect((wrapper.get('#product-storage-location').element as HTMLInputElement).value).toBe(
+      'Shelf A1',
+    )
     expect(wrapper.get('#product-storage-location').attributes('maxlength')).toBe('100')
   })
 
@@ -81,11 +53,9 @@ describe('ProductForm', () => {
     ['x'.repeat(100), 'x'.repeat(100)],
   ])('saves normalized optional storage location %j', async (input, expected) => {
     const wrapper = mount(ProductForm, {
-      props: { product: null, categories: [category], units: [unit], saving: false, errorMessage: '' },
+      props: { product: null, saving: false, errorMessage: '' },
     })
     await wrapper.get('#product-name').setValue('Storage product')
-    await wrapper.get('#product-category').setValue('1')
-    await wrapper.get('#product-unit').setValue('1')
     await wrapper.get('#product-storage-location').setValue(input)
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({ storageLocation: expected })
@@ -93,11 +63,9 @@ describe('ProductForm', () => {
 
   it('rejects a storage location longer than 100 characters', async () => {
     const wrapper = mount(ProductForm, {
-      props: { product: null, categories: [category], units: [unit], saving: false, errorMessage: '' },
+      props: { product: null, saving: false, errorMessage: '' },
     })
     await wrapper.get('#product-name').setValue('Storage product')
-    await wrapper.get('#product-category').setValue('1')
-    await wrapper.get('#product-unit').setValue('1')
     await wrapper.get('#product-storage-location').setValue('x'.repeat(101))
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('save')).toBeUndefined()
@@ -105,33 +73,46 @@ describe('ProductForm', () => {
     expect(wrapper.get('#product-storage-location').attributes('aria-invalid')).toBe('true')
   })
 
-  it('only offers active related records when creating', () => {
+  it('does not ask for a category or unit when creating', () => {
     const wrapper = mount(ProductForm, {
-      props: {
-        product: null,
-        categories: [{ ...category, id: 2, isActive: false }],
-        units: [{ ...unit, id: 2, isActive: false }],
-        saving: false,
-        errorMessage: '',
-      },
+      props: { product: null, saving: false, errorMessage: '' },
     })
-
-    expect(wrapper.findAll('#product-category option')).toHaveLength(1)
-    expect(wrapper.findAll('#product-unit option')).toHaveLength(1)
+    expect(wrapper.find('#product-category').exists()).toBe(false)
+    expect(wrapper.find('#product-unit').exists()).toBe(false)
   })
 
   it('shows an API error inside the form', () => {
     const wrapper = mount(ProductForm, {
       props: {
         product: null,
-        categories: [category],
-        units: [unit],
         saving: false,
-        errorMessage: 'Select an active product category.',
+        errorMessage: 'Reorder level is invalid.',
       },
     })
 
     expect(wrapper.get('[role="alert"]').text()).toContain('Product could not be saved')
-    expect(wrapper.get('[role="alert"]').text()).toContain('Select an active product category.')
+    expect(wrapper.get('[role="alert"]').text()).toContain('Reorder level is invalid.')
+  })
+
+  it('rejects fractional reorder levels and accepts whole numbers with decimal prices', async () => {
+    const wrapper = mount(ProductForm, {
+      props: { product: null, saving: false, errorMessage: '' },
+    })
+    await wrapper.get('#product-name').setValue('Monitor')
+    await wrapper.get('#product-price').setValue('12.50')
+    await wrapper.get('#product-reorder-level').setValue('1.004')
+    expect(wrapper.get('#product-reorder-level').attributes('step')).toBe('1')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('save')).toBeUndefined()
+    expect(wrapper.text()).toContain('whole number')
+    await wrapper.get('#product-reorder-level').setValue('4')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      reorderLevel: 4,
+      defaultUnitPrice: 12.5,
+    })
+    expect(wrapper.emitted('save')?.[0]?.[0]).not.toHaveProperty('productCategoryId')
+    expect(wrapper.emitted('save')?.[0]?.[0]).not.toHaveProperty('unitOfMeasureId')
+    wrapper.unmount()
   })
 })

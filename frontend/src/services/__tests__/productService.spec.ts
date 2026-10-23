@@ -8,12 +8,6 @@ const productResponse = {
   name: 'A4 Paper',
   description: null,
   storageLocation: 'Shelf A1',
-  productCategoryId: 1,
-  productCategoryCode: 'CAT-0001',
-  productCategoryName: 'Office Supplies',
-  unitOfMeasureId: 1,
-  unitOfMeasureCode: 'REAM',
-  unitOfMeasureName: 'Ream',
   defaultUnitPrice: 18.9,
   reorderLevel: 10,
   isActive: true,
@@ -55,8 +49,6 @@ describe('productService', () => {
       name: 'A4 Paper',
       description: null,
       storageLocation: 'Shelf A1',
-      productCategoryId: 1,
-      unitOfMeasureId: 1,
       defaultUnitPrice: 18.9,
       reorderLevel: 10,
     })
@@ -65,8 +57,6 @@ describe('productService', () => {
     expect(body).not.toHaveProperty('code')
     expect(body).not.toHaveProperty('cicdPracticeNote')
     expect(body).toMatchObject({
-      productCategoryId: 1,
-      unitOfMeasureId: 1,
       storageLocation: 'Shelf A1',
     })
   })
@@ -84,8 +74,6 @@ describe('productService', () => {
       name: 'A4 Paper',
       description: null,
       storageLocation: null,
-      productCategoryId: 1,
-      unitOfMeasureId: 1,
       defaultUnitPrice: 18.9,
       reorderLevel: 10,
       isActive: true,
@@ -100,7 +88,7 @@ describe('productService', () => {
 
   it('uses related-record error details returned by the API', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify({ detail: 'Select an active product category.' }), {
+      new Response(JSON.stringify({ detail: 'Reorder level must be a whole number.' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -110,15 +98,13 @@ describe('productService', () => {
     const request = productService.create({
       name: 'A4 Paper',
       description: null,
-      productCategoryId: 1,
-      unitOfMeasureId: 1,
       defaultUnitPrice: 18.9,
       reorderLevel: 10,
     })
 
     await expect(request).rejects.toMatchObject({
       status: 400,
-      message: 'Select an active product category.',
+      message: 'Reorder level must be a whole number.',
     })
   })
 })

@@ -554,11 +554,6 @@ namespace Project1.Api.Migrations
                         .HasPrecision(18, 3)
                         .HasColumnType("decimal(18,3)");
 
-                    b.Property<string>("UnitOfMeasureCode")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ProductId");
@@ -568,7 +563,10 @@ namespace Project1.Api.Migrations
                     b.HasIndex("GoodsReceiptId", "PurchaseOrderItemId")
                         .IsUnique();
 
-                    b.ToTable("GoodsReceiptItems", (string)null);
+                    b.ToTable("GoodsReceiptItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_GoodsReceiptItems_WholeQuantities", "[OrderedQuantity] = ROUND([OrderedQuantity], 0) AND [QuantityReceived] = ROUND([QuantityReceived], 0)");
+                        });
                 });
 
             modelBuilder.Entity("Project1.Api.Entities.Identity.ApplicationUser", b =>
@@ -678,7 +676,10 @@ namespace Project1.Api.Migrations
                     b.HasIndex("ProductId")
                         .IsUnique();
 
-                    b.ToTable("InventoryBalances", (string)null);
+                    b.ToTable("InventoryBalances", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryBalances_WholeQuantities", "[QuantityOnHand] = ROUND([QuantityOnHand], 0)");
+                        });
                 });
 
             modelBuilder.Entity("Project1.Api.Entities.InventoryTransaction", b =>
@@ -749,11 +750,6 @@ namespace Project1.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
-                    b.Property<string>("UnitOfMeasureCode")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
                     b.HasKey("Id");
 
                     b.HasIndex("GoodsReceiptItemId")
@@ -762,7 +758,10 @@ namespace Project1.Api.Migrations
 
                     b.HasIndex("ProductId", "OccurredDate", "Id");
 
-                    b.ToTable("InventoryTransactions", (string)null);
+                    b.ToTable("InventoryTransactions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryTransactions_WholeQuantities", "[QuantityChange] = ROUND([QuantityChange], 0) AND [QuantityBefore] = ROUND([QuantityBefore], 0) AND [QuantityAfter] = ROUND([QuantityAfter], 0)");
+                        });
                 });
 
             modelBuilder.Entity("Project1.Api.Entities.Product", b =>
@@ -800,9 +799,6 @@ namespace Project1.Api.Migrations
                     b.Property<string>("Note")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("ProductCategoryId")
-                        .HasColumnType("int");
-
                     b.Property<decimal>("ReorderLevel")
                         .HasPrecision(18, 3)
                         .HasColumnType("decimal(18,3)");
@@ -814,9 +810,6 @@ namespace Project1.Api.Migrations
                     b.Property<string>("TestRemark")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("UnitOfMeasureId")
-                        .HasColumnType("int");
-
                     b.Property<DateTimeOffset?>("UpdatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -825,53 +818,10 @@ namespace Project1.Api.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.HasIndex("ProductCategoryId");
-
-                    b.HasIndex("UnitOfMeasureId");
-
-                    b.ToTable("Products", (string)null);
-                });
-
-            modelBuilder.Entity("Project1.Api.Entities.ProductCategory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("ProductCategories", (string)null);
+                    b.ToTable("Products", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Products_WholeQuantities", "[ReorderLevel] = ROUND([ReorderLevel], 0)");
+                        });
                 });
 
             modelBuilder.Entity("Project1.Api.Entities.PurchaseOrder", b =>
@@ -1024,11 +974,6 @@ namespace Project1.Api.Migrations
                     b.Property<int>("QuotationItemId")
                         .HasColumnType("int");
 
-                    b.Property<string>("UnitOfMeasureCode")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -1042,7 +987,10 @@ namespace Project1.Api.Migrations
                     b.HasIndex("PurchaseOrderId", "QuotationItemId")
                         .IsUnique();
 
-                    b.ToTable("PurchaseOrderItems", (string)null);
+                    b.ToTable("PurchaseOrderItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PurchaseOrderItems_WholeQuantities", "[Quantity] = ROUND([Quantity], 0)");
+                        });
                 });
 
             modelBuilder.Entity("Project1.Api.Entities.PurchaseRequest", b =>
@@ -1122,7 +1070,10 @@ namespace Project1.Api.Migrations
                     b.HasIndex("PurchaseRequestId", "ProductId")
                         .IsUnique();
 
-                    b.ToTable("PurchaseRequestItems", (string)null);
+                    b.ToTable("PurchaseRequestItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PurchaseRequestItems_WholeQuantities", "[Quantity] = ROUND([Quantity], 0)");
+                        });
                 });
 
             modelBuilder.Entity("Project1.Api.Entities.Quotation", b =>
@@ -1239,11 +1190,6 @@ namespace Project1.Api.Migrations
                     b.Property<int>("QuotationId")
                         .HasColumnType("int");
 
-                    b.Property<string>("UnitOfMeasureCode")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -1257,7 +1203,10 @@ namespace Project1.Api.Migrations
                     b.HasIndex("QuotationId", "PurchaseRequestItemId")
                         .IsUnique();
 
-                    b.ToTable("QuotationItems", (string)null);
+                    b.ToTable("QuotationItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_QuotationItems_WholeQuantities", "[Quantity] = ROUND([Quantity], 0)");
+                        });
                 });
 
             modelBuilder.Entity("Project1.Api.Entities.Supplier", b =>
@@ -1345,45 +1294,6 @@ namespace Project1.Api.Migrations
                     b.HasIndex("ProductId", "IsActive", "IsPreferred");
 
                     b.ToTable("SupplierProducts", (string)null);
-                });
-
-            modelBuilder.Entity("Project1.Api.Entities.UnitOfMeasure", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.ToTable("UnitsOfMeasure", (string)null);
                 });
 
             modelBuilder.Entity("Project1.Api.Entities.Workflows.WorkflowActionInstance", b =>
@@ -2057,25 +1967,6 @@ namespace Project1.Api.Migrations
                     b.Navigation("Product");
                 });
 
-            modelBuilder.Entity("Project1.Api.Entities.Product", b =>
-                {
-                    b.HasOne("Project1.Api.Entities.ProductCategory", "ProductCategory")
-                        .WithMany("Products")
-                        .HasForeignKey("ProductCategoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Project1.Api.Entities.UnitOfMeasure", "UnitOfMeasure")
-                        .WithMany("Products")
-                        .HasForeignKey("UnitOfMeasureId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ProductCategory");
-
-                    b.Navigation("UnitOfMeasure");
-                });
-
             modelBuilder.Entity("Project1.Api.Entities.PurchaseOrder", b =>
                 {
                     b.HasOne("Project1.Api.Entities.PurchaseRequest", "PurchaseRequest")
@@ -2359,11 +2250,6 @@ namespace Project1.Api.Migrations
                     b.Navigation("SupplierProducts");
                 });
 
-            modelBuilder.Entity("Project1.Api.Entities.ProductCategory", b =>
-                {
-                    b.Navigation("Products");
-                });
-
             modelBuilder.Entity("Project1.Api.Entities.PurchaseOrder", b =>
                 {
                     b.Navigation("EmailOutboxes");
@@ -2403,11 +2289,6 @@ namespace Project1.Api.Migrations
                     b.Navigation("Quotations");
 
                     b.Navigation("SupplierProducts");
-                });
-
-            modelBuilder.Entity("Project1.Api.Entities.UnitOfMeasure", b =>
-                {
-                    b.Navigation("Products");
                 });
 
             modelBuilder.Entity("Project1.Api.Entities.Workflows.WorkflowActionInstance", b =>

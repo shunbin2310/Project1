@@ -5,7 +5,6 @@ export const applicationRoles = {
   procurementOfficer: 'PROCUREMENT_OFFICER',
   purchaseOrderApprover: 'PURCHASE_ORDER_APPROVER',
   warehouseOfficer: 'WAREHOUSE_OFFICER',
-  catalogManager: 'CATALOG_MANAGER',
   admin: 'ADMIN',
 } as const
 

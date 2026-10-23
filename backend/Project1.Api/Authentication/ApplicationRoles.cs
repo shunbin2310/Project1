@@ -8,15 +8,13 @@ public static class ApplicationRoles
     public const string ProcurementOfficer = "PROCUREMENT_OFFICER";
     public const string PurchaseOrderApprover = "PURCHASE_ORDER_APPROVER";
     public const string WarehouseOfficer = "WAREHOUSE_OFFICER";
-    public const string CatalogManager = "CATALOG_MANAGER";
     public const string Admin = "ADMIN";
 
     public const string AdminOrProcurement = Admin + "," + ProcurementOfficer;
     public const string AdminOrWarehouse = Admin + "," + WarehouseOfficer;
-    public const string AdminOrCatalog = Admin + "," + CatalogManager;
     public const string PurchaseRequestReaders =
         Admin + "," + Requester + "," + DepartmentApprover + "," + FinanceApprover + "," +
-        ProcurementOfficer + "," + WarehouseOfficer + "," + CatalogManager;
+        ProcurementOfficer + "," + WarehouseOfficer;
     public const string PurchaseOrderReaders =
         Admin + "," + ProcurementOfficer + "," + PurchaseOrderApprover + "," + WarehouseOfficer;
     public const string GoodsReceiptReaders =
@@ -32,7 +30,6 @@ public static class ApplicationRoles
         ProcurementOfficer,
         PurchaseOrderApprover,
         WarehouseOfficer,
-        CatalogManager,
         Admin
     ];
 }

@@ -6,8 +6,6 @@ export interface SupplierProduct {
   productId: number
   productCode: string
   productName: string
-  unitOfMeasureCode: string
-  unitOfMeasureName: string
   productDefaultUnitPrice: number
   isPreferred: boolean
   isActive: boolean

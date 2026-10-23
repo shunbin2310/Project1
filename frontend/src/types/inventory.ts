@@ -6,11 +6,6 @@ export interface InventoryBalance {
   productId: number
   productCode: string
   productName: string
-  productCategoryId: number
-  productCategoryCode: string
-  productCategoryName: string
-  unitOfMeasureCode: string
-  unitOfMeasureName: string
   quantityOnHand: number
   reorderLevel: number
   isLowStock: boolean
@@ -23,7 +18,6 @@ export interface InventoryTransaction {
   productId: number
   productCode: string
   productName: string
-  unitOfMeasureCode: string
   type: InventoryTransactionType
   quantityChange: number
   quantityBefore: number
@@ -38,7 +32,6 @@ export interface InventoryTransaction {
 }
 
 export interface InventoryBalanceFilters {
-  productCategoryId?: number
   lowStock?: boolean
   includeInactive?: boolean
   search?: string

@@ -15,14 +15,12 @@ public sealed class InventoryController(IInventoryService inventoryService) : Co
     [HttpGet]
     [ProducesResponseType<IReadOnlyList<InventoryBalanceResponse>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<InventoryBalanceResponse>>> GetAll(
-        [FromQuery] int? productCategoryId = null,
         [FromQuery] bool? lowStock = null,
         [FromQuery] bool includeInactive = false,
         [FromQuery] string? search = null,
         CancellationToken cancellationToken = default)
     {
         return Ok(await inventoryService.GetBalancesAsync(
-            productCategoryId,
             lowStock,
             includeInactive,
             search,

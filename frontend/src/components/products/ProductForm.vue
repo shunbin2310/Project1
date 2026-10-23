@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue'
 
-import type { ProductCategory } from '@/types/productCategory'
 import type { Product, ProductFormValues } from '@/types/product'
-import type { UnitOfMeasure } from '@/types/unitOfMeasure'
 
 interface ProductFormState extends ProductFormValues {
   code: string
@@ -11,8 +9,6 @@ interface ProductFormState extends ProductFormValues {
 
 const props = defineProps<{
   product: Product | null
-  categories: ProductCategory[]
-  units: UnitOfMeasure[]
   saving: boolean
   errorMessage: string
 }>()
@@ -27,8 +23,6 @@ const form = reactive<ProductFormState>({
   name: '',
   description: null,
   storageLocation: null,
-  productCategoryId: 0,
-  unitOfMeasureId: 0,
   defaultUnitPrice: 0,
   reorderLevel: 0,
   isActive: true,
@@ -38,8 +32,6 @@ const errors = reactive({
   name: '',
   description: '',
   storageLocation: '',
-  productCategoryId: '',
-  unitOfMeasureId: '',
   defaultUnitPrice: '',
   reorderLevel: '',
 })
@@ -47,15 +39,6 @@ const errors = reactive({
 const isEditing = computed(() => props.product !== null)
 const title = computed(() => (isEditing.value ? 'Edit product' : 'Create product'))
 const descriptionLength = computed(() => form.description?.length ?? 0)
-const selectableCategories = computed(() =>
-  props.categories.filter(
-    (category) => category.isActive || category.id === props.product?.productCategoryId,
-  ),
-)
-const selectableUnits = computed(() =>
-  props.units.filter((unit) => unit.isActive || unit.id === props.product?.unitOfMeasureId),
-)
-
 watch(
   () => props.product,
   (product) => {
@@ -63,8 +46,6 @@ watch(
     form.name = product?.name ?? ''
     form.description = product?.description ?? null
     form.storageLocation = product?.storageLocation ?? null
-    form.productCategoryId = product?.productCategoryId ?? 0
-    form.unitOfMeasureId = product?.unitOfMeasureId ?? 0
     form.defaultUnitPrice = product?.defaultUnitPrice ?? 0
     form.reorderLevel = product?.reorderLevel ?? 0
     form.isActive = product?.isActive ?? true
@@ -77,8 +58,6 @@ function clearErrors() {
   errors.name = ''
   errors.description = ''
   errors.storageLocation = ''
-  errors.productCategoryId = ''
-  errors.unitOfMeasureId = ''
   errors.defaultUnitPrice = ''
   errors.reorderLevel = ''
 }
@@ -101,20 +80,16 @@ function validate() {
     errors.storageLocation = 'Storage location cannot exceed 100 characters.'
   }
 
-  if (form.productCategoryId < 1) {
-    errors.productCategoryId = 'Select a product category.'
-  }
-
-  if (form.unitOfMeasureId < 1) {
-    errors.unitOfMeasureId = 'Select a unit of measure.'
-  }
-
   if (!Number.isFinite(form.defaultUnitPrice) || form.defaultUnitPrice < 0) {
     errors.defaultUnitPrice = 'Default unit price must be zero or greater.'
   }
 
-  if (!Number.isFinite(form.reorderLevel) || form.reorderLevel < 0) {
-    errors.reorderLevel = 'Reorder level must be zero or greater.'
+  if (
+    !Number.isSafeInteger(form.reorderLevel) ||
+    form.reorderLevel < 0 ||
+    form.reorderLevel > 999999999999999
+  ) {
+    errors.reorderLevel = 'Reorder level must be a non-negative whole number.'
   }
 
   return !Object.values(errors).some(Boolean)
@@ -127,8 +102,6 @@ function submit() {
     name: form.name.trim(),
     description: form.description?.trim() || null,
     storageLocation: form.storageLocation?.trim() || null,
-    productCategoryId: form.productCategoryId,
-    unitOfMeasureId: form.unitOfMeasureId,
     defaultUnitPrice: form.defaultUnitPrice,
     reorderLevel: form.reorderLevel,
     isActive: form.isActive,
@@ -184,50 +157,6 @@ function submit() {
         </div>
 
         <div class="form-field">
-          <label for="product-category">Product category</label>
-          <select
-            id="product-category"
-            v-model.number="form.productCategoryId"
-            :aria-invalid="Boolean(errors.productCategoryId)"
-          >
-            <option :value="0" disabled>Select a category</option>
-            <option
-              v-for="category in selectableCategories"
-              :key="category.id"
-              :value="category.id"
-              :disabled="!category.isActive"
-            >
-              {{ category.code }} - {{ category.name }}{{ category.isActive ? '' : ' (Inactive)' }}
-            </option>
-          </select>
-          <p v-if="errors.productCategoryId" class="field-error">
-            {{ errors.productCategoryId }}
-          </p>
-        </div>
-
-        <div class="form-field">
-          <label for="product-unit">Unit of measure</label>
-          <select
-            id="product-unit"
-            v-model.number="form.unitOfMeasureId"
-            :aria-invalid="Boolean(errors.unitOfMeasureId)"
-          >
-            <option :value="0" disabled>Select a unit</option>
-            <option
-              v-for="unit in selectableUnits"
-              :key="unit.id"
-              :value="unit.id"
-              :disabled="!unit.isActive"
-            >
-              {{ unit.code }} - {{ unit.name }}{{ unit.isActive ? '' : ' (Inactive)' }}
-            </option>
-          </select>
-          <p v-if="errors.unitOfMeasureId" class="field-error">
-            {{ errors.unitOfMeasureId }}
-          </p>
-        </div>
-
-        <div class="form-field">
           <label for="product-price">Default unit price (MYR)</label>
           <input
             id="product-price"
@@ -251,9 +180,9 @@ function submit() {
             v-model.number="form.reorderLevel"
             type="number"
             min="0"
-            max="999999999999999.999"
-            step="0.001"
-            inputmode="decimal"
+            max="999999999999999"
+            step="1"
+            inputmode="numeric"
             :aria-invalid="Boolean(errors.reorderLevel)"
           />
           <p v-if="errors.reorderLevel" class="field-error">{{ errors.reorderLevel }}</p>
@@ -284,7 +213,9 @@ function submit() {
             autocomplete="off"
             placeholder="e.g. Shelf A1 (optional)"
             :aria-invalid="Boolean(errors.storageLocation)"
-            :aria-describedby="errors.storageLocation ? 'product-storage-location-error' : undefined"
+            :aria-describedby="
+              errors.storageLocation ? 'product-storage-location-error' : undefined
+            "
           />
           <p v-if="errors.storageLocation" id="product-storage-location-error" class="field-error">
             {{ errors.storageLocation }}

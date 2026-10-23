@@ -66,7 +66,7 @@ function clearFilters() {
 }
 
 function formatQuantity(value: number) {
-  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 3 }).format(value)
+  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 0 }).format(value)
 }
 
 function formatQuantityChange(value: number) {
@@ -99,9 +99,7 @@ function typeLabel(type: InventoryTransactionType) {
         <div>
           <p class="eyebrow">Inventory ledger</p>
           <h2 id="inventory-history-title">{{ inventory.productName }}</h2>
-          <p class="inventory-history-code">
-            {{ inventory.productCode }} · {{ inventory.unitOfMeasureCode }}
-          </p>
+          <p class="inventory-history-code">{{ inventory.productCode }}</p>
         </div>
         <button class="icon-button" type="button" aria-label="Close history" @click="emit('close')">
           &times;
@@ -113,12 +111,10 @@ function typeLabel(type: InventoryTransactionType) {
           <article>
             <span>On hand</span>
             <strong>{{ formatQuantity(inventory.quantityOnHand) }}</strong>
-            <small>{{ inventory.unitOfMeasureCode }}</small>
           </article>
           <article>
             <span>Reorder level</span>
             <strong>{{ formatQuantity(inventory.reorderLevel) }}</strong>
-            <small>{{ inventory.unitOfMeasureCode }}</small>
           </article>
           <article>
             <span>Last movement</span>

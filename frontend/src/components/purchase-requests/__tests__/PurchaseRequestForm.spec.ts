@@ -11,12 +11,6 @@ const product = {
   name: 'Monitor',
   description: null,
   storageLocation: null,
-  productCategoryId: 1,
-  productCategoryCode: 'CAT-0001',
-  productCategoryName: 'Electronics',
-  unitOfMeasureId: 1,
-  unitOfMeasureCode: 'UNIT',
-  unitOfMeasureName: 'Unit',
   defaultUnitPrice: 1399.9,
   reorderLevel: 5,
   isActive: true,
@@ -119,4 +113,30 @@ describe('PurchaseRequestForm', () => {
       'No active published workflow template exists.',
     )
   })
+
+  it.each([false, true])(
+    'rejects fractional quantities when submitAfterSave=%s',
+    async (submitAfterSave) => {
+      const wrapper = mountForm()
+      await wrapper.get('#purchase-required-date').setValue('2030-12-31')
+      await wrapper
+        .findAll('button')
+        .find((button) => button.text() === '+ Add item')!
+        .trigger('click')
+      await wrapper.get('#purchase-product-0').setValue('1')
+      await wrapper.get('#purchase-quantity-0').setValue('1.004')
+      expect(wrapper.get('#purchase-quantity-0').attributes('step')).toBe('1')
+      if (submitAfterSave) {
+        await wrapper
+          .findAll('button')
+          .find((button) => button.text() === 'Create and submit')!
+          .trigger('click')
+      } else {
+        await wrapper.get('form').trigger('submit')
+      }
+      expect(wrapper.emitted('save')).toBeUndefined()
+      expect(wrapper.text()).toContain('whole number')
+      wrapper.unmount()
+    },
+  )
 })

@@ -20,8 +20,6 @@ public sealed class QuotationItem
 
     public string ProductName { get; set; } = string.Empty;
 
-    public string UnitOfMeasureCode { get; set; } = string.Empty;
-
     public decimal Quantity { get; set; }
 
     public decimal UnitPrice { get; set; }

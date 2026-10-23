@@ -385,8 +385,6 @@ describe('MyTaskListView', () => {
     [['PURCHASE_ORDER_APPROVER'], false, true],
     [['ADMIN'], true, true],
     [['WAREHOUSE_OFFICER'], false, false],
-    [['CATALOG_MANAGER'], false, false],
-    [['WAREHOUSE_OFFICER', 'CATALOG_MANAGER'], false, false],
     [['REQUESTER', 'PROCUREMENT_OFFICER'], true, true],
     [['WAREHOUSE_OFFICER', 'REQUESTER'], true, false],
   ])(

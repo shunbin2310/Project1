@@ -58,8 +58,6 @@ public sealed class MigrationIntegrationTests
         Assert.Equal(FixtureCreatedAt, product.CreatedAtUtc);
         Assert.True(product.IsActive);
         Assert.Null(product.Note);
-        Assert.Equal("CI-CATEGORY", (await context.ProductCategories.SingleAsync()).Code);
-        Assert.Equal("CI-UNIT", (await context.UnitsOfMeasure.SingleAsync()).Code);
 
         product.Note = "Note written after the CI migration";
         product.StorageLocation = new string('x', 100);

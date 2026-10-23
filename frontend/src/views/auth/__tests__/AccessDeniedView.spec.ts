@@ -13,7 +13,6 @@ describe('AccessDeniedView', () => {
     [['REQUESTER'], '/my-tasks'],
     [['PROCUREMENT_OFFICER'], '/my-tasks'],
     [['WAREHOUSE_OFFICER'], '/dashboard'],
-    [['CATALOG_MANAGER'], '/dashboard'],
     [['WAREHOUSE_OFFICER', 'REQUESTER'], '/my-tasks'],
   ])('returns roles %j to an accessible workspace at %s', async (roles, path) => {
     const pinia = createPinia()

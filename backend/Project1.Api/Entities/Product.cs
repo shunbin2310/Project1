@@ -16,14 +16,6 @@ public sealed class Product
 
     public string? TestRemark { get; set; }
 
-    public int ProductCategoryId { get; set; }
-
-    public ProductCategory ProductCategory { get; set; } = null!;
-
-    public int UnitOfMeasureId { get; set; }
-
-    public UnitOfMeasure UnitOfMeasure { get; set; } = null!;
-
     public decimal DefaultUnitPrice { get; set; }
 
     public decimal ReorderLevel { get; set; }

@@ -29,7 +29,7 @@ const demoAccounts = [
     email: 'procurement@demo.local',
     name: 'Procurement Officer',
     role: applicationRoles.procurementOfficer,
-    description: 'Manage suppliers, quotations, and purchase orders',
+    description: 'Manage products, suppliers, quotations, and purchase orders',
   },
   {
     email: 'po.approver@demo.local',
@@ -42,12 +42,6 @@ const demoAccounts = [
     name: 'Warehouse Officer',
     role: applicationRoles.warehouseOfficer,
     description: 'Receive goods and review inventory',
-  },
-  {
-    email: 'catalog@demo.local',
-    name: 'Catalog Manager',
-    role: applicationRoles.catalogManager,
-    description: 'Maintain product and catalog master data',
   },
   {
     email: 'admin@demo.local',

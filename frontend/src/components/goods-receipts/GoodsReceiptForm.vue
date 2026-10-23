@@ -124,7 +124,16 @@ function validate() {
   }
 
   const positiveItems = form.items.filter((item) => Number(item.quantityReceived) > 0)
-  if (!positiveItems.length) {
+  if (
+    form.items.some(
+      (item) =>
+        !Number.isSafeInteger(Number(item.quantityReceived)) ||
+        Number(item.quantityReceived) < 0 ||
+        Number(item.quantityReceived) > 999999999999999,
+    )
+  ) {
+    errors.items = 'Received quantities must be non-negative whole numbers.'
+  } else if (!positiveItems.length) {
     errors.items = 'Enter a received quantity for at least one item.'
   } else if (
     positiveItems.some((item) => {
@@ -170,7 +179,7 @@ function todayValue() {
 }
 
 function formatQuantity(value: number) {
-  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 3 }).format(value)
+  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 0 }).format(value)
 }
 </script>
 
@@ -313,7 +322,6 @@ function formatQuantity(value: number) {
                   </td>
                   <td>
                     {{ formatQuantity(row.orderItem.quantity) }}
-                    {{ row.orderItem.unitOfMeasureCode }}
                   </td>
                   <td>{{ formatQuantity(row.orderItem.previouslyReceivedQuantity) }}</td>
                   <td>
@@ -331,7 +339,8 @@ function formatQuantity(value: number) {
                       type="number"
                       min="0"
                       :max="row.orderItem.remainingQuantity"
-                      step="0.001"
+                      step="1"
+                      inputmode="numeric"
                       :disabled="row.orderItem.remainingQuantity <= 0"
                     />
                   </td>

@@ -42,7 +42,6 @@ function purchaseOrder(): ReceivablePurchaseOrder {
         productId: 3,
         productCode: 'ITEM-0003',
         productName: 'Office Chair',
-        unitOfMeasureCode: 'UNIT',
         quantity: 10,
         unitPrice: 150,
         lineTotal: 1500,
@@ -80,7 +79,6 @@ function receipt(): GoodsReceipt {
         productId: 3,
         productCode: 'ITEM-0003',
         productName: 'Office Chair',
-        unitOfMeasureCode: 'UNIT',
         orderedQuantity: 10,
         quantityReceived: 2,
       },
@@ -142,5 +140,22 @@ describe('GoodsReceiptForm', () => {
     expect(wrapper.get('#goods-receipt-form-title').text()).toBe('Edit GR-0009')
     expect(wrapper.get('#goods-receipt-order').attributes('readonly')).toBeDefined()
     expect((wrapper.get('.table-quantity-input').element as HTMLInputElement).value).toBe('2')
+  })
+
+  it.each(['1.004', '-1', '0.5'])('rejects an invalid received quantity %s', async (quantity) => {
+    const wrapper = mount(GoodsReceiptForm, {
+      props: {
+        goodsReceipt: null,
+        purchaseOrders: [purchaseOrder()],
+        saving: false,
+        errorMessage: '',
+      },
+    })
+    await wrapper.get('.table-quantity-input').setValue(quantity)
+    expect(wrapper.get('.table-quantity-input').attributes('step')).toBe('1')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('save')).toBeUndefined()
+    expect(wrapper.text()).toContain('whole numbers')
+    wrapper.unmount()
   })
 })

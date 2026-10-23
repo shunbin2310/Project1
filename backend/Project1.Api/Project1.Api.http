@@ -61,17 +61,6 @@ Content-Type: application/json
 
 ###
 
-# @name catalogLogin
-POST {{Project1.Api_HostAddress}}/api/auth/login
-Content-Type: application/json
-
-{
-  "email": "catalog@demo.local",
-  "password": "Project1Demo123!"
-}
-
-###
-
 # @name adminLogin
 POST {{Project1.Api_HostAddress}}/api/auth/login
 Content-Type: application/json
@@ -374,103 +363,6 @@ Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 ###
 
-@productCategoryId = 1
-
-GET {{Project1.Api_HostAddress}}/api/product-categories
-Accept: application/json
-Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
-
-###
-
-GET {{Project1.Api_HostAddress}}/api/product-categories?includeInactive=true
-Accept: application/json
-Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
-
-###
-
-GET {{Project1.Api_HostAddress}}/api/product-categories/{{productCategoryId}}
-Accept: application/json
-Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
-
-###
-
-POST {{Project1.Api_HostAddress}}/api/product-categories
-Content-Type: application/json
-Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
-
-{
-  "name": "Electronics",
-  "description": "Electronic devices and accessories"
-}
-
-###
-
-PUT {{Project1.Api_HostAddress}}/api/product-categories/{{productCategoryId}}
-Content-Type: application/json
-Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
-
-{
-  "name": "Electronics",
-  "description": "Electronic devices, equipment, and accessories",
-  "isActive": true
-}
-
-###
-
-DELETE {{Project1.Api_HostAddress}}/api/product-categories/{{productCategoryId}}
-Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
-
-###
-
-@unitOfMeasureId = 1
-
-GET {{Project1.Api_HostAddress}}/api/units-of-measure
-Accept: application/json
-Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
-
-###
-
-GET {{Project1.Api_HostAddress}}/api/units-of-measure?includeInactive=true
-Accept: application/json
-Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
-
-###
-
-GET {{Project1.Api_HostAddress}}/api/units-of-measure/{{unitOfMeasureId}}
-Accept: application/json
-Authorization: Bearer {{requesterLogin.response.body.$.accessToken}}
-
-###
-
-POST {{Project1.Api_HostAddress}}/api/units-of-measure
-Content-Type: application/json
-Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
-
-{
-  "code": "UNIT",
-  "name": "Unit",
-  "description": "Individual countable item"
-}
-
-###
-
-PUT {{Project1.Api_HostAddress}}/api/units-of-measure/{{unitOfMeasureId}}
-Content-Type: application/json
-Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
-
-{
-  "name": "Unit",
-  "description": "Individual countable item",
-  "isActive": true
-}
-
-###
-
-DELETE {{Project1.Api_HostAddress}}/api/units-of-measure/{{unitOfMeasureId}}
-Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
-
-###
-
 @productId = 1
 
 GET {{Project1.Api_HostAddress}}/api/products
@@ -498,8 +390,6 @@ Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 {
   "name": "Dell Monitor",
   "description": "27-inch business monitor",
-  "productCategoryId": {{productCategoryId}},
-  "unitOfMeasureId": {{unitOfMeasureId}},
   "defaultUnitPrice": 1299.90,
   "reorderLevel": 5.000
 }
@@ -513,8 +403,6 @@ Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 {
   "name": "Dell Monitor",
   "description": "27-inch business monitor with USB-C",
-  "productCategoryId": {{productCategoryId}},
-  "unitOfMeasureId": {{unitOfMeasureId}},
   "defaultUnitPrice": 1399.90,
   "reorderLevel": 5.000,
   "isActive": true
@@ -951,7 +839,7 @@ Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 ###
 
-GET {{Project1.Api_HostAddress}}/api/inventory?productCategoryId={{productCategoryId}}&search=monitor
+GET {{Project1.Api_HostAddress}}/api/inventory?search=monitor
 Accept: application/json
 Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 

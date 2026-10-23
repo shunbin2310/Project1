@@ -132,11 +132,14 @@ function validate(submitAfterSave: boolean) {
   } else if (
     form.items.some(
       (item) =>
-        !Number.isFinite(item.quantity) ||
+        !Number.isSafeInteger(item.quantity) ||
+        item.quantity > 999999999999999 ||
         (submitAfterSave ? item.quantity <= 0 : item.quantity < 0),
     )
   ) {
-    errors.items = 'Quantity must be zero or greater.'
+    errors.items = submitAfterSave
+      ? 'Quantity must be a positive whole number.'
+      : 'Quantity must be a non-negative whole number.'
   }
 
   return !Object.values(errors).some(Boolean)
@@ -271,7 +274,9 @@ function formatCurrency(value: number) {
                 v-model.number="item.quantity"
                 type="number"
                 min="0"
-                step="0.001"
+                step="1"
+                max="999999999999999"
+                inputmode="numeric"
               />
             </div>
 

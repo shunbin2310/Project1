@@ -72,10 +72,9 @@ Choose the guide that matches what you want to do:
 | `REQUESTER` | Creates, edits, and submits their own Purchase Requests. |
 | `DEPARTMENT_APPROVER` | Approves or rejects requests at Department Review. |
 | `FINANCE_APPROVER` | Approves or rejects requests at Finance Review. |
-| `PROCUREMENT_OFFICER` | Maintains suppliers, records quotations, and prepares/issues Purchase Orders. |
+| `PROCUREMENT_OFFICER` | Maintains products and suppliers, records quotations, and prepares/issues Purchase Orders. |
 | `PURCHASE_ORDER_APPROVER` | Approves or rejects submitted Purchase Orders. |
 | `WAREHOUSE_OFFICER` | Posts Goods Receipts and monitors Inventory. |
-| `CATALOG_MANAGER` | Maintains Product Categories, Units of Measure, and Products. |
 | `ADMIN` | Super Admin with access to all pages and workflow actions. |
 
 See the [UI Test Guide](UI_TEST_GUIDE.md#demo-accounts-and-role-responsibilities) for page-level responsibilities and the complete role-by-role process.
@@ -228,7 +227,6 @@ Development startup seeds the following accounts. Their default password is `Pro
 | Procurement Officer | `procurement@demo.local` |
 | Purchase Order Approver | `po.approver@demo.local` |
 | Warehouse Officer | `warehouse@demo.local` |
-| Catalog Manager | `catalog@demo.local` |
 | Admin | `admin@demo.local` |
 
 Demo users are enabled only by the Development configuration. Never use the demo password in production.
@@ -237,7 +235,7 @@ Demo users are enabled only by the Development configuration. Never use the demo
 
 For the complete field-by-field walkthrough, use the [UI Test Guide](UI_TEST_GUIDE.md). The shortest full demonstration is:
 
-1. Catalog Manager creates a Category, Unit of Measure, and Product.
+1. Procurement Officer creates a Product with an integer reorder level.
 2. Procurement Officer creates two Suppliers and links both to the Product.
 3. Requester creates and submits a Purchase Request.
 4. Department Approver approves it.

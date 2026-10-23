@@ -36,7 +36,6 @@ public sealed class PurchaseOrderPdfGeneratorTests
                     Id = 1,
                     ProductCode = "ITEM-0001",
                     ProductName = "Monitor",
-                    UnitOfMeasureCode = "UNIT",
                     Quantity = 2,
                     UnitPrice = 1399.90m
                 }

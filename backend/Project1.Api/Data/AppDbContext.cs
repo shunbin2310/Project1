@@ -14,10 +14,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<Supplier> Suppliers => Set<Supplier>();
 
-    public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
-
-    public DbSet<UnitOfMeasure> UnitsOfMeasure => Set<UnitOfMeasure>();
-
     public DbSet<Product> Products => Set<Product>();
 
     public DbSet<SupplierProduct> SupplierProducts => Set<SupplierProduct>();
@@ -134,54 +130,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
                 .HasMaxLength(500);
         });
 
-        modelBuilder.Entity<ProductCategory>(entity =>
-        {
-            entity.ToTable("ProductCategories");
-
-            entity.HasKey(category => category.Id);
-
-            entity.Property(category => category.Code)
-                .HasMaxLength(20)
-                .IsRequired();
-
-            entity.HasIndex(category => category.Code)
-                .IsUnique();
-
-            entity.Property(category => category.Name)
-                .HasMaxLength(100)
-                .IsRequired();
-
-            entity.HasIndex(category => category.Name)
-                .IsUnique();
-
-            entity.Property(category => category.Description)
-                .HasMaxLength(500);
-        });
-
-        modelBuilder.Entity<UnitOfMeasure>(entity =>
-        {
-            entity.ToTable("UnitsOfMeasure");
-
-            entity.HasKey(unit => unit.Id);
-
-            entity.Property(unit => unit.Code)
-                .HasMaxLength(20)
-                .IsRequired();
-
-            entity.HasIndex(unit => unit.Code)
-                .IsUnique();
-
-            entity.Property(unit => unit.Name)
-                .HasMaxLength(100)
-                .IsRequired();
-
-            entity.Property(unit => unit.Description)
-                .HasMaxLength(500);
-        });
-
         modelBuilder.Entity<Product>(entity =>
         {
-            entity.ToTable("Products");
+            entity.ToTable("Products", table => table.HasCheckConstraint(
+                "CK_Products_WholeQuantities",
+                "[ReorderLevel] = ROUND([ReorderLevel], 0)"));
 
             entity.HasKey(product => product.Id);
 
@@ -207,16 +160,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
             entity.Property(product => product.ReorderLevel)
                 .HasPrecision(18, 3);
-
-            entity.HasOne(product => product.ProductCategory)
-                .WithMany(category => category.Products)
-                .HasForeignKey(product => product.ProductCategoryId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(product => product.UnitOfMeasure)
-                .WithMany(unit => unit.Products)
-                .HasForeignKey(product => product.UnitOfMeasureId)
-                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<SupplierProduct>(entity =>
@@ -282,7 +225,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
         modelBuilder.Entity<PurchaseRequestItem>(entity =>
         {
-            entity.ToTable("PurchaseRequestItems");
+            entity.ToTable("PurchaseRequestItems", table => table.HasCheckConstraint(
+                "CK_PurchaseRequestItems_WholeQuantities",
+                "[Quantity] = ROUND([Quantity], 0)"));
 
             entity.HasKey(item => item.Id);
 
@@ -367,7 +312,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
         modelBuilder.Entity<QuotationItem>(entity =>
         {
-            entity.ToTable("QuotationItems");
+            entity.ToTable("QuotationItems", table => table.HasCheckConstraint(
+                "CK_QuotationItems_WholeQuantities",
+                "[Quantity] = ROUND([Quantity], 0)"));
 
             entity.HasKey(item => item.Id);
 
@@ -377,10 +324,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
             entity.Property(item => item.ProductName)
                 .HasMaxLength(150)
-                .IsRequired();
-
-            entity.Property(item => item.UnitOfMeasureCode)
-                .HasMaxLength(20)
                 .IsRequired();
 
             entity.Property(item => item.Quantity)
@@ -493,7 +436,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
         modelBuilder.Entity<PurchaseOrderItem>(entity =>
         {
-            entity.ToTable("PurchaseOrderItems");
+            entity.ToTable("PurchaseOrderItems", table => table.HasCheckConstraint(
+                "CK_PurchaseOrderItems_WholeQuantities",
+                "[Quantity] = ROUND([Quantity], 0)"));
 
             entity.HasKey(item => item.Id);
 
@@ -503,10 +448,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
             entity.Property(item => item.ProductName)
                 .HasMaxLength(150)
-                .IsRequired();
-
-            entity.Property(item => item.UnitOfMeasureCode)
-                .HasMaxLength(20)
                 .IsRequired();
 
             entity.Property(item => item.Quantity)
@@ -756,7 +697,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
         modelBuilder.Entity<GoodsReceiptItem>(entity =>
         {
-            entity.ToTable("GoodsReceiptItems");
+            entity.ToTable("GoodsReceiptItems", table => table.HasCheckConstraint(
+                "CK_GoodsReceiptItems_WholeQuantities",
+                "[OrderedQuantity] = ROUND([OrderedQuantity], 0) AND [QuantityReceived] = ROUND([QuantityReceived], 0)"));
 
             entity.HasKey(item => item.Id);
 
@@ -766,10 +709,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
             entity.Property(item => item.ProductName)
                 .HasMaxLength(150)
-                .IsRequired();
-
-            entity.Property(item => item.UnitOfMeasureCode)
-                .HasMaxLength(20)
                 .IsRequired();
 
             entity.Property(item => item.OrderedQuantity)
@@ -803,7 +742,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
         modelBuilder.Entity<InventoryBalance>(entity =>
         {
-            entity.ToTable("InventoryBalances");
+            entity.ToTable("InventoryBalances", table => table.HasCheckConstraint(
+                "CK_InventoryBalances_WholeQuantities",
+                "[QuantityOnHand] = ROUND([QuantityOnHand], 0)"));
 
             entity.HasKey(balance => balance.Id);
 
@@ -821,7 +762,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
         modelBuilder.Entity<InventoryTransaction>(entity =>
         {
-            entity.ToTable("InventoryTransactions");
+            entity.ToTable("InventoryTransactions", table => table.HasCheckConstraint(
+                "CK_InventoryTransactions_WholeQuantities",
+                "[QuantityChange] = ROUND([QuantityChange], 0) AND [QuantityBefore] = ROUND([QuantityBefore], 0) AND [QuantityAfter] = ROUND([QuantityAfter], 0)"));
 
             entity.HasKey(transaction => transaction.Id);
 
@@ -844,10 +787,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
             entity.Property(transaction => transaction.ProductName)
                 .HasMaxLength(150)
-                .IsRequired();
-
-            entity.Property(transaction => transaction.UnitOfMeasureCode)
-                .HasMaxLength(20)
                 .IsRequired();
 
             entity.Property(transaction => transaction.ReferenceType)

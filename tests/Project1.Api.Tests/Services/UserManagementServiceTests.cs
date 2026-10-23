@@ -115,8 +115,10 @@ public sealed class UserManagementServiceTests
         Assert.True(administrator.IsActive);
     }
 
-    [Fact]
-    public async Task CreateAsync_RejectsUnknownRole()
+    [Theory]
+    [InlineData("UNKNOWN_ROLE")]
+    [InlineData("CATALOG_MANAGER")]
+    public async Task CreateAsync_RejectsUnknownOrRetiredRole(string role)
     {
         await using var fixture = await UserManagementFixture.CreateAsync();
 
@@ -125,7 +127,7 @@ public sealed class UserManagementServiceTests
             Email = "unknown.role@demo.local",
             FullName = "Unknown Role",
             DepartmentId = fixture.DepartmentId,
-            Roles = ["UNKNOWN_ROLE"]
+            Roles = [role]
         }, CancellationToken.None);
 
         Assert.Equal(UserManagementStatus.ValidationFailed, result.Status);
@@ -136,7 +138,6 @@ public sealed class UserManagementServiceTests
     [Theory]
     [InlineData(ApplicationRoles.ProcurementOfficer)]
     [InlineData(ApplicationRoles.WarehouseOfficer)]
-    [InlineData(ApplicationRoles.CatalogManager)]
     public async Task CreateAsync_AcceptsOperationalRole(string role)
     {
         await using var fixture = await UserManagementFixture.CreateAsync();

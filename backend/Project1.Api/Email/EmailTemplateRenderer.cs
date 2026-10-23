@@ -230,7 +230,7 @@ public sealed partial class EmailTemplateRenderer(AppDbContext dbContext) : IEma
             items.Append(CultureInfo.InvariantCulture, $"""
                 <tr>
                   <td>{WebUtility.HtmlEncode(item.ProductCode)} - {WebUtility.HtmlEncode(item.ProductName)}</td>
-                  <td style="text-align:right">{item.Quantity:0.###} {WebUtility.HtmlEncode(item.UnitOfMeasureCode)}</td>
+                  <td style="text-align:right">{item.Quantity:0}</td>
                   <td style="text-align:right">RM {item.UnitPrice:N2}</td>
                   <td style="text-align:right">RM {lineTotal:N2}</td>
                 </tr>

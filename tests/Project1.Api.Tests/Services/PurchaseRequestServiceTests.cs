@@ -15,6 +15,28 @@ namespace Project1.Api.Tests.Services;
 public sealed class PurchaseRequestServiceTests
 {
     [Fact]
+    public async Task CreateAndUpdate_RejectFractionalQuantitiesWithoutChangingDraft()
+    {
+        await using var fixture = await PurchaseRequestFixture.CreateAsync();
+        var rejected = await fixture.Service.CreateAsync(new CreatePurchaseRequestRequest
+        {
+            Items = [new PurchaseRequestItemRequest { ProductId = fixture.ProductId, Quantity = 1.004m }]
+        }, CancellationToken.None);
+        Assert.Equal(PurchaseRequestOperationStatus.ValidationFailed, rejected.Status);
+        Assert.Empty(await fixture.DbContext.PurchaseRequests.ToListAsync());
+
+        var created = await fixture.Service.CreateAsync(fixture.ValidRequest(), CancellationToken.None);
+        var rejectedUpdate = await fixture.Service.UpdateAsync(created.PurchaseRequest!.Id,
+            new UpdatePurchaseRequestRequest
+            {
+                Items = [new PurchaseRequestItemRequest { ProductId = fixture.ProductId, Quantity = 2.5m }]
+            }, CancellationToken.None);
+        Assert.Equal(PurchaseRequestOperationStatus.ValidationFailed, rejectedUpdate.Status);
+        var stored = await fixture.Service.GetByIdAsync(created.PurchaseRequest.Id, CancellationToken.None);
+        Assert.Equal(created.PurchaseRequest.Items.Single().Quantity, stored!.Items.Single().Quantity);
+    }
+
+    [Fact]
     public async Task CreateAsync_CreatesDraftWorkflowSnapshot()
     {
         await using var fixture = await PurchaseRequestFixture.CreateAsync();
@@ -48,8 +70,6 @@ public sealed class PurchaseRequestServiceTests
         {
             Code = "ITEM-NEW",
             Name = "New Product",
-            ProductCategoryId = existingProduct.ProductCategoryId,
-            UnitOfMeasureId = existingProduct.UnitOfMeasureId,
             DefaultUnitPrice = 40m
         };
         fixture.DbContext.Products.Add(newProduct);
@@ -255,14 +275,10 @@ public sealed class PurchaseRequestServiceTests
             await dbContext.Database.EnsureCreatedAsync();
 
             var department = new Department { Code = "IT", Name = "Information Technology" };
-            var category = new ProductCategory { Code = "CAT-TEST", Name = "Test Category" };
-            var unit = new UnitOfMeasure { Code = "UNIT", Name = "Unit" };
             var product = new Product
             {
                 Code = "ITEM-TEST",
                 Name = "Test Product",
-                ProductCategory = category,
-                UnitOfMeasure = unit,
                 DefaultUnitPrice = 25m
             };
             var requester = new ApplicationUser

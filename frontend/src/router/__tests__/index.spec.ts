@@ -217,8 +217,6 @@ describe('router authentication guards', () => {
     [['PURCHASE_ORDER_APPROVER'], 'my-tasks'],
     [['ADMIN'], 'my-tasks'],
     [['WAREHOUSE_OFFICER'], 'access-denied'],
-    [['CATALOG_MANAGER'], 'access-denied'],
-    [['WAREHOUSE_OFFICER', 'CATALOG_MANAGER'], 'access-denied'],
     [['WAREHOUSE_OFFICER', 'PROCUREMENT_OFFICER'], 'my-tasks'],
   ])('guards My Tasks for roles %j with destination %s', async (roles, destination) => {
     authenticate(roles)
@@ -257,14 +255,14 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('email-records')
   })
 
-  it('blocks procurement officers from administration and catalog maintenance', async () => {
+  it('allows procurement officers to maintain products and blocks administration', async () => {
     authenticate('PROCUREMENT_OFFICER')
 
     await router.push('/users')
     expect(router.currentRoute.value.name).toBe('access-denied')
 
     await router.push('/products')
-    expect(router.currentRoute.value.name).toBe('access-denied')
+    expect(router.currentRoute.value.name).toBe('products')
   })
 
   it('routes warehouse officers to Dashboard and read-only purchasing pages', async () => {
@@ -288,24 +286,6 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('access-denied')
 
     await router.push('/email-records')
-    expect(router.currentRoute.value.name).toBe('access-denied')
-  })
-
-  it('routes catalog managers to Dashboard and product maintenance', async () => {
-    authenticate('CATALOG_MANAGER')
-
-    await router.push('/')
-    expect(router.currentRoute.value.name).toBe('dashboard')
-
-    await router.push('/product-categories')
-    expect(router.currentRoute.value.name).toBe('product-categories')
-  })
-
-  it('blocks catalog managers from purchasing operations', async () => {
-    authenticate('CATALOG_MANAGER')
-
-    await router.push('/quotations')
-
     expect(router.currentRoute.value.name).toBe('access-denied')
   })
 })

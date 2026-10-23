@@ -14,8 +14,6 @@ public sealed class ProductsControllerTests
         var request = new CreateProductRequest
         {
             Name = "Dell Monitor",
-            ProductCategoryId = 1,
-            UnitOfMeasureId = 1,
             DefaultUnitPrice = -1,
             ReorderLevel = -1
         };
@@ -35,11 +33,11 @@ public sealed class ProductsControllerTests
     }
 
     [Fact]
-    public async Task Create_ReturnsBadRequest_WhenCategoryIsUnavailable()
+    public async Task Create_ReturnsBadRequest_WhenReorderLevelIsInvalid()
     {
         var service = new FakeProductService
         {
-            CreateResult = new ProductSaveResult(ProductSaveStatus.ProductCategoryUnavailable)
+            CreateResult = new ProductSaveResult(ProductSaveStatus.InvalidReorderLevel)
         };
         var controller = new ProductsController(service);
 
@@ -47,7 +45,7 @@ public sealed class ProductsControllerTests
 
         var badRequest = Assert.IsType<BadRequestObjectResult>(response.Result);
         var problem = Assert.IsType<ProblemDetails>(badRequest.Value);
-        Assert.Equal("Product category is unavailable.", problem.Title);
+        Assert.Equal("Reorder level is invalid.", problem.Title);
     }
 
     [Fact]
@@ -57,8 +55,6 @@ public sealed class ProductsControllerTests
         var request = new UpdateProductRequest
         {
             Name = "Dell Monitor",
-            ProductCategoryId = 1,
-            UnitOfMeasureId = 1,
             IsActive = true
         };
 
@@ -71,8 +67,6 @@ public sealed class ProductsControllerTests
         new()
         {
             Name = "Dell Monitor",
-            ProductCategoryId = 1,
-            UnitOfMeasureId = 1,
             DefaultUnitPrice = 1299.90m,
             ReorderLevel = 5m
         };
@@ -83,12 +77,6 @@ public sealed class ProductsControllerTests
             "ITEM-0001",
             "Dell Monitor",
             null,
-            1,
-            "CAT-0001",
-            "Electronics",
-            1,
-            "UNIT",
-            "Unit",
             1299.90m,
             5m,
             true,

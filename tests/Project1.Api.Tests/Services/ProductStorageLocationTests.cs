@@ -29,17 +29,12 @@ public sealed class ProductStorageLocationTests
         await using var context = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseSqlite(connection).Options);
         await context.Database.EnsureCreatedAsync();
-        var category = new ProductCategory { Code = "CI-CATEGORY", Name = "Practice category" };
-        var unit = new UnitOfMeasure { Code = "CI-UNIT", Name = "Practice unit" };
-        context.AddRange(category, unit);
         await context.SaveChangesAsync();
         var service = new ProductService(context);
 
         var created = await service.CreateAsync(new CreateProductRequest
         {
             Name = "Practice product",
-            ProductCategoryId = category.Id,
-            UnitOfMeasureId = unit.Id,
             StorageLocation = input
         }, CancellationToken.None);
         Assert.Equal(ProductSaveStatus.Success, created.Status);
@@ -57,8 +52,6 @@ public sealed class ProductStorageLocationTests
         var updated = await service.UpdateAsync(id, new UpdateProductRequest
         {
             Name = "Practice product",
-            ProductCategoryId = category.Id,
-            UnitOfMeasureId = unit.Id,
             StorageLocation = input,
             IsActive = true
         }, CancellationToken.None);
@@ -77,8 +70,6 @@ public sealed class ProductStorageLocationTests
         var reactivated = await service.UpdateAsync(id, new UpdateProductRequest
         {
             Name = "Practice product",
-            ProductCategoryId = category.Id,
-            UnitOfMeasureId = unit.Id,
             StorageLocation = expected,
             IsActive = true
         }, CancellationToken.None);
@@ -89,8 +80,6 @@ public sealed class ProductStorageLocationTests
         var cleared = await service.UpdateAsync(id, new UpdateProductRequest
         {
             Name = "Practice product",
-            ProductCategoryId = category.Id,
-            UnitOfMeasureId = unit.Id,
             StorageLocation = "   ",
             IsActive = true
         }, CancellationToken.None);
@@ -111,8 +100,8 @@ public sealed class ProductStorageLocationTests
         var note = length.HasValue ? new string('x', length.Value) : null;
         object[] requests =
         [
-            new CreateProductRequest { Name = "Practice product", ProductCategoryId = 1, UnitOfMeasureId = 1, StorageLocation = note },
-            new UpdateProductRequest { Name = "Practice product", ProductCategoryId = 1, UnitOfMeasureId = 1, StorageLocation = note }
+            new CreateProductRequest { Name = "Practice product", StorageLocation = note },
+            new UpdateProductRequest { Name = "Practice product", StorageLocation = note }
         ];
         foreach (var request in requests)
         {

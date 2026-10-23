@@ -226,22 +226,16 @@ public sealed class QuotationServiceTests
             await dbContext.Database.EnsureCreatedAsync();
 
             var department = new Department { Code = "IT", Name = "Information Technology" };
-            var category = new ProductCategory { Code = "CAT-TEST", Name = "Test Category" };
-            var unit = new UnitOfMeasure { Code = "UNIT", Name = "Unit" };
             var firstProduct = new Product
             {
                 Code = "ITEM-0001",
                 Name = "Monitor",
-                ProductCategory = category,
-                UnitOfMeasure = unit,
                 DefaultUnitPrice = 150m
             };
             var secondProduct = new Product
             {
                 Code = "ITEM-0002",
                 Name = "Keyboard",
-                ProductCategory = category,
-                UnitOfMeasure = unit,
                 DefaultUnitPrice = 30m
             };
             var admin = new ApplicationUser

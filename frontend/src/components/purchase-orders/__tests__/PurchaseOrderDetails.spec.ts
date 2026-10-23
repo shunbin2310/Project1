@@ -44,7 +44,6 @@ function purchaseOrder(overrides: Partial<PurchaseOrder> = {}): PurchaseOrder {
         productId: 3,
         productCode: 'ITEM-0003',
         productName: 'Office Chair',
-        unitOfMeasureCode: 'UNIT',
         quantity: 3,
         unitPrice: 500,
         lineTotal: 1500,

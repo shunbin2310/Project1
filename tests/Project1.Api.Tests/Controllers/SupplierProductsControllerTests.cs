@@ -90,8 +90,6 @@ public sealed class SupplierProductsControllerTests
             1,
             "ITEM-0001",
             "Dell Monitor",
-            "UNIT",
-            "Unit",
             1399.90m,
             true,
             true,

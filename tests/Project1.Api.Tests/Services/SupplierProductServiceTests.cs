@@ -28,7 +28,6 @@ public sealed class SupplierProductServiceTests
         Assert.NotNull(result.SupplierProduct);
         Assert.Equal("SUP-0001", result.SupplierProduct.SupplierCode);
         Assert.Equal("ITEM-0001", result.SupplierProduct.ProductCode);
-        Assert.Equal("UNIT", result.SupplierProduct.UnitOfMeasureCode);
         Assert.True(result.SupplierProduct.IsPreferred);
     }
 
@@ -202,19 +201,6 @@ public sealed class SupplierProductServiceTests
         var dbContext = new AppDbContext(options);
         await dbContext.Database.EnsureCreatedAsync();
 
-        var unit = new UnitOfMeasure
-        {
-            Id = 1,
-            Code = "UNIT",
-            Name = "Unit"
-        };
-        var category = new ProductCategory
-        {
-            Id = 1,
-            Code = "CAT-0001",
-            Name = "Electronics"
-        };
-
         dbContext.Suppliers.AddRange(
             new Supplier
             {
@@ -235,8 +221,6 @@ public sealed class SupplierProductServiceTests
                 Id = 1,
                 Code = "ITEM-0001",
                 Name = "Dell Monitor",
-                ProductCategory = category,
-                UnitOfMeasure = unit,
                 DefaultUnitPrice = 1399.90m
             },
             new Product
@@ -244,8 +228,6 @@ public sealed class SupplierProductServiceTests
                 Id = 2,
                 Code = "ITEM-0002",
                 Name = "Inactive Keyboard",
-                ProductCategory = category,
-                UnitOfMeasure = unit,
                 DefaultUnitPrice = 99.90m,
                 IsActive = false
             });

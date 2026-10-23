@@ -17,9 +17,6 @@ const canViewMyTasks = computed(() => authStore.hasAnyRole(myTaskRoles))
 const canManageProcurement = computed(
   () => isAdmin.value || authStore.roles.includes(applicationRoles.procurementOfficer),
 )
-const canManageCatalog = computed(
-  () => isAdmin.value || authStore.roles.includes(applicationRoles.catalogManager),
-)
 const canManageWarehouse = computed(
   () => isAdmin.value || authStore.roles.includes(applicationRoles.warehouseOfficer),
 )
@@ -114,18 +111,6 @@ async function logout() {
           <RouterLink to="/supplier-products">
             <span class="nav-icon" aria-hidden="true">LK</span>
             <span>Supplier Products</span>
-          </RouterLink>
-        </template>
-
-        <template v-if="canManageCatalog">
-          <p>Catalog</p>
-          <RouterLink to="/product-categories">
-            <span class="nav-icon" aria-hidden="true">PC</span>
-            <span>Product Categories</span>
-          </RouterLink>
-          <RouterLink to="/units-of-measure">
-            <span class="nav-icon" aria-hidden="true">UM</span>
-            <span>Units of Measure</span>
           </RouterLink>
           <RouterLink to="/products">
             <span class="nav-icon" aria-hidden="true">PR</span>

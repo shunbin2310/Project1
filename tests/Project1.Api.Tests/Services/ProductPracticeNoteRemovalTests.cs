@@ -25,14 +25,11 @@ public sealed class ProductPracticeNoteRemovalTests
             await context.Database.ExecuteSqlRawAsync("ALTER TABLE Products ADD CicdPracticeNote TEXT NULL;");
 
         Assert.Null(context.Model.FindEntityType(typeof(Product))!.FindProperty("CicdPracticeNote"));
-        var category = new ProductCategory { Code = "CI-CATEGORY", Name = "Practice category" };
-        var unit = new UnitOfMeasure { Code = "CI-UNIT", Name = "Practice unit" };
-        context.AddRange(category, unit);
         await context.SaveChangesAsync();
         var service = new ProductService(context);
         var created = await service.CreateAsync(new CreateProductRequest
         {
-            Name = "Practice product", ProductCategoryId = category.Id, UnitOfMeasureId = unit.Id,
+            Name = "Practice product",
             StorageLocation = " Shelf A1 "
         }, CancellationToken.None);
         Assert.Equal(ProductSaveStatus.Success, created.Status);
@@ -50,7 +47,7 @@ public sealed class ProductPracticeNoteRemovalTests
         Assert.Equal(id, Assert.Single(await service.GetAllAsync(false, CancellationToken.None)).Id);
         var updated = await service.UpdateAsync(id, new UpdateProductRequest
         {
-            Name = "Updated product", ProductCategoryId = category.Id, UnitOfMeasureId = unit.Id,
+            Name = "Updated product",
             StorageLocation = " Shelf B2 ", IsActive = true
         }, CancellationToken.None);
         Assert.Equal(ProductSaveStatus.Success, updated.Status);

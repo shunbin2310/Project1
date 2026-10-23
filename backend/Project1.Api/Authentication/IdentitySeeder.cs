@@ -23,9 +23,8 @@ public static class IdentitySeeder
     private static readonly DemoDepartmentDefinition[] OperationalDepartments =
     [
         new("FIN", "Finance", "Budget review and financial approval."),
-        new("PROC", "Procurement", "Supplier sourcing, quotations, and purchase orders."),
-        new("WH", "Warehouse", "Goods receiving and inventory operations."),
-        new("CAT", "Catalog Management", "Product and purchasing catalog maintenance.")
+        new("PROC", "Procurement", "Product maintenance, supplier sourcing, quotations, and purchase orders."),
+        new("WH", "Warehouse", "Goods receiving and inventory operations.")
     ];
 
     private static readonly DemoUserDefinition[] DemoUsers =
@@ -52,11 +51,6 @@ public static class IdentitySeeder
             "Warehouse Officer",
             "WH",
             [ApplicationRoles.WarehouseOfficer]),
-        new(
-            "catalog@demo.local",
-            "Catalog Manager",
-            "CAT",
-            [ApplicationRoles.CatalogManager]),
         new("admin@demo.local", "Demo Admin", null, [ApplicationRoles.Admin])
     ];
 
