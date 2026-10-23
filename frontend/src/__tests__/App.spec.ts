@@ -51,8 +51,6 @@ describe('App', () => {
     [['PURCHASE_ORDER_APPROVER'], true],
     [['ADMIN'], true],
     [['WAREHOUSE_OFFICER'], false],
-    [['CATALOG_MANAGER'], false],
-    [['WAREHOUSE_OFFICER', 'CATALOG_MANAGER'], false],
     [['WAREHOUSE_OFFICER', 'REQUESTER'], true],
   ])('shows My Tasks for roles %j: %s', async (roles, visible) => {
     const wrapper = await mountForRole(roles)
@@ -129,8 +127,8 @@ describe('App', () => {
     expect(wrapper.get('a[href="/supplier-products"]').text()).toContain('Supplier Products')
     expect(wrapper.get('a[href="/users"]').text()).toContain('Users')
     expect(wrapper.get('a[href="/workflow-templates"]').text()).toContain('Workflow Templates')
-    expect(wrapper.get('a[href="/product-categories"]').text()).toContain('Product Categories')
-    expect(wrapper.get('a[href="/units-of-measure"]').text()).toContain('Units of Measure')
+    expect(wrapper.find('a[href="/product-categories"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="/units-of-measure"]').exists()).toBe(false)
     expect(wrapper.get('a[href="/products"]').text()).toContain('Products')
     expect(wrapper.get('a[href="/my-tasks"]').text()).toContain('My Tasks')
     expect(wrapper.get('a[href="/dashboard"]').text()).toContain('Dashboard')
@@ -201,7 +199,7 @@ describe('App', () => {
     expect(wrapper.get('a[href="/goods-receipts"]').text()).toContain('Goods Receiving')
     expect(wrapper.get('a[href="/inventory"]').text()).toContain('Inventory')
     expect(wrapper.find('a[href="/users"]').exists()).toBe(false)
-    expect(wrapper.find('a[href="/products"]').exists()).toBe(false)
+    expect(wrapper.get('a[href="/products"]').text()).toContain('Products')
   })
 
   it('shows receiving navigation to a warehouse officer', async () => {
@@ -225,16 +223,5 @@ describe('App', () => {
     expect(wrapper.find('a[href="/suppliers"]').exists()).toBe(false)
     expect(wrapper.find('a[href="/quotations"]').exists()).toBe(false)
     expect(wrapper.find('a[href="/goods-receipts"]').exists()).toBe(false)
-  })
-
-  it('shows catalog navigation to a catalog manager', async () => {
-    const wrapper = await mountForRole('CATALOG_MANAGER')
-
-    expect(wrapper.get('a[href="/product-categories"]').text()).toContain('Product Categories')
-    expect(wrapper.get('a[href="/units-of-measure"]').text()).toContain('Units of Measure')
-    expect(wrapper.get('a[href="/products"]').text()).toContain('Products')
-    expect(wrapper.find('a[href="/suppliers"]').exists()).toBe(false)
-    expect(wrapper.find('a[href="/purchase-orders"]').exists()).toBe(false)
-    expect(wrapper.find('a[href="/inventory"]').exists()).toBe(false)
   })
 })

@@ -669,8 +669,6 @@ tbody tr:hover {
 
 .department-identity,
 .supplier-identity,
-.category-identity,
-.unit-identity,
 .product-identity,
 .user-identity {
   display: flex;
@@ -696,10 +694,6 @@ tbody tr:hover {
 .department-identity small,
 .supplier-identity strong,
 .supplier-identity small,
-.category-identity strong,
-.category-identity small,
-.unit-identity strong,
-.unit-identity small,
 .product-identity strong,
 .product-identity small,
 .user-identity strong,
@@ -709,8 +703,6 @@ tbody tr:hover {
 
 .department-identity strong,
 .supplier-identity strong,
-.category-identity strong,
-.unit-identity strong,
 .product-identity strong,
 .user-identity strong {
   color: #203331;
@@ -719,8 +711,6 @@ tbody tr:hover {
 
 .department-identity small,
 .supplier-identity small,
-.category-identity small,
-.unit-identity small,
 .product-identity small,
 .user-identity small {
   margin-top: 4px;
@@ -958,8 +948,6 @@ tbody tr:hover {
 
 .department-form,
 .supplier-form,
-.category-form,
-.unit-form,
 .product-form,
 .user-form,
 .supplier-product-form {

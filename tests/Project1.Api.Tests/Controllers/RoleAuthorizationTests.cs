@@ -21,17 +21,15 @@ public sealed class RoleAuthorizationTests
     }
 
     [Fact]
-    public void CatalogMutations_AllowCatalogManagerAndAdmin()
+    public void ProductMutations_AllowProcurementOfficerAndAdmin()
     {
         Assert.Equal(
-            ApplicationRoles.AdminOrCatalog,
-            ActionRoles<ProductCategoriesController>(nameof(ProductCategoriesController.Create)));
-        Assert.Equal(
-            ApplicationRoles.AdminOrCatalog,
-            ActionRoles<UnitsOfMeasureController>(nameof(UnitsOfMeasureController.Create)));
-        Assert.Equal(
-            ApplicationRoles.AdminOrCatalog,
+            ApplicationRoles.AdminOrProcurement,
             ActionRoles<ProductsController>(nameof(ProductsController.Create)));
+        Assert.Equal(ApplicationRoles.AdminOrProcurement,
+            ActionRoles<ProductsController>(nameof(ProductsController.Update)));
+        Assert.Equal(ApplicationRoles.AdminOrProcurement,
+            ActionRoles<ProductsController>(nameof(ProductsController.Deactivate)));
     }
 
     [Fact]

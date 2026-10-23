@@ -58,8 +58,15 @@ public sealed class MigrationSqlIntegrationTests
         await using var database = await CiDatabase.CreateAsync("fresh");
         await using var context = database.CreateContext();
         await database.ExecuteScriptAsync(batches);
-        var productId = await InsertPreMigrationProductAsync(database);
-        var product = await context.Products.SingleAsync();
+        var product = new Project1.Api.Entities.Product
+        {
+            Code = "CI-PRODUCT", Name = "Product created before Note",
+            Description = "Existing description must survive", DefaultUnitPrice = 12.50m,
+            ReorderLevel = 3, CreatedAtUtc = FixtureCreatedAt
+        };
+        context.Products.Add(product);
+        await context.SaveChangesAsync();
+        var productId = product.Id;
         product.Note = "Keep this note when the same SQL runs again";
         await context.SaveChangesAsync();
         var history = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
@@ -200,7 +207,6 @@ public sealed class MigrationSqlIntegrationTests
         var request = new UpdateProductRequest
         {
             Name = product.Name, Description = product.Description,
-            ProductCategoryId = product.ProductCategoryId, UnitOfMeasureId = product.UnitOfMeasureId,
             DefaultUnitPrice = product.DefaultUnitPrice, ReorderLevel = product.ReorderLevel,
             StorageLocation = "Shelf B2", IsActive = true
         };
@@ -231,7 +237,5 @@ public sealed class MigrationSqlIntegrationTests
         Assert.Equal(FixtureCreatedAt, product.CreatedAtUtc);
         Assert.True(product.IsActive);
         Assert.Equal(note, product.Note);
-        Assert.Equal("CI-CATEGORY", (await context.ProductCategories.AsNoTracking().SingleAsync()).Code);
-        Assert.Equal("CI-UNIT", (await context.UnitsOfMeasure.AsNoTracking().SingleAsync()).Code);
     }
 }

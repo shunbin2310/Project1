@@ -1,25 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { Product, CreateProductRequest, UpdateProductRequest } from '@/types/product'
-import type { ProductCategory } from '@/types/productCategory'
-import type { UnitOfMeasure } from '@/types/unitOfMeasure'
 import ProductListView from '../ProductListView.vue'
 
 const mocks = vi.hoisted(() => ({
   getProducts: vi.fn<() => Promise<Product[]>>(),
   create: vi.fn<(payload: CreateProductRequest) => Promise<Product>>(),
   update: vi.fn<(id: number, payload: UpdateProductRequest) => Promise<Product>>(),
-  getCategories: vi.fn<() => Promise<ProductCategory[]>>(),
-  getUnits: vi.fn<() => Promise<UnitOfMeasure[]>>(),
 }))
 vi.mock('@/services/productService', () => ({
   productService: { getAll: mocks.getProducts, create: mocks.create, update: mocks.update },
-}))
-vi.mock('@/services/productCategoryService', () => ({
-  productCategoryService: { getAll: mocks.getCategories },
-}))
-vi.mock('@/services/unitOfMeasureService', () => ({
-  unitOfMeasureService: { getAll: mocks.getUnits },
 }))
 
 const product: Product = {
@@ -28,12 +18,6 @@ const product: Product = {
   name: 'Practice product',
   description: null,
   storageLocation: 'Shelf A1',
-  productCategoryId: 1,
-  productCategoryCode: 'CAT-0001',
-  productCategoryName: 'Practice category',
-  unitOfMeasureId: 1,
-  unitOfMeasureCode: 'UNIT',
-  unitOfMeasureName: 'Unit',
   defaultUnitPrice: 12.5,
   reorderLevel: 3,
   isActive: true,
@@ -48,28 +32,6 @@ describe('ProductListView storage location', () => {
     mocks.getProducts.mockResolvedValue([product])
     mocks.create.mockResolvedValue(product)
     mocks.update.mockResolvedValue(product)
-    mocks.getCategories.mockResolvedValue([
-      {
-        id: 1,
-        code: 'CAT-0001',
-        name: 'Practice category',
-        description: null,
-        isActive: true,
-        createdAtUtc: product.createdAtUtc,
-        updatedAtUtc: null,
-      },
-    ])
-    mocks.getUnits.mockResolvedValue([
-      {
-        id: 1,
-        code: 'UNIT',
-        name: 'Unit',
-        description: null,
-        isActive: true,
-        createdAtUtc: product.createdAtUtc,
-        updatedAtUtc: null,
-      },
-    ])
   })
   afterEach(() => {
     wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
@@ -102,8 +64,6 @@ describe('ProductListView storage location', () => {
     const wrapper = await render()
     await wrapper.get('.page-heading button').trigger('click')
     await wrapper.get('#product-name').setValue('New practice product')
-    await wrapper.get('#product-category').setValue('1')
-    await wrapper.get('#product-unit').setValue('1')
     await wrapper.get('#product-storage-location').setValue('  Shelf B2  ')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
@@ -121,14 +81,13 @@ describe('ProductListView storage location', () => {
     const edit = wrapper.findAll('tbody button').find((button) => button.text() === 'Edit')
     expect(edit).toBeDefined()
     await edit!.trigger('click')
-    expect((wrapper.get('#product-storage-location').element as HTMLInputElement).value).toBe('Shelf A1')
+    expect((wrapper.get('#product-storage-location').element as HTMLInputElement).value).toBe(
+      'Shelf A1',
+    )
     await wrapper.get('#product-storage-location').setValue('')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
-    expect(mocks.update).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ storageLocation: null }),
-    )
+    expect(mocks.update).toHaveBeenCalledWith(1, expect.objectContaining({ storageLocation: null }))
     expect(mocks.update.mock.calls[0]?.[1]).not.toHaveProperty('cicdPracticeNote')
   })
 

@@ -20,8 +20,6 @@ public sealed class GoodsReceiptItem
 
     public string ProductName { get; set; } = string.Empty;
 
-    public string UnitOfMeasureCode { get; set; } = string.Empty;
-
     public decimal OrderedQuantity { get; set; }
 
     public decimal QuantityReceived { get; set; }

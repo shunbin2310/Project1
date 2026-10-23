@@ -9,7 +9,6 @@ const roles = [
   'FINANCE_APPROVER',
   'PROCUREMENT_OFFICER',
   'WAREHOUSE_OFFICER',
-  'CATALOG_MANAGER',
   'ADMIN',
 ] as const
 
@@ -115,6 +114,6 @@ describe('UserForm', () => {
 
     expect(wrapper.find('input[value="PROCUREMENT_OFFICER"]').exists()).toBe(true)
     expect(wrapper.find('input[value="WAREHOUSE_OFFICER"]').exists()).toBe(true)
-    expect(wrapper.find('input[value="CATALOG_MANAGER"]').exists()).toBe(true)
+    expect(wrapper.find('input[value="CATALOG_MANAGER"]').exists()).toBe(false)
   })
 })

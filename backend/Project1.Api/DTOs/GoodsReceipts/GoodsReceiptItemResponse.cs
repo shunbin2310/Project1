@@ -6,6 +6,5 @@ public sealed record GoodsReceiptItemResponse(
     int ProductId,
     string ProductCode,
     string ProductName,
-    string UnitOfMeasureCode,
     decimal OrderedQuantity,
     decimal QuantityReceived);

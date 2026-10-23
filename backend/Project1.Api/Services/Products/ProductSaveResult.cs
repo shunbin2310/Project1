@@ -6,8 +6,7 @@ public enum ProductSaveStatus
 {
     Success,
     NotFound,
-    ProductCategoryUnavailable,
-    UnitOfMeasureUnavailable
+    InvalidReorderLevel
 }
 
 public sealed record ProductSaveResult(

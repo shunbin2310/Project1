@@ -7,7 +7,6 @@ public sealed record InventoryTransactionResponse(
     int ProductId,
     string ProductCode,
     string ProductName,
-    string UnitOfMeasureCode,
     InventoryTransactionType Type,
     decimal QuantityChange,
     decimal QuantityBefore,

@@ -99,13 +99,17 @@ function validate(submitAfterSave: boolean) {
 function submitForm(submitAfterSave = false) {
   if (!validate(submitAfterSave)) return
 
-  emit('save', {
-    quotationId: form.quotationId,
-    orderDate: form.orderDate,
-    expectedDeliveryDate: form.expectedDeliveryDate || null,
-    deliveryAddress: form.deliveryAddress?.trim() || null,
-    notes: form.notes?.trim() || null,
-  }, submitAfterSave)
+  emit(
+    'save',
+    {
+      quotationId: form.quotationId,
+      orderDate: form.orderDate,
+      expectedDeliveryDate: form.expectedDeliveryDate || null,
+      deliveryAddress: form.deliveryAddress?.trim() || null,
+      notes: form.notes?.trim() || null,
+    },
+    submitAfterSave,
+  )
 }
 
 function todayValue() {
@@ -119,7 +123,7 @@ function formatCurrency(value: number) {
 }
 
 function formatQuantity(value: number) {
-  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 3 }).format(value)
+  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 0 }).format(value)
 }
 </script>
 
@@ -270,7 +274,7 @@ function formatQuantity(value: number) {
                     <strong>{{ item.productName }}</strong>
                     <small>{{ item.productCode }}</small>
                   </td>
-                  <td>{{ formatQuantity(item.quantity) }} {{ item.unitOfMeasureCode }}</td>
+                  <td>{{ formatQuantity(item.quantity) }}</td>
                   <td>{{ formatCurrency(item.unitPrice) }}</td>
                   <td>
                     <strong>{{ formatCurrency(item.lineTotal) }}</strong>

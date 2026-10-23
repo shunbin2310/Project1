@@ -104,6 +104,8 @@ export default defineConfig({
      * Playwright will re-use the local server if there is already a dev-server running.
      */
     command: 'npm run build-only && npm run preview -- --port 4173',
+    // Match the mocked API origin even when .env.production uses a same-origin API.
+    env: { VITE_API_BASE_URL: 'http://localhost:5165' },
     port: 4173,
     reuseExistingServer: false,
   },

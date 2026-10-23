@@ -1,8 +1,5 @@
 <script setup lang="ts">
-import type {
-  WorkflowActorIdentity,
-  WorkflowAvailableAction,
-} from '@/types/purchaseRequest'
+import type { WorkflowActorIdentity, WorkflowAvailableAction } from '@/types/purchaseRequest'
 import type { PurchaseOrder, PurchaseOrderStatus } from '@/types/purchaseOrder'
 import { isWorkflowActionAuthorized } from '@/utils/workflowAuthorization'
 
@@ -40,7 +37,7 @@ function formatDateTime(value: string | null) {
 }
 
 function formatQuantity(value: number) {
-  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 3 }).format(value)
+  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 0 }).format(value)
 }
 
 function statusLabel(status: PurchaseOrderStatus) {
@@ -182,7 +179,7 @@ function statusLabel(status: PurchaseOrderStatus) {
                     <strong>{{ item.productName }}</strong>
                     <small>{{ item.productCode }}</small>
                   </td>
-                  <td>{{ formatQuantity(item.quantity) }} {{ item.unitOfMeasureCode }}</td>
+                  <td>{{ formatQuantity(item.quantity) }}</td>
                   <td>{{ formatCurrency(item.unitPrice) }}</td>
                   <td>
                     <strong>{{ formatCurrency(item.lineTotal) }}</strong>

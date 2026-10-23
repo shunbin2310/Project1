@@ -6,16 +6,10 @@ import AppToast from '@/components/ui/AppToast.vue'
 import TablePagination from '@/components/ui/TablePagination.vue'
 import { usePagination } from '@/composables/usePagination'
 import { useToast } from '@/composables/useToast'
-import { productCategoryService } from '@/services/productCategoryService'
 import { productService } from '@/services/productService'
-import { unitOfMeasureService } from '@/services/unitOfMeasureService'
-import type { ProductCategory } from '@/types/productCategory'
 import type { Product, ProductFormValues } from '@/types/product'
-import type { UnitOfMeasure } from '@/types/unitOfMeasure'
 
 const products = ref<Product[]>([])
-const categories = ref<ProductCategory[]>([])
-const units = ref<UnitOfMeasure[]>([])
 const loading = ref(true)
 const saving = ref(false)
 const search = ref('')
@@ -42,10 +36,6 @@ const visibleProducts = computed(() => {
       product.name,
       product.description ?? '',
       product.storageLocation ?? '',
-      product.productCategoryCode,
-      product.productCategoryName,
-      product.unitOfMeasureCode,
-      product.unitOfMeasureName,
     ].some((value) => value.toLowerCase().includes(term))
   })
 })
@@ -63,14 +53,7 @@ async function loadProducts() {
   loadError.value = ''
 
   try {
-    const [productRecords, categoryRecords, unitRecords] = await Promise.all([
-      productService.getAll(true),
-      productCategoryService.getAll(true),
-      unitOfMeasureService.getAll(true),
-    ])
-    products.value = productRecords
-    categories.value = categoryRecords
-    units.value = unitRecords
+    products.value = await productService.getAll(true)
   } catch (error) {
     loadError.value = getErrorMessage(error, 'Unable to load the product catalog.')
   } finally {
@@ -110,8 +93,6 @@ async function saveProduct(values: ProductFormValues) {
         name: values.name,
         description: values.description,
         storageLocation: values.storageLocation,
-        productCategoryId: values.productCategoryId,
-        unitOfMeasureId: values.unitOfMeasureId,
         defaultUnitPrice: values.defaultUnitPrice,
         reorderLevel: values.reorderLevel,
       })
@@ -153,8 +134,6 @@ async function reactivateProduct(product: Product) {
       name: product.name,
       description: product.description,
       storageLocation: product.storageLocation,
-      productCategoryId: product.productCategoryId,
-      unitOfMeasureId: product.unitOfMeasureId,
       defaultUnitPrice: product.defaultUnitPrice,
       reorderLevel: product.reorderLevel,
       isActive: true,
@@ -179,7 +158,7 @@ function formatCurrency(value: number) {
 }
 
 function formatQuantity(value: number) {
-  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 3 }).format(value)
+  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 0 }).format(value)
 }
 </script>
 
@@ -190,7 +169,7 @@ function formatQuantity(value: number) {
         <p class="eyebrow">Product catalog</p>
         <h1>Products</h1>
         <p class="page-description">
-          Maintain purchasable items, standard pricing, units, and replenishment settings.
+          Maintain purchasable items, standard pricing and replenishment settings.
         </p>
       </div>
       <button class="button button-primary" type="button" @click="openCreateForm">
@@ -235,11 +214,7 @@ function formatQuantity(value: number) {
           <label class="search-control">
             <span class="sr-only">Search products</span>
             <span aria-hidden="true">⌕</span>
-            <input
-              v-model="search"
-              type="search"
-              placeholder="Search products, categories, or units"
-            />
+            <input v-model="search" type="search" placeholder="Search products" />
           </label>
 
           <label class="filter-control">
@@ -270,7 +245,7 @@ function formatQuantity(value: number) {
           {{
             search
               ? 'Try a different search term or include inactive records.'
-              : 'Create the first product after preparing categories and units of measure.'
+              : 'Create the first product to start purchasing.'
           }}
         </p>
         <button v-if="!search" class="button button-primary" type="button" @click="openCreateForm">
@@ -283,8 +258,6 @@ function formatQuantity(value: number) {
           <thead>
             <tr>
               <th>Product</th>
-              <th>Category</th>
-              <th>Unit</th>
               <th>Default unit price</th>
               <th>Reorder level</th>
               <th>Storage location</th>
@@ -303,20 +276,8 @@ function formatQuantity(value: number) {
                   </span>
                 </div>
               </td>
-              <td>
-                <div class="contact-stack">
-                  <span>{{ product.productCategoryName }}</span>
-                  <small>{{ product.productCategoryCode }}</small>
-                </div>
-              </td>
-              <td>
-                <div class="contact-stack">
-                  <span>{{ product.unitOfMeasureName }}</span>
-                  <small>{{ product.unitOfMeasureCode }}</small>
-                </div>
-              </td>
               <td>{{ formatCurrency(product.defaultUnitPrice) }}</td>
-              <td>{{ formatQuantity(product.reorderLevel) }} {{ product.unitOfMeasureCode }}</td>
+              <td>{{ formatQuantity(product.reorderLevel) }}</td>
               <td>{{ product.storageLocation || '—' }}</td>
               <td>
                 <span class="status-badge" :class="product.isActive ? 'is-active' : 'is-inactive'">
@@ -363,8 +324,6 @@ function formatQuantity(value: number) {
     <ProductForm
       v-if="formOpen"
       :product="editingProduct"
-      :categories="categories"
-      :units="units"
       :saving="saving"
       :error-message="formError"
       @cancel="closeForm"

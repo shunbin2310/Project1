@@ -14,14 +14,13 @@ const emit = defineEmits<{
 }>()
 
 const productRows = computed(() => {
-  const products = new Map<number, { code: string; name: string; unit: string; quantity: number }>()
+  const products = new Map<number, { code: string; name: string; quantity: number }>()
   props.comparison.quotations.forEach((quotation) => {
     quotation.items.forEach((item) => {
       if (!products.has(item.purchaseRequestItemId)) {
         products.set(item.purchaseRequestItemId, {
           code: item.productCode,
           name: item.productName,
-          unit: item.unitOfMeasureCode,
           quantity: item.quantity,
         })
       }
@@ -113,9 +112,7 @@ function formatDate(value: string | null) {
                 <tr v-for="product in productRows" :key="product.purchaseRequestItemId">
                   <td>
                     <strong>{{ product.name }}</strong>
-                    <small>
-                      {{ product.code }} &middot; {{ product.quantity }} {{ product.unit }}
-                    </small>
+                    <small> {{ product.code }} &middot; {{ product.quantity }} </small>
                   </td>
                   <td v-for="quotation in comparison.quotations" :key="quotation.quotationId">
                     {{

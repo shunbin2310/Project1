@@ -21,31 +21,16 @@ public sealed class ProductServiceTests
         await using var dbContext = new AppDbContext(options);
         await dbContext.Database.EnsureCreatedAsync();
 
-        var category = new ProductCategory
-        {
-            Code = "CAT-0001",
-            Name = "Office Supplies"
-        };
-        var unit = new UnitOfMeasure
-        {
-            Code = "PCS",
-            Name = "Pieces"
-        };
-
         dbContext.Products.AddRange(
             new Product
             {
                 Code = "ITEM-0002",
                 Name = "Stapler",
-                ProductCategory = category,
-                UnitOfMeasure = unit
             },
             new Product
             {
                 Code = "ITEM-0001",
                 Name = "A4 Paper",
-                ProductCategory = category,
-                UnitOfMeasure = unit
             });
         await dbContext.SaveChangesAsync();
 

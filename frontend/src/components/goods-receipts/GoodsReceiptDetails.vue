@@ -24,7 +24,7 @@ function formatDateTime(value: string | null) {
 }
 
 function formatQuantity(value: number) {
-  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 3 }).format(value)
+  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 0 }).format(value)
 }
 </script>
 
@@ -109,7 +109,6 @@ function formatQuantity(value: number) {
                   <th>Product</th>
                   <th>PO quantity</th>
                   <th>Received in this receipt</th>
-                  <th>Unit</th>
                 </tr>
               </thead>
               <tbody>
@@ -122,7 +121,6 @@ function formatQuantity(value: number) {
                   <td>
                     <strong>{{ formatQuantity(item.quantityReceived) }}</strong>
                   </td>
-                  <td>{{ item.unitOfMeasureCode }}</td>
                 </tr>
               </tbody>
             </table>

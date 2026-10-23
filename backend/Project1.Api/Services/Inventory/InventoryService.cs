@@ -8,7 +8,6 @@ namespace Project1.Api.Services.Inventory;
 public sealed class InventoryService(AppDbContext dbContext) : IInventoryService
 {
     public async Task<IReadOnlyList<InventoryBalanceResponse>> GetBalancesAsync(
-        int? productCategoryId,
         bool? lowStock,
         bool includeInactive,
         string? search,
@@ -16,19 +15,13 @@ public sealed class InventoryService(AppDbContext dbContext) : IInventoryService
     {
         var query = dbContext.Products
             .AsNoTracking()
-            .Include(product => product.ProductCategory)
-            .Include(product => product.UnitOfMeasure)
+
             .Include(product => product.InventoryBalance)
             .AsQueryable();
 
         if (!includeInactive)
         {
             query = query.Where(product => product.IsActive);
-        }
-
-        if (productCategoryId.HasValue)
-        {
-            query = query.Where(product => product.ProductCategoryId == productCategoryId.Value);
         }
 
         if (lowStock.HasValue)
@@ -49,9 +42,7 @@ public sealed class InventoryService(AppDbContext dbContext) : IInventoryService
         {
             query = query.Where(product =>
                 product.Code.ToUpper().Contains(normalizedSearch) ||
-                product.Name.ToUpper().Contains(normalizedSearch) ||
-                product.ProductCategory.Code.ToUpper().Contains(normalizedSearch) ||
-                product.ProductCategory.Name.ToUpper().Contains(normalizedSearch));
+                product.Name.ToUpper().Contains(normalizedSearch));
         }
 
         var products = await query
@@ -67,8 +58,7 @@ public sealed class InventoryService(AppDbContext dbContext) : IInventoryService
     {
         var product = await dbContext.Products
             .AsNoTracking()
-            .Include(item => item.ProductCategory)
-            .Include(item => item.UnitOfMeasure)
+
             .Include(item => item.InventoryBalance)
             .SingleOrDefaultAsync(item => item.Id == productId, cancellationToken);
 
@@ -109,7 +99,6 @@ public sealed class InventoryService(AppDbContext dbContext) : IInventoryService
                 transaction.ProductId,
                 transaction.ProductCode,
                 transaction.ProductName,
-                transaction.UnitOfMeasureCode,
                 transaction.Type,
                 transaction.QuantityChange,
                 transaction.QuantityBefore,
@@ -132,11 +121,6 @@ public sealed class InventoryService(AppDbContext dbContext) : IInventoryService
             product.Id,
             product.Code,
             product.Name,
-            product.ProductCategoryId,
-            product.ProductCategory.Code,
-            product.ProductCategory.Name,
-            product.UnitOfMeasure.Code,
-            product.UnitOfMeasure.Name,
             quantityOnHand,
             product.ReorderLevel,
             quantityOnHand <= product.ReorderLevel,

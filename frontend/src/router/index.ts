@@ -13,10 +13,6 @@ const emailRecordRoutes: readonly ApplicationRole[] = [
   applicationRoles.admin,
   applicationRoles.procurementOfficer,
 ]
-const catalogRoutes: readonly ApplicationRole[] = [
-  applicationRoles.admin,
-  applicationRoles.catalogManager,
-]
 const purchaseRequestRoutes: readonly ApplicationRole[] = [
   applicationRoles.admin,
   applicationRoles.requester,
@@ -24,7 +20,6 @@ const purchaseRequestRoutes: readonly ApplicationRole[] = [
   applicationRoles.financeApprover,
   applicationRoles.procurementOfficer,
   applicationRoles.warehouseOfficer,
-  applicationRoles.catalogManager,
 ]
 const purchaseOrderRoutes: readonly ApplicationRole[] = [
   applicationRoles.admin,
@@ -117,22 +112,10 @@ const router = createRouter({
       meta: { title: 'Supplier Products', requiresAuth: true, roles: procurementRoutes },
     },
     {
-      path: '/product-categories',
-      name: 'product-categories',
-      component: () => import('@/views/product-categories/ProductCategoryListView.vue'),
-      meta: { title: 'Product Categories', requiresAuth: true, roles: catalogRoutes },
-    },
-    {
-      path: '/units-of-measure',
-      name: 'units-of-measure',
-      component: () => import('@/views/units-of-measure/UnitOfMeasureListView.vue'),
-      meta: { title: 'Units of Measure', requiresAuth: true, roles: catalogRoutes },
-    },
-    {
       path: '/products',
       name: 'products',
       component: () => import('@/views/products/ProductListView.vue'),
-      meta: { title: 'Products', requiresAuth: true, roles: catalogRoutes },
+      meta: { title: 'Products', requiresAuth: true, roles: procurementRoutes },
     },
     {
       path: '/purchase-requests',

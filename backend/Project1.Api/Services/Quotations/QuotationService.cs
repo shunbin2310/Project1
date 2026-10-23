@@ -117,7 +117,7 @@ public sealed class QuotationService(
             .AsSplitQuery()
             .Include(item => item.Items)
                 .ThenInclude(item => item.Product)
-                    .ThenInclude(product => product.UnitOfMeasure)
+
             .SingleOrDefaultAsync(item => item.Id == request.PurchaseRequestId, cancellationToken);
 
         if (purchaseRequest is null)
@@ -195,7 +195,6 @@ public sealed class QuotationService(
                     ProductId = item.ProductId,
                     ProductCode = item.Product.Code,
                     ProductName = item.Product.Name,
-                    UnitOfMeasureCode = item.Product.UnitOfMeasure.Code,
                     Quantity = item.Quantity,
                     UnitPrice = requestedPrices[item.Id]
                 })
@@ -571,7 +570,6 @@ public sealed class QuotationService(
                 item.ProductId,
                 item.ProductCode,
                 item.ProductName,
-                item.UnitOfMeasureCode,
                 item.Quantity,
                 item.UnitPrice,
                 item.Quantity * item.UnitPrice))

@@ -4,6 +4,7 @@ using Project1.Api.Data;
 using Project1.Api.DTOs.GoodsReceipts;
 using Project1.Api.Entities;
 using Project1.Api.Services.Authentication;
+using Project1.Api.Validation;
 
 namespace Project1.Api.Services.GoodsReceipts;
 
@@ -346,7 +347,6 @@ public sealed class GoodsReceiptService(
                 QuantityAfter = quantityAfter,
                 ProductCode = item.ProductCode,
                 ProductName = item.ProductName,
-                UnitOfMeasureCode = item.UnitOfMeasureCode,
                 ReferenceType = nameof(GoodsReceipt),
                 ReferenceId = receipt.Id,
                 ReferenceNumber = receipt.GoodsReceiptNumber,
@@ -447,6 +447,12 @@ public sealed class GoodsReceiptService(
 
         foreach (var input in inputs)
         {
+            if (!QuantityRules.IsValid(input.QuantityReceived) || input.QuantityReceived == 0)
+            {
+                return new ItemValidationResult(
+                    Error: ValidationFailed("Received quantity must be a positive whole number."));
+            }
+
             if (!orderItems.TryGetValue(input.PurchaseOrderItemId, out var orderItem))
             {
                 return new ItemValidationResult(
@@ -469,7 +475,6 @@ public sealed class GoodsReceiptService(
                 ProductId = orderItem.ProductId,
                 ProductCode = orderItem.ProductCode,
                 ProductName = orderItem.ProductName,
-                UnitOfMeasureCode = orderItem.UnitOfMeasureCode,
                 OrderedQuantity = orderItem.Quantity,
                 QuantityReceived = input.QuantityReceived
             });
@@ -498,7 +503,6 @@ public sealed class GoodsReceiptService(
                 item.ProductId,
                 item.ProductCode,
                 item.ProductName,
-                item.UnitOfMeasureCode,
                 item.OrderedQuantity,
                 item.QuantityReceived))
             .ToList();

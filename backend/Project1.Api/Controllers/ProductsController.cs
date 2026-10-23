@@ -31,7 +31,7 @@ public sealed class ProductsController(IProductService productService) : Control
         return product is null ? NotFound() : Ok(product);
     }
 
-    [Authorize(Roles = ApplicationRoles.AdminOrCatalog)]
+    [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
     [HttpPost]
     [ProducesResponseType<ProductResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -43,14 +43,14 @@ public sealed class ProductsController(IProductService productService) : Control
 
         if (result.Status != ProductSaveStatus.Success)
         {
-            return RelatedRecordProblem(result.Status);
+            return InvalidReorderLevelProblem();
         }
 
         var product = result.Product!;
         return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
     }
 
-    [Authorize(Roles = ApplicationRoles.AdminOrCatalog)]
+    [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
     [HttpPut("{id:int}")]
     [ProducesResponseType<ProductResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -69,13 +69,13 @@ public sealed class ProductsController(IProductService productService) : Control
 
         if (result.Status != ProductSaveStatus.Success)
         {
-            return RelatedRecordProblem(result.Status);
+            return InvalidReorderLevelProblem();
         }
 
         return Ok(result.Product);
     }
 
-    [Authorize(Roles = ApplicationRoles.AdminOrCatalog)]
+    [Authorize(Roles = ApplicationRoles.AdminOrProcurement)]
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -85,17 +85,13 @@ public sealed class ProductsController(IProductService productService) : Control
         return result.Status == ProductSaveStatus.NotFound ? NotFound() : NoContent();
     }
 
-    private BadRequestObjectResult RelatedRecordProblem(ProductSaveStatus status)
+    private BadRequestObjectResult InvalidReorderLevelProblem()
     {
-        var relation = status == ProductSaveStatus.ProductCategoryUnavailable
-            ? "Product category"
-            : "Unit of measure";
-
         return BadRequest(new ProblemDetails
         {
             Status = StatusCodes.Status400BadRequest,
-            Title = $"{relation} is unavailable.",
-            Detail = $"Select an active {relation.ToLowerInvariant()}."
+            Title = "Reorder level is invalid.",
+            Detail = "Reorder level must be a non-negative whole number."
         });
     }
 }

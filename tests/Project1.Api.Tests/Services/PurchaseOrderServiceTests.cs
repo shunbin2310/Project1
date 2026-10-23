@@ -500,14 +500,10 @@ public sealed class PurchaseOrderServiceTests
             });
             dbContext.WorkflowProcessTemplates.Add(CreatePurchaseOrderWorkflowTemplate());
 
-            var category = new ProductCategory { Code = "CAT-TEST", Name = "Test Category" };
-            var unit = new UnitOfMeasure { Code = "UNIT", Name = "Unit" };
             var product = new Product
             {
                 Code = "ITEM-0001",
                 Name = "Monitor",
-                ProductCategory = category,
-                UnitOfMeasure = unit,
                 DefaultUnitPrice = 120m
             };
             var supplier = new Supplier
@@ -551,7 +547,6 @@ public sealed class PurchaseOrderServiceTests
                         Product = product,
                         ProductCode = product.Code,
                         ProductName = product.Name,
-                        UnitOfMeasureCode = unit.Code,
                         Quantity = 2m,
                         UnitPrice = 100m
                     }

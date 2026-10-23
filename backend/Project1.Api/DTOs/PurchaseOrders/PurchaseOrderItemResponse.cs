@@ -6,7 +6,6 @@ public sealed record PurchaseOrderItemResponse(
     int ProductId,
     string ProductCode,
     string ProductName,
-    string UnitOfMeasureCode,
     decimal Quantity,
     decimal UnitPrice,
     decimal LineTotal);

@@ -212,7 +212,7 @@ function formatCurrency(value: number) {
 }
 
 function formatQuantity(value: number) {
-  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 3 }).format(value)
+  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 0 }).format(value)
 }
 </script>
 
@@ -388,7 +388,6 @@ function formatQuantity(value: number) {
                   </td>
                   <td>
                     {{ formatQuantity(row.requestItem.quantity) }}
-                    {{ row.requestItem.unitOfMeasureCode }}
                   </td>
                   <td>{{ formatCurrency(row.requestItem.estimatedUnitPrice) }}</td>
                   <td>

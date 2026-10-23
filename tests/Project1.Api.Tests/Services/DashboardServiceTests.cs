@@ -80,18 +80,19 @@ public sealed class DashboardServiceTests
     }
 
     [Fact]
-    public async Task GetAsync_CatalogManagerRoutesStockRemindersToProducts()
+    public async Task GetAsync_ProcurementOfficerSeesProductMaintenanceAlongsidePurchasing()
     {
         await using var fixture = await DashboardFixture.CreateAsync();
-        var service = fixture.CreateService(7, ApplicationRoles.CatalogManager);
+        var service = fixture.CreateService(7, ApplicationRoles.ProcurementOfficer);
 
         var dashboard = await service.GetAsync(CancellationToken.None);
 
         var card = Card(dashboard, "out-of-stock");
         Assert.Equal(1, card.Value);
         Assert.Equal("/products", card.Route);
-        Assert.DoesNotContain(dashboard.RecentActivity, activity =>
-            activity.Module == "Purchase Request");
+        Assert.Contains(dashboard.SummaryCards, item => item.Key == "ready-for-quotation");
+        Assert.Contains(dashboard.SummaryCards, item => item.Key == "active-products");
+        Assert.Contains(dashboard.RecentActivity, activity => activity.Module == "Product");
     }
 
     [Fact]
@@ -308,16 +309,12 @@ public sealed class DashboardServiceTests
                 User(1, "requester@demo.local", "Demo Requester", department.Id),
                 User(2, "department@demo.local", "Department Approver", department.Id),
                 User(4, "admin@demo.local", "Demo Admin", department.Id),
-                User(7, "catalog@demo.local", "Catalog Manager", department.Id));
+                User(7, "procurement@demo.local", "Procurement Officer", department.Id));
 
-            var category = new ProductCategory { Code = "CAT-001", Name = "Equipment" };
-            var unit = new UnitOfMeasure { Code = "UNIT", Name = "Unit" };
             var product = new Product
             {
                 Code = "ITEM-0001",
                 Name = "Keyboard",
-                ProductCategory = category,
-                UnitOfMeasure = unit,
                 DefaultUnitPrice = 100m,
                 ReorderLevel = 3m
             };

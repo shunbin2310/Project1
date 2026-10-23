@@ -18,7 +18,6 @@ const balances = ref<InventoryBalance[]>([])
 const loading = ref(true)
 const loadError = ref('')
 const search = ref('')
-const selectedCategoryId = ref<number | ''>('')
 const selectedStatus = ref<'' | InventoryStockStatus>('')
 const showInactive = ref(false)
 const selectedInventory = ref<InventoryBalance | null>(null)
@@ -35,36 +34,17 @@ const outOfStockCount = computed(
   () => activeBalances.value.filter((balance) => balance.quantityOnHand <= 0).length,
 )
 
-const categoryOptions = computed(() => {
-  const categories = new Map<number, { id: number; code: string; name: string }>()
-  balances.value.forEach((balance) => {
-    categories.set(balance.productCategoryId, {
-      id: balance.productCategoryId,
-      code: balance.productCategoryCode,
-      name: balance.productCategoryName,
-    })
-  })
-  return [...categories.values()].sort((left, right) => left.name.localeCompare(right.name))
-})
-
 const visibleBalances = computed(() => {
   const term = search.value.trim().toLowerCase()
 
   return balances.value.filter((balance) => {
     if (!showInactive.value && !balance.isProductActive) return false
-    if (selectedCategoryId.value && balance.productCategoryId !== selectedCategoryId.value) {
-      return false
-    }
     if (selectedStatus.value && stockStatus(balance) !== selectedStatus.value) return false
     if (!term) return true
 
-    return [
-      balance.productCode,
-      balance.productName,
-      balance.productCategoryCode,
-      balance.productCategoryName,
-      balance.unitOfMeasureCode,
-    ].some((value) => value.toLowerCase().includes(term))
+    return [balance.productCode, balance.productName].some((value) =>
+      value.toLowerCase().includes(term),
+    )
   })
 })
 
@@ -72,7 +52,7 @@ const {
   page,
   pageSize,
   paginatedItems: paginatedBalances,
-} = usePagination(visibleBalances, [search, selectedCategoryId, selectedStatus, showInactive])
+} = usePagination(visibleBalances, [search, selectedStatus, showInactive])
 
 onMounted(loadInventory)
 
@@ -102,7 +82,7 @@ function stockStatusLabel(balance: InventoryBalance) {
 }
 
 function formatQuantity(value: number) {
-  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 3 }).format(value)
+  return new Intl.NumberFormat('en-MY', { maximumFractionDigits: 0 }).format(value)
 }
 
 function formatDateTime(value: string | null) {
@@ -156,16 +136,7 @@ function formatDateTime(value: string | null) {
           <label class="search-control">
             <span class="sr-only">Search inventory</span>
             <span aria-hidden="true">&#8981;</span>
-            <input v-model="search" type="search" placeholder="Search product, category, or unit" />
-          </label>
-          <label class="relationship-filter-control">
-            <span class="sr-only">Filter by category</span>
-            <select v-model="selectedCategoryId" aria-label="Filter by category">
-              <option value="">All categories</option>
-              <option v-for="category in categoryOptions" :key="category.id" :value="category.id">
-                {{ category.name }} ({{ category.code }})
-              </option>
-            </select>
+            <input v-model="search" type="search" placeholder="Search product code or name" />
           </label>
           <label class="relationship-filter-control">
             <span class="sr-only">Filter by stock status</span>
@@ -213,7 +184,6 @@ function formatDateTime(value: string | null) {
           <thead>
             <tr>
               <th>Product</th>
-              <th>Category</th>
               <th>On hand</th>
               <th>Reorder level</th>
               <th>Stock status</th>
@@ -236,16 +206,11 @@ function formatDateTime(value: string | null) {
                 </div>
               </td>
               <td>
-                <span class="table-primary">{{ balance.productCategoryName }}</span>
-                <small class="table-secondary">{{ balance.productCategoryCode }}</small>
-              </td>
-              <td>
                 <strong class="inventory-quantity">{{
                   formatQuantity(balance.quantityOnHand)
                 }}</strong>
-                <small class="table-secondary">{{ balance.unitOfMeasureCode }}</small>
               </td>
-              <td>{{ formatQuantity(balance.reorderLevel) }} {{ balance.unitOfMeasureCode }}</td>
+              <td>{{ formatQuantity(balance.reorderLevel) }}</td>
               <td>
                 <span
                   class="inventory-stock-status"

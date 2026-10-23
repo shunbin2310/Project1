@@ -124,7 +124,7 @@ public sealed class PurchaseOrderPdfGenerator : IPurchaseOrderPdfGenerator
             var row = items.AddRow();
             SetCell(row.Cells[0], item.ProductCode);
             SetCell(row.Cells[1], item.ProductName);
-            SetCell(row.Cells[2], $"{item.Quantity:0.###} {item.UnitOfMeasureCode}", ParagraphAlignment.Right);
+            SetCell(row.Cells[2], $"{item.Quantity:0}", ParagraphAlignment.Right);
             SetCell(row.Cells[3], $"RM {item.UnitPrice:N2}", ParagraphAlignment.Right);
             SetCell(row.Cells[4], $"RM {item.Quantity * item.UnitPrice:N2}", ParagraphAlignment.Right);
         }

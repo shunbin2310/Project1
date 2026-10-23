@@ -37,7 +37,6 @@ public sealed class InventoryControllerTests
     private sealed class FakeInventoryService : IInventoryService
     {
         public Task<IReadOnlyList<InventoryBalanceResponse>> GetBalancesAsync(
-            int? productCategoryId,
             bool? lowStock,
             bool includeInactive,
             string? search,

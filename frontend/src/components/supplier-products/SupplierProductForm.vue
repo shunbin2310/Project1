@@ -177,9 +177,9 @@ function formatCurrency(value: number) {
           <strong>
             {{
               selectedProduct
-                ? `${formatCurrency(selectedProduct.defaultUnitPrice)} / ${selectedProduct.unitOfMeasureCode}`
+                ? formatCurrency(selectedProduct.defaultUnitPrice)
                 : supplierProduct
-                  ? `${formatCurrency(supplierProduct.productDefaultUnitPrice)} / ${supplierProduct.unitOfMeasureCode}`
+                  ? formatCurrency(supplierProduct.productDefaultUnitPrice)
                   : 'Select a product to view its reference price'
             }}
           </strong>

@@ -25,7 +25,6 @@ public sealed class DashboardService(
         var isProcurement = roles.Contains(ApplicationRoles.ProcurementOfficer);
         var isPurchaseOrderApprover = roles.Contains(ApplicationRoles.PurchaseOrderApprover);
         var isWarehouse = roles.Contains(ApplicationRoles.WarehouseOfficer);
-        var isCatalog = roles.Contains(ApplicationRoles.CatalogManager);
 
         var purchaseRequests = await LoadPurchaseRequestsAsync(cancellationToken);
         var quotations = await dbContext.Quotations
@@ -156,9 +155,9 @@ public sealed class DashboardService(
                 BuildWarehouseDashboard(cards, reminders, purchaseOrders, goodsReceipts, products);
             }
 
-            if (isCatalog)
+            if (isProcurement)
             {
-                BuildCatalogDashboard(cards, reminders, products);
+                BuildProductDashboard(cards, reminders, products);
             }
         }
 
@@ -170,7 +169,6 @@ public sealed class DashboardService(
             isProcurement,
             isPurchaseOrderApprover,
             isWarehouse,
-            isCatalog,
             purchaseRequests,
             quotations,
             purchaseOrders,
@@ -321,7 +319,7 @@ public sealed class DashboardService(
             "/inventory", "critical");
     }
 
-    private static void BuildCatalogDashboard(
+    private static void BuildProductDashboard(
         IDictionary<string, DashboardSummaryCardResponse> cards,
         IDictionary<string, DashboardReminderResponse> reminders,
         IReadOnlyCollection<ProductSnapshot> products)
@@ -408,7 +406,6 @@ public sealed class DashboardService(
         bool isProcurement,
         bool isPurchaseOrderApprover,
         bool isWarehouse,
-        bool isCatalog,
         IReadOnlyCollection<PurchaseRequestSnapshot> purchaseRequests,
         IReadOnlyCollection<QuotationSnapshot> quotations,
         IReadOnlyCollection<PurchaseOrderSnapshot> purchaseOrders,
@@ -562,7 +559,7 @@ public sealed class DashboardService(
             }
         }
 
-        if (isAdmin || isCatalog)
+        if (isAdmin || isProcurement)
         {
             foreach (var product in products)
             {
@@ -573,7 +570,7 @@ public sealed class DashboardService(
                     product.Code,
                     updated ? "Product updated" : "Product created",
                     product.Name + (product.IsActive ? " is active." : " is inactive."),
-                    "Catalog",
+                    "Procurement",
                     product.UpdatedAtUtc ?? product.CreatedAtUtc,
                     "/products");
                 activities.TryAdd(activity.Key, activity);

@@ -8,7 +8,6 @@ export interface GoodsReceiptItem {
   productId: number
   productCode: string
   productName: string
-  unitOfMeasureCode: string
   orderedQuantity: number
   quantityReceived: number
 }

@@ -20,8 +20,6 @@ public sealed class InventoryTransaction
 
     public string ProductName { get; set; } = string.Empty;
 
-    public string UnitOfMeasureCode { get; set; } = string.Empty;
-
     public string ReferenceType { get; set; } = string.Empty;
 
     public int ReferenceId { get; set; }

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Project1.Api.Data;
 using Project1.Api.DTOs.Products;
 using Project1.Api.Entities;
+using Project1.Api.Validation;
 
 namespace Project1.Api.Services.Products;
 
@@ -35,22 +36,9 @@ public sealed class ProductService(AppDbContext dbContext) : IProductService
         CreateProductRequest request,
         CancellationToken cancellationToken)
     {
-        var category = await dbContext.ProductCategories.SingleOrDefaultAsync(
-            item => item.Id == request.ProductCategoryId && item.IsActive,
-            cancellationToken);
-
-        if (category is null)
+        if (!QuantityRules.IsValid(request.ReorderLevel))
         {
-            return new ProductSaveResult(ProductSaveStatus.ProductCategoryUnavailable);
-        }
-
-        var unit = await dbContext.UnitsOfMeasure.SingleOrDefaultAsync(
-            item => item.Id == request.UnitOfMeasureId && item.IsActive,
-            cancellationToken);
-
-        if (unit is null)
-        {
-            return new ProductSaveResult(ProductSaveStatus.UnitOfMeasureUnavailable);
+            return new ProductSaveResult(ProductSaveStatus.InvalidReorderLevel);
         }
 
         var product = new Product
@@ -59,8 +47,6 @@ public sealed class ProductService(AppDbContext dbContext) : IProductService
             Name = request.Name.Trim(),
             Description = NormalizeOptionalText(request.Description),
             StorageLocation = NormalizeOptionalText(request.StorageLocation),
-            ProductCategory = category,
-            UnitOfMeasure = unit,
             DefaultUnitPrice = request.DefaultUnitPrice,
             ReorderLevel = request.ReorderLevel
         };
@@ -83,8 +69,6 @@ public sealed class ProductService(AppDbContext dbContext) : IProductService
         CancellationToken cancellationToken)
     {
         var product = await dbContext.Products
-            .Include(item => item.ProductCategory)
-            .Include(item => item.UnitOfMeasure)
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
 
         if (product is null)
@@ -92,32 +76,9 @@ public sealed class ProductService(AppDbContext dbContext) : IProductService
             return new ProductSaveResult(ProductSaveStatus.NotFound);
         }
 
-        if (request.ProductCategoryId != product.ProductCategoryId)
+        if (!QuantityRules.IsValid(request.ReorderLevel))
         {
-            var category = await dbContext.ProductCategories.SingleOrDefaultAsync(
-                item => item.Id == request.ProductCategoryId && item.IsActive,
-                cancellationToken);
-
-            if (category is null)
-            {
-                return new ProductSaveResult(ProductSaveStatus.ProductCategoryUnavailable);
-            }
-
-            product.ProductCategory = category;
-        }
-
-        if (request.UnitOfMeasureId != product.UnitOfMeasureId)
-        {
-            var unit = await dbContext.UnitsOfMeasure.SingleOrDefaultAsync(
-                item => item.Id == request.UnitOfMeasureId && item.IsActive,
-                cancellationToken);
-
-            if (unit is null)
-            {
-                return new ProductSaveResult(ProductSaveStatus.UnitOfMeasureUnavailable);
-            }
-
-            product.UnitOfMeasure = unit;
+            return new ProductSaveResult(ProductSaveStatus.InvalidReorderLevel);
         }
 
         product.Name = request.Name.Trim();
@@ -138,8 +99,6 @@ public sealed class ProductService(AppDbContext dbContext) : IProductService
         CancellationToken cancellationToken)
     {
         var product = await dbContext.Products
-            .Include(item => item.ProductCategory)
-            .Include(item => item.UnitOfMeasure)
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
 
         if (product is null)
@@ -164,12 +123,6 @@ public sealed class ProductService(AppDbContext dbContext) : IProductService
             product.Code,
             product.Name,
             product.Description,
-            product.ProductCategoryId,
-            product.ProductCategory.Code,
-            product.ProductCategory.Name,
-            product.UnitOfMeasureId,
-            product.UnitOfMeasure.Code,
-            product.UnitOfMeasure.Name,
             product.DefaultUnitPrice,
             product.ReorderLevel,
             product.IsActive,
@@ -189,12 +142,6 @@ public sealed class ProductService(AppDbContext dbContext) : IProductService
             product.Code,
             product.Name,
             product.Description,
-            product.ProductCategoryId,
-            product.ProductCategory.Code,
-            product.ProductCategory.Name,
-            product.UnitOfMeasureId,
-            product.UnitOfMeasure.Code,
-            product.UnitOfMeasure.Name,
             product.DefaultUnitPrice,
             product.ReorderLevel,
             product.IsActive,

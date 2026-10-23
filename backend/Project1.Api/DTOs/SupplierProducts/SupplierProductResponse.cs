@@ -8,8 +8,6 @@ public sealed record SupplierProductResponse(
     int ProductId,
     string ProductCode,
     string ProductName,
-    string UnitOfMeasureCode,
-    string UnitOfMeasureName,
     decimal ProductDefaultUnitPrice,
     bool IsPreferred,
     bool IsActive,

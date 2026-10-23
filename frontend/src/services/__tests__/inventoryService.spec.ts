@@ -16,14 +16,13 @@ describe('inventoryService', () => {
 
     expect(
       await inventoryService.getAll({
-        productCategoryId: 2,
         lowStock: true,
         includeInactive: true,
         search: ' chair ',
       }),
     ).toEqual([])
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:5165/api/inventory?productCategoryId=2&lowStock=true&includeInactive=true&search=chair',
+      'http://localhost:5165/api/inventory?lowStock=true&includeInactive=true&search=chair',
       expect.objectContaining({ headers: expect.objectContaining({ Accept: 'application/json' }) }),
     )
   })

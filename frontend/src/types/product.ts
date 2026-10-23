@@ -4,12 +4,6 @@ export interface Product {
   name: string
   description: string | null
   storageLocation: string | null
-  productCategoryId: number
-  productCategoryCode: string
-  productCategoryName: string
-  unitOfMeasureId: number
-  unitOfMeasureCode: string
-  unitOfMeasureName: string
   defaultUnitPrice: number
   reorderLevel: number
   isActive: boolean
@@ -21,8 +15,6 @@ export interface CreateProductRequest {
   name: string
   description: string | null
   storageLocation?: string | null
-  productCategoryId: number
-  unitOfMeasureId: number
   defaultUnitPrice: number
   reorderLevel: number
 }

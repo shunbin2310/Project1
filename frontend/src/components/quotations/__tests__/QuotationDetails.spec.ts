@@ -32,7 +32,6 @@ function quotation(overrides: Partial<Quotation> = {}): Quotation {
         productId: 1,
         productCode: 'ITEM-0001',
         productName: 'Monitor',
-        unitOfMeasureCode: 'UNIT',
         quantity: 2,
         unitPrice: 1100,
         lineTotal: 2200,

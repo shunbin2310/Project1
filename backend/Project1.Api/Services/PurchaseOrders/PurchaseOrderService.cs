@@ -169,7 +169,6 @@ public sealed class PurchaseOrderService(
                     ProductId = item.ProductId,
                     ProductCode = item.ProductCode,
                     ProductName = item.ProductName,
-                    UnitOfMeasureCode = item.UnitOfMeasureCode,
                     Quantity = item.Quantity,
                     UnitPrice = item.UnitPrice
                 })
@@ -593,7 +592,6 @@ public sealed class PurchaseOrderService(
                 item.ProductId,
                 item.ProductCode,
                 item.ProductName,
-                item.UnitOfMeasureCode,
                 item.Quantity,
                 item.UnitPrice,
                 item.Quantity * item.UnitPrice))
