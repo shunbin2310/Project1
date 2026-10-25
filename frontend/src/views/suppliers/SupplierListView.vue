@@ -12,6 +12,7 @@ import type { Supplier, SupplierFormValues } from '@/types/supplier'
 const suppliers = ref<Supplier[]>([])
 const loading = ref(true)
 const saving = ref(false)
+const busySupplierId = ref<number | null>(null)
 const search = ref('')
 const includeInactive = ref(false)
 const loadError = ref('')
@@ -118,12 +119,14 @@ async function saveSupplier(values: SupplierFormValues) {
 }
 
 async function deactivateSupplier(supplier: Supplier) {
+  if (busySupplierId.value !== null) return
   const confirmed = window.confirm(
     `Deactivate ${supplier.code} — ${supplier.name}? The record will remain available in history.`,
   )
 
   if (!confirmed) return
 
+  busySupplierId.value = supplier.id
   operationError.value = ''
 
   try {
@@ -132,10 +135,14 @@ async function deactivateSupplier(supplier: Supplier) {
     await loadSuppliers()
   } catch (error) {
     operationError.value = getErrorMessage(error, 'Unable to deactivate the supplier.')
+  } finally {
+    busySupplierId.value = null
   }
 }
 
 async function reactivateSupplier(supplier: Supplier) {
+  if (busySupplierId.value !== null) return
+  busySupplierId.value = supplier.id
   operationError.value = ''
 
   try {
@@ -151,6 +158,8 @@ async function reactivateSupplier(supplier: Supplier) {
     await loadSuppliers()
   } catch (error) {
     operationError.value = getErrorMessage(error, 'Unable to reactivate the supplier.')
+  } finally {
+    busySupplierId.value = null
   }
 }
 
@@ -244,7 +253,13 @@ function formatDate(value: string | null) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Suppliers could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadSuppliers">
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="loadSuppliers"
+          :disabled="loading"
+          :aria-busy="loading"
+        >
           Try again
         </button>
       </div>
@@ -311,6 +326,8 @@ function formatDate(value: string | null) {
                     class="text-button text-button-danger"
                     type="button"
                     @click="deactivateSupplier(supplier)"
+                    :disabled="busySupplierId !== null"
+                    :aria-busy="busySupplierId === supplier.id"
                   >
                     Deactivate
                   </button>
@@ -319,6 +336,8 @@ function formatDate(value: string | null) {
                     class="text-button text-button-positive"
                     type="button"
                     @click="reactivateSupplier(supplier)"
+                    :disabled="busySupplierId !== null"
+                    :aria-busy="busySupplierId === supplier.id"
                   >
                     Reactivate
                   </button>

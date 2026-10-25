@@ -30,6 +30,7 @@ const selectedType = ref<'' | InventoryTransactionType>('')
 const dateFrom = ref('')
 const dateTo = ref('')
 const loading = ref(true)
+const filterAction = ref('')
 const loadError = ref('')
 const { page, pageSize, paginatedItems: paginatedTransactions } = usePagination(transactions)
 
@@ -58,7 +59,15 @@ async function loadTransactions() {
   }
 }
 
+function applyFilters() {
+  if (loading.value) return
+  filterAction.value = 'apply'
+  void loadTransactions()
+}
+
 function clearFilters() {
+  if (loading.value) return
+  filterAction.value = 'clear'
   selectedType.value = ''
   dateFrom.value = ''
   dateTo.value = ''
@@ -132,7 +141,10 @@ function typeLabel(type: InventoryTransactionType) {
             </div>
           </div>
 
-          <form class="inventory-history-filters" @submit.prevent="loadTransactions">
+          <form
+            class="inventory-history-filters"
+            @submit.prevent="applyFilters"
+          >
             <label>
               <span>Transaction type</span>
               <select v-model="selectedType" aria-label="Transaction type">
@@ -153,6 +165,7 @@ function typeLabel(type: InventoryTransactionType) {
               class="button button-primary"
               type="submit"
               :disabled="loading || invalidDateRange"
+              :aria-busy="loading && filterAction === 'apply'"
             >
               Apply filters
             </button>
@@ -161,6 +174,7 @@ function typeLabel(type: InventoryTransactionType) {
               type="button"
               :disabled="loading"
               @click="clearFilters"
+              :aria-busy="loading && filterAction === 'clear'"
             >
               Clear
             </button>
@@ -176,7 +190,13 @@ function typeLabel(type: InventoryTransactionType) {
           <div v-else-if="loadError" class="panel-state panel-state-error inventory-history-state">
             <strong>Inventory history could not be loaded</strong>
             <p>{{ loadError }}</p>
-            <button class="button button-secondary" type="button" @click="loadTransactions">
+            <button
+              class="button button-secondary"
+              type="button"
+              @click="loadTransactions"
+              :disabled="loading"
+              :aria-busy="loading"
+            >
               Try again
             </button>
           </div>

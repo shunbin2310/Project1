@@ -23,6 +23,7 @@ const users = ref<User[]>([])
 const loading = ref(true)
 const saving = ref(false)
 const busyTemplateId = ref<number | null>(null)
+const busyAction = ref('')
 const search = ref('')
 const statusFilter = ref<TemplateStatusFilter>('all')
 const loadError = ref('')
@@ -95,9 +96,11 @@ function openCreateForm() {
 }
 
 async function openEditForm(template: WorkflowTemplateSummary) {
+  if (busyTemplateId.value !== null) return
   if (template.isPublished) return
   formError.value = ''
   operationError.value = ''
+  busyAction.value = 'openEditForm'
   busyTemplateId.value = template.id
 
   try {
@@ -144,7 +147,9 @@ async function saveTemplate(values: WorkflowTemplateFormValues) {
 }
 
 async function openDetails(template: WorkflowTemplateSummary) {
+  if (busyTemplateId.value !== null) return
   operationError.value = ''
+  busyAction.value = 'openDetails'
   busyTemplateId.value = template.id
 
   try {
@@ -158,12 +163,14 @@ async function openDetails(template: WorkflowTemplateSummary) {
 }
 
 async function createVersion(template: WorkflowTemplateSummary) {
+  if (busyTemplateId.value !== null) return
   const confirmed = window.confirm(
     `Create a new draft version from ${template.code} version ${template.version}?`,
   )
   if (!confirmed) return
 
   operationError.value = ''
+  busyAction.value = 'createVersion'
   busyTemplateId.value = template.id
   try {
     const draft = await workflowTemplateService.createVersion(template.id)
@@ -180,12 +187,14 @@ async function createVersion(template: WorkflowTemplateSummary) {
 }
 
 async function publishTemplate(template: WorkflowTemplateSummary) {
+  if (busyTemplateId.value !== null) return
   const confirmed = window.confirm(
     `Publish ${template.code} version ${template.version}? It will become active for new records and cannot be edited or deleted afterward.`,
   )
   if (!confirmed) return
 
   operationError.value = ''
+  busyAction.value = 'publishTemplate'
   busyTemplateId.value = template.id
   try {
     await workflowTemplateService.publish(template.id)
@@ -199,12 +208,14 @@ async function publishTemplate(template: WorkflowTemplateSummary) {
 }
 
 async function deleteTemplate(template: WorkflowTemplateSummary) {
+  if (busyTemplateId.value !== null) return
   const confirmed = window.confirm(
     `Delete draft ${template.code} version ${template.version}? This cannot be undone.`,
   )
   if (!confirmed) return
 
   operationError.value = ''
+  busyAction.value = 'deleteTemplate'
   busyTemplateId.value = template.id
   try {
     await workflowTemplateService.delete(template.id)
@@ -317,7 +328,15 @@ function getErrorMessage(error: unknown, fallback: string) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Workflow templates could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadPage">Try again</button>
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="loadPage"
+          :disabled="loading"
+          :aria-busy="loading"
+        >
+          Try again
+        </button>
       </div>
 
       <div v-else-if="visibleTemplates.length === 0" class="panel-state">
@@ -368,8 +387,9 @@ function getErrorMessage(error: unknown, fallback: string) {
                   <button
                     class="text-button"
                     type="button"
-                    :disabled="busyTemplateId === template.id"
+                    :disabled="busyTemplateId !== null"
                     @click="openDetails(template)"
+                    :aria-busy="busyTemplateId === template.id && busyAction === 'openDetails'"
                   >
                     View
                   </button>
@@ -377,8 +397,9 @@ function getErrorMessage(error: unknown, fallback: string) {
                     v-if="!template.isPublished"
                     class="text-button"
                     type="button"
-                    :disabled="busyTemplateId === template.id"
+                    :disabled="busyTemplateId !== null"
                     @click="openEditForm(template)"
+                    :aria-busy="busyTemplateId === template.id && busyAction === 'openEditForm'"
                   >
                     Edit
                   </button>
@@ -386,8 +407,9 @@ function getErrorMessage(error: unknown, fallback: string) {
                     v-if="template.isActive"
                     class="text-button"
                     type="button"
-                    :disabled="busyTemplateId === template.id"
+                    :disabled="busyTemplateId !== null"
                     @click="createVersion(template)"
+                    :aria-busy="busyTemplateId === template.id && busyAction === 'createVersion'"
                   >
                     New version
                   </button>
@@ -395,8 +417,9 @@ function getErrorMessage(error: unknown, fallback: string) {
                     v-if="!template.isPublished"
                     class="text-button text-button-positive"
                     type="button"
-                    :disabled="busyTemplateId === template.id"
+                    :disabled="busyTemplateId !== null"
                     @click="publishTemplate(template)"
+                    :aria-busy="busyTemplateId === template.id && busyAction === 'publishTemplate'"
                   >
                     Publish
                   </button>
@@ -404,8 +427,9 @@ function getErrorMessage(error: unknown, fallback: string) {
                     v-if="!template.isPublished"
                     class="text-button text-button-danger"
                     type="button"
-                    :disabled="busyTemplateId === template.id"
+                    :disabled="busyTemplateId !== null"
                     @click="deleteTemplate(template)"
+                    :aria-busy="busyTemplateId === template.id && busyAction === 'deleteTemplate'"
                   >
                     Delete
                   </button>

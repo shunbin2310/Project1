@@ -89,7 +89,9 @@ function formatPlaceholder(placeholder: string) {
       <header class="modal-header">
         <div>
           <p class="eyebrow">Email template draft</p>
-          <h2 id="email-template-editor-title">{{ template.code }} · Version {{ template.version }}</h2>
+          <h2 id="email-template-editor-title">
+            {{ template.code }} · Version {{ template.version }}
+          </h2>
           <p>Supplier Email is resolved automatically when a Purchase Order is issued.</p>
         </div>
         <button
@@ -170,7 +172,12 @@ function formatPlaceholder(placeholder: string) {
         </label>
 
         <footer class="modal-actions">
-          <button class="button button-secondary" type="button" :disabled="saving" @click="emit('cancel')">
+          <button
+            class="button button-secondary"
+            type="button"
+            :disabled="saving"
+            @click="emit('cancel')"
+          >
             Cancel
           </button>
           <button
@@ -178,10 +185,16 @@ function formatPlaceholder(placeholder: string) {
             type="button"
             :disabled="saving || previewing"
             @click="preview"
+            :aria-busy="previewing"
           >
             {{ previewing ? 'Rendering...' : 'Preview' }}
           </button>
-          <button class="button button-primary" type="submit" :disabled="saving || previewing">
+          <button
+            class="button button-primary"
+            type="submit"
+            :disabled="saving || previewing"
+            :aria-busy="saving"
+          >
             {{ saving ? 'Saving...' : 'Save draft' }}
           </button>
         </footer>

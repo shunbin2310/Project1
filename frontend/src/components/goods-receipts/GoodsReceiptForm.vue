@@ -364,7 +364,12 @@ function formatQuantity(value: number) {
           >
             Cancel
           </button>
-          <button class="button button-primary" type="submit" :disabled="saving">
+          <button
+            class="button button-primary"
+            type="submit"
+            :disabled="saving"
+            :aria-busy="saving"
+          >
             {{ saving ? 'Saving...' : goodsReceipt ? 'Save changes' : 'Create draft' }}
           </button>
         </footer>

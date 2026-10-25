@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 
 import type { PurchaseRequest } from '@/types/purchaseRequest'
 import type { Quotation, QuotationFormValues } from '@/types/quotation'
@@ -22,6 +22,8 @@ const emit = defineEmits<{
 }>()
 
 type FormState = QuotationFormValues
+
+const submittingAfterSave = ref(false)
 
 const form = reactive<FormState>({
   purchaseRequestId: 0,
@@ -184,7 +186,8 @@ function validate(submitAfterSave: boolean) {
 }
 
 function submitForm(submitAfterSave: boolean) {
-  if (!validate(submitAfterSave)) return
+  if (props.saving || !validate(submitAfterSave)) return
+  submittingAfterSave.value = submitAfterSave
 
   emit(
     'save',
@@ -431,7 +434,12 @@ function formatQuantity(value: number) {
           >
             Cancel
           </button>
-          <button class="button button-secondary" type="submit" :disabled="saving">
+          <button
+            class="button button-secondary"
+            type="submit"
+            :disabled="saving"
+            :aria-busy="saving && !submittingAfterSave"
+          >
             {{ saving ? 'Saving...' : 'Save draft' }}
           </button>
           <button
@@ -439,6 +447,7 @@ function formatQuantity(value: number) {
             type="button"
             :disabled="saving"
             @click="submitForm(true)"
+            :aria-busy="saving && submittingAfterSave"
           >
             {{ saving ? 'Processing...' : 'Save and submit' }}
           </button>

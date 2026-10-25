@@ -36,6 +36,7 @@ const purchaseOrders = ref<PurchaseOrder[]>([])
 const loading = ref(true)
 const saving = ref(false)
 const busyReceiptId = ref<number | null>(null)
+const busyAction = ref('')
 const search = ref('')
 const selectedStatus = ref<'' | GoodsReceiptStatus>('')
 const loadError = ref('')
@@ -194,11 +195,13 @@ async function saveReceipt(values: GoodsReceiptFormValues) {
 }
 
 async function postReceipt(receipt: GoodsReceipt) {
+  if (busyReceiptId.value !== null) return
   const confirmed = window.confirm(
     `Post ${receipt.goodsReceiptNumber}? Posted receipts cannot be edited or deleted.`,
   )
   if (!confirmed) return
 
+  busyAction.value = 'postReceipt'
   busyReceiptId.value = receipt.id
   operationError.value = ''
   try {
@@ -213,11 +216,13 @@ async function postReceipt(receipt: GoodsReceipt) {
 }
 
 async function deleteReceipt(receipt: GoodsReceipt) {
+  if (busyReceiptId.value !== null) return
   const confirmed = window.confirm(
     `Delete draft ${receipt.goodsReceiptNumber}? This action cannot be undone.`,
   )
   if (!confirmed) return
 
+  busyAction.value = 'deleteReceipt'
   busyReceiptId.value = receipt.id
   operationError.value = ''
   try {
@@ -330,7 +335,15 @@ function formatQuantity(value: number) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Goods receipts could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadData">Try again</button>
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="loadData"
+          :disabled="loading"
+          :aria-busy="loading"
+        >
+          Try again
+        </button>
       </div>
 
       <div v-else-if="!visibleReceipts.length" class="panel-state">
@@ -413,7 +426,7 @@ function formatQuantity(value: number) {
                     v-if="canManageGoodsReceipts && receipt.status === 'Draft'"
                     class="text-button"
                     type="button"
-                    :disabled="busyReceiptId === receipt.id"
+                    :disabled="busyReceiptId !== null"
                     @click="openEditForm(receipt)"
                   >
                     Edit
@@ -422,8 +435,9 @@ function formatQuantity(value: number) {
                     v-if="canManageGoodsReceipts && receipt.status === 'Draft'"
                     class="text-button text-button-positive"
                     type="button"
-                    :disabled="busyReceiptId === receipt.id"
+                    :disabled="busyReceiptId !== null"
                     @click="postReceipt(receipt)"
+                    :aria-busy="busyReceiptId === receipt.id && busyAction === 'postReceipt'"
                   >
                     Post
                   </button>
@@ -431,8 +445,9 @@ function formatQuantity(value: number) {
                     v-if="canManageGoodsReceipts && receipt.status === 'Draft'"
                     class="text-button text-button-danger"
                     type="button"
-                    :disabled="busyReceiptId === receipt.id"
+                    :disabled="busyReceiptId !== null"
                     @click="deleteReceipt(receipt)"
+                    :aria-busy="busyReceiptId === receipt.id && busyAction === 'deleteReceipt'"
                   >
                     Delete
                   </button>

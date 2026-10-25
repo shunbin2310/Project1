@@ -104,7 +104,12 @@ function submit() {
           >
             Keep order
           </button>
-          <button class="button button-danger" type="submit" :disabled="cancelling">
+          <button
+            class="button button-danger"
+            type="submit"
+            :disabled="cancelling"
+            :aria-busy="cancelling"
+          >
             {{ cancelling ? 'Cancelling...' : 'Cancel purchase order' }}
           </button>
         </footer>

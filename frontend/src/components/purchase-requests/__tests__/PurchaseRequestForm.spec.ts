@@ -49,6 +49,43 @@ function mountForm() {
 }
 
 describe('PurchaseRequestForm', () => {
+  it.each([false, true])(
+    'marks only the requested save action busy when submitAfterSave=%s',
+    async (submitAfterSave) => {
+      const wrapper = mountForm()
+      if (submitAfterSave) {
+        await wrapper.get('#purchase-required-date').setValue('2030-12-31')
+        await wrapper
+          .findAll('button')
+          .find((button) => button.text() === '+ Add item')!
+          .trigger('click')
+        await wrapper.get('#purchase-product-0').setValue('1')
+        await wrapper.get('#purchase-product-0').trigger('change')
+        await wrapper
+          .findAll('button')
+          .find((button) => button.text() === 'Create and submit')!
+          .trigger('click')
+      } else {
+        await wrapper.get('form').trigger('submit')
+      }
+      await wrapper.setProps({ saving: true })
+
+      const busyButtons = wrapper.findAll('button[aria-busy="true"]')
+      expect(busyButtons).toHaveLength(1)
+      expect(busyButtons[0]!.attributes('type')).toBe(submitAfterSave ? 'button' : 'submit')
+      expect(busyButtons[0]!.attributes('disabled')).toBeDefined()
+      await wrapper.get('form').trigger('submit')
+      expect(wrapper.emitted('save')).toHaveLength(1)
+
+      await wrapper.setProps({ saving: false, errorMessage: 'Submission failed.' })
+      expect(wrapper.find('button[aria-busy="true"]').exists()).toBe(false)
+      expect(
+        wrapper.get('.modal-actions button[type="submit"]').attributes('disabled'),
+      ).toBeUndefined()
+      wrapper.unmount()
+    },
+  )
+
   it('creates an empty draft form without forcing an item', async () => {
     const wrapper = mountForm()
 

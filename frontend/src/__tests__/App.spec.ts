@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { useAuthStore } from '@/stores/auth'
 import type { ApplicationRole } from '@/types/auth'
 import LoginView from '@/views/auth/LoginView.vue'
@@ -43,6 +43,77 @@ async function mountForRole(role: ApplicationRole | ApplicationRole[]) {
 }
 
 describe('App', () => {
+  it.each(['success', 'cancel', 'error', 'redirect'] as const)(
+    'clears navigation loading after %s',
+    async (outcome) => {
+      const wrapper = await mountForRole('ADMIN')
+      const router = wrapper.vm.$router
+      router.addRoute({ path: '/dashboard', component: { template: '<h1>Dashboard</h1>' } })
+      router.addRoute({ path: '/users', component: { template: '<h1>Users</h1>' } })
+      let finish!: (result: boolean | string) => void
+      let fail!: (error: Error) => void
+      const waiting = new Promise<boolean | string>((resolve, reject) => {
+        finish = resolve
+        fail = reject
+      })
+      router.beforeResolve((to) => (to.path === '/dashboard' ? waiting : true))
+
+      const navigation = router.push('/dashboard').catch((error: unknown) => error)
+      await flushPromises()
+      expect(wrapper.get('a[href="/dashboard"]').attributes('aria-busy')).toBe('true')
+      expect(wrapper.get('a[href="/purchase-requests"]').attributes('aria-busy')).toBe('false')
+      expect(wrapper.get('[role="status"]').text()).toBe('Loading page…')
+
+      if (outcome === 'error') fail(new Error('Unable to load page.'))
+      else finish(outcome === 'redirect' ? '/users' : outcome === 'success')
+      await navigation
+      await flushPromises()
+
+      expect(wrapper.find('a[aria-busy="true"]').exists()).toBe(false)
+      expect(wrapper.get('[role="status"]').text()).toBe('')
+      expect(router.currentRoute.value.path).toBe(
+        outcome === 'success'
+          ? '/dashboard'
+          : outcome === 'redirect'
+            ? '/users'
+            : '/purchase-requests',
+      )
+      wrapper.unmount()
+    },
+  )
+
+  it('keeps the latest navigation loading when an older navigation is cancelled', async () => {
+    const wrapper = await mountForRole('ADMIN')
+    const router = wrapper.vm.$router
+    router.addRoute({ path: '/dashboard', component: { template: '<h1>Dashboard</h1>' } })
+    router.addRoute({ path: '/users', component: { template: '<h1>Users</h1>' } })
+    let finishDashboard!: (result: boolean) => void
+    let finishUsers!: (result: boolean) => void
+    const dashboard = new Promise<boolean>((resolve) => {
+      finishDashboard = resolve
+    })
+    const users = new Promise<boolean>((resolve) => {
+      finishUsers = resolve
+    })
+    router.beforeResolve((to) => (to.path === '/dashboard' ? dashboard : users))
+
+    const first = router.push('/dashboard')
+    await flushPromises()
+    const second = router.push('/users')
+    await flushPromises()
+    finishDashboard(true)
+    await first
+    await flushPromises()
+    expect(wrapper.get('a[href="/users"]').attributes('aria-busy')).toBe('true')
+    expect(wrapper.get('a[href="/dashboard"]').attributes('aria-busy')).toBe('false')
+
+    finishUsers(true)
+    await second
+    await flushPromises()
+    expect(wrapper.find('a[aria-busy="true"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it.each<[ApplicationRole[], boolean]>([
     [['REQUESTER'], true],
     [['DEPARTMENT_APPROVER'], true],

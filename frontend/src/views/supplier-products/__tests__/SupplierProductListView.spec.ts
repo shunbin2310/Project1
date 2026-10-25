@@ -207,6 +207,30 @@ describe('SupplierProductListView', () => {
     })
   })
 
+  it('restores relationship deletion after failure without sending duplicate requests', async () => {
+    let fail!: (error: Error) => void
+    mocks.deleteRelationship.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          fail = reject
+        }),
+    )
+    const wrapper = mount(SupplierProductListView)
+    await flushPromises()
+    const deleteButton = wrapper.findAll('button').find((button) => button.text() === 'Delete')!
+    await deleteButton.trigger('click')
+    expect(deleteButton.attributes('aria-busy')).toBe('true')
+    await deleteButton.trigger('click')
+    expect(mocks.deleteRelationship).toHaveBeenCalledTimes(1)
+
+    fail(new Error('Unable to delete relationship.'))
+    await flushPromises()
+    expect(deleteButton.attributes('aria-busy')).toBe('false')
+    expect(deleteButton.attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('.alert-error').text()).toContain('Unable to delete relationship.')
+    wrapper.unmount()
+  })
+
   it('deletes only the selected relationship after confirmation', async () => {
     const wrapper = mount(SupplierProductListView)
     await flushPromises()

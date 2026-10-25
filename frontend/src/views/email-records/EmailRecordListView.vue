@@ -32,6 +32,7 @@ const createdFrom = ref('')
 const createdTo = ref('')
 const selectedEmailRecord = ref<EmailRecordDetails | null>(null)
 const busyEmailRecordId = ref<number | null>(null)
+const busyAction = ref('')
 const { toast, showSuccess, dismissToast } = useToast()
 
 const sentCount = computed(
@@ -89,6 +90,8 @@ async function loadEmailRecords() {
 }
 
 async function openDetails(record: EmailRecordSummary) {
+  if (busyEmailRecordId.value !== null) return
+  busyAction.value = 'openDetails'
   busyEmailRecordId.value = record.id
   operationError.value = ''
   try {
@@ -101,9 +104,11 @@ async function openDetails(record: EmailRecordSummary) {
 }
 
 async function retryEmail() {
+  if (busyEmailRecordId.value !== null) return
   const record = selectedEmailRecord.value
   if (!record) return
 
+  busyAction.value = 'retryEmail'
   busyEmailRecordId.value = record.id
   operationError.value = ''
   try {
@@ -119,6 +124,7 @@ async function retryEmail() {
 }
 
 async function resendEmail() {
+  if (busyEmailRecordId.value !== null) return
   const record = selectedEmailRecord.value
   if (!record) return
 
@@ -127,6 +133,7 @@ async function resendEmail() {
   )
   if (!confirmed) return
 
+  busyAction.value = 'resendEmail'
   busyEmailRecordId.value = record.id
   operationError.value = ''
   try {
@@ -142,11 +149,13 @@ async function resendEmail() {
 }
 
 async function viewAttachment(attachment: EmailAttachment) {
+  if (busyEmailRecordId.value !== null) return
   const record = selectedEmailRecord.value
   if (!record) return
 
   const previewWindow = window.open('', '_blank')
   if (previewWindow) previewWindow.opener = null
+  busyAction.value = `viewAttachment:${attachment.id}`
   busyEmailRecordId.value = record.id
   operationError.value = ''
   try {
@@ -167,9 +176,11 @@ async function viewAttachment(attachment: EmailAttachment) {
 }
 
 async function downloadAttachment(attachment: EmailAttachment) {
+  if (busyEmailRecordId.value !== null) return
   const record = selectedEmailRecord.value
   if (!record) return
 
+  busyAction.value = `downloadAttachment:${attachment.id}`
   busyEmailRecordId.value = record.id
   operationError.value = ''
   try {
@@ -298,7 +309,13 @@ function sourceTypeLabel(value: string) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Email records could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadEmailRecords">
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="loadEmailRecords"
+          :disabled="loading"
+          :aria-busy="loading"
+        >
           Try again
         </button>
       </div>
@@ -356,8 +373,9 @@ function sourceTypeLabel(value: string) {
                   <button
                     class="text-button"
                     type="button"
-                    :disabled="busyEmailRecordId === record.id"
+                    :disabled="busyEmailRecordId !== null"
                     @click="openDetails(record)"
+                    :aria-busy="busyEmailRecordId === record.id && busyAction === 'openDetails'"
                   >
                     View
                   </button>
@@ -380,6 +398,7 @@ function sourceTypeLabel(value: string) {
       v-if="selectedEmailRecord"
       :email-record="selectedEmailRecord"
       :busy="busyEmailRecordId === selectedEmailRecord.id"
+      :busy-action="busyAction"
       @close="selectedEmailRecord = null"
       @retry="retryEmail"
       @resend="resendEmail"

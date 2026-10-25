@@ -149,6 +149,40 @@ describe('WorkflowTemplateListView', () => {
     expect(activeRow.text()).not.toContain('Delete')
   })
 
+  it.each([true, false])(
+    'clears the clicked row action loading after success=%s',
+    async (succeeded) => {
+      let finish!: () => void
+      mocks.delete.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            finish = () => (succeeded ? resolve() : reject(new Error('Deletion failed.')))
+          }),
+      )
+      const wrapper = mount(WorkflowTemplateListView)
+      await flushPromises()
+      const deleteButton = wrapper.findAll('button').find((button) => button.text() === 'Delete')!
+      await deleteButton.trigger('click')
+
+      expect(deleteButton.attributes('aria-busy')).toBe('true')
+      expect(deleteButton.attributes('disabled')).toBeDefined()
+      expect(wrapper.findAll('button[aria-busy="true"]')).toHaveLength(1)
+      await deleteButton.trigger('click')
+      expect(mocks.delete).toHaveBeenCalledTimes(1)
+
+      finish()
+      await flushPromises()
+      expect(wrapper.find('button[aria-busy="true"]').exists()).toBe(false)
+      expect(
+        wrapper
+          .findAll('tbody button')
+          .every((button) => button.attributes('disabled') === undefined),
+      ).toBe(true)
+    expect(wrapper.text().includes('Deletion failed.')).toBe(!succeeded)
+      wrapper.unmount()
+    },
+  )
+
   it('opens a read-only details dialog', async () => {
     const wrapper = mount(WorkflowTemplateListView)
     await flushPromises()

@@ -89,9 +89,7 @@ function submit() {
             v-model="comment"
             maxlength="500"
             rows="4"
-            :placeholder="
-              isReject ? 'Explain why this record is rejected' : 'Add an audit comment'
-            "
+            :placeholder="isReject ? 'Explain why this record is rejected' : 'Add an audit comment'"
             :aria-invalid="Boolean(commentError)"
           />
           <p v-if="commentError" class="field-error">{{ commentError }}</p>
@@ -111,6 +109,7 @@ function submit() {
             :class="isReject ? 'button-danger' : 'button-primary'"
             type="submit"
             :disabled="saving"
+            :aria-busy="saving"
           >
             {{ saving ? 'Processing...' : action.name }}
           </button>

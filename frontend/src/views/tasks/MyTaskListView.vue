@@ -332,7 +332,15 @@ function stepClass(stepCode: string) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Tasks could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadTasks">Try again</button>
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="loadTasks"
+          :disabled="loading"
+          :aria-busy="loading"
+        >
+          Try again
+        </button>
       </div>
 
       <div v-else-if="currentTasks.length === 0" class="panel-state">
@@ -438,7 +446,15 @@ function stepClass(stepCode: string) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Tasks could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadTasks">Try again</button>
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="loadTasks"
+          :disabled="loading"
+          :aria-busy="loading"
+        >
+          Try again
+        </button>
       </div>
 
       <div v-else-if="currentPurchaseOrderTasks.length === 0" class="panel-state">
