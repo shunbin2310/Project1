@@ -109,7 +109,7 @@ def github_error_message(error, token):
 
 @dataclass(frozen=True)
 class Settings:
-    repository: str = "shunbin2310/Project1"
+    repository: str = "shunbin2310/PurchasingManagementSystem"
     branch: str = PAGES_BRANCH
     interval: float = 30
     startup_timeout: float = 180

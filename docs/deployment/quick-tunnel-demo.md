@@ -3,8 +3,8 @@
 面试官的访问路径：
 
 ```text
-简历 → GitHub Project1 → Open Live Demo
-     → https://shunbin2310.github.io/Project1/
+简历 → GitHub PurchasingManagementSystem → Open Live Demo
+     → https://shunbin2310.github.io/PurchasingManagementSystem/
      → 当天最新的 Quick Tunnel → Project1
 ```
 
@@ -15,8 +15,12 @@ Ubuntu 等待本机网站就绪，启动 Tunnel，确认公网首页和 API 正�
 
 ## A. 已安装旧版本：按此升级
 
-如果已经安装服务和 Token，并遇到 `HTTP 409: Changes must be made through a pull request`，
-从本节开始。已有 Token 和网站配置可以继续使用。
+如果已经安装服务和 Token，仓库刚改名，或遇到
+`HTTP 409: Changes must be made through a pull request`，从本节开始。
+已有 Token 和网站配置可以继续使用。
+
+若当前服务已使用 `demo-links`，此次只改仓库名，可直接按 A2 修改
+`/etc/project1-demo/config` 并重启服务，无需重新上传或安装。
 
 ### A1. 合并修正
 
@@ -37,6 +41,18 @@ scp .\scripts\homelab\quick_tunnel.py .\scripts\homelab\project1-demo.service .\
 ```bash
 cd ~/project1-homelab
 sudo bash install.sh
+sudoedit /etc/project1-demo/config
+```
+
+确认配置中的仓库名已更新；安装器会保留已有 config，不会自动替换旧仓库名：
+
+```text
+GITHUB_REPOSITORY=shunbin2310/PurchasingManagementSystem
+```
+
+保存后继续执行：
+
+```bash
 sudo systemctl restart project1-demo.service
 sudo journalctl -u project1-demo.service --since '2 minutes ago' --no-pager
 ```
@@ -59,7 +75,7 @@ Redirect updated on demo-links: https://....trycloudflare.com
 脚本第一次成功发布时自动创建 `demo-links`。
 不要提前从 `main` 手动创建该分支，也不要将它合并到 `main`。
 
-打开 **GitHub Project1 → Settings → Pages**，在 **Build and deployment** 设置：
+打开 **GitHub PurchasingManagementSystem → Settings → Pages**，在 **Build and deployment** 设置：
 
 | 设置 | 值 |
 | --- | --- |
@@ -77,7 +93,7 @@ GitHub 官方说明发布可能需要最多约 10 分钟。
 Pages 生效后，**Settings → Pages → Visit site** 应打开固定入口：
 
 ```text
-https://shunbin2310.github.io/Project1/
+https://shunbin2310.github.io/PurchasingManagementSystem/
 ```
 
 浏览器自动跳转到最新 Tunnel；页面还提供手动链接。
@@ -85,7 +101,7 @@ JavaScript 不可用时仍可通过 HTML 自动跳转或点击链接访问。
 
 ### A4. 验证
 
-1. 手机关闭 Wi-Fi，用移动数据打开 GitHub Project1。
+1. 手机关闭 Wi-Fi，用移动数据打开 GitHub PurchasingManagementSystem。
 2. 点击 README 的 **Open Live Demo**，确认自动进入网站。
 3. 测试登录和业务列表。
 4. 关闭 SSH 窗口，确认仍能访问。
@@ -157,7 +173,7 @@ Fine-grained tokens → Generate new token**。
 | Token name | project1-demo-link |
 | Expiration | 例如 90 days，到期前更换 |
 | Resource owner | shunbin2310 |
-| Repository access | Only select repositories → Project1 |
+| Repository access | Only select repositories → PurchasingManagementSystem |
 | Repository permissions | Contents → Read and write |
 
 不需要 Actions、Workflows、Administration 或 Pages 的写权限。

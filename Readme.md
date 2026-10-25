@@ -9,7 +9,7 @@ action and when.
 
 ## Try the project
 
-[Open Live Demo](https://shunbin2310.github.io/Project1/)
+[Open Live Demo](https://shunbin2310.github.io/PurchasingManagementSystem/)
 
 The demo is available while the server is running. It is offline after midnight
 (Malaysia Time, UTC+8).

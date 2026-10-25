@@ -79,7 +79,7 @@ class GitHubTests(unittest.TestCase):
         self.assertTrue(get_call.args[1].endswith("?ref=demo-links"))
         method, endpoint, payload = put_call.args
         self.assertEqual(method, "PUT")
-        self.assertEqual(endpoint, "https://api.github.com/repos/shunbin2310/Project1/contents/index.html")
+        self.assertEqual(endpoint, "https://api.github.com/repos/shunbin2310/PurchasingManagementSystem/contents/index.html")
         self.assertEqual(payload["sha"], "first-sha")
         self.assertEqual(payload["branch"], "demo-links")
         self.assertNotIn("[skip ci]", payload["message"])

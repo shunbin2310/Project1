@@ -26,6 +26,7 @@ class ConfigurationTests(unittest.TestCase):
         for job in ('images:', 'deploy:'):
             block = workflow.split('  ' + job, 1)[1]
             condition = next(line for line in block.splitlines() if line.strip().startswith('if:'))
+            self.assertIn("github.repository == 'shunbin2310/PurchasingManagementSystem'", condition)
             self.assertIn("github.event_name == 'push'", condition)
             self.assertIn("github.ref == 'refs/heads/main'", condition)
         self.assertIn("vars.DOCKER_DEPLOY_ENABLED == 'true'", workflow)
