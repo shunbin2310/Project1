@@ -24,7 +24,7 @@ export interface UpdateSupplierProductRequest {
   isActive: boolean
 }
 
-export interface SupplierProductFormValues extends CreateSupplierProductRequest {
+export interface SupplierProductFormValues extends Omit<CreateSupplierProductRequest, 'isPreferred'> {
   isActive: boolean
 }
 

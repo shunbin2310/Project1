@@ -135,6 +135,10 @@ describe('SupplierProductListView', () => {
     expect(wrapper.get('h1').text()).toBe('Supplier Products')
     expect(wrapper.findAll('tbody tr')).toHaveLength(2)
     expect(wrapper.text().replace(/\s/g, '')).toContain('RM1,399.90')
+    expect(wrapper.findAll('.summary-card')).toHaveLength(2)
+    expect(wrapper.get('thead').text()).not.toContain('Preference')
+    expect(wrapper.text()).not.toContain('Preferred')
+    expect(wrapper.text()).not.toContain('Standard')
 
     await wrapper.get('[aria-label="Filter by supplier"]').setValue('1')
 
@@ -151,7 +155,6 @@ describe('SupplierProductListView', () => {
     wrapper.findComponent(SupplierProductForm).vm.$emit('save', {
       supplierId: 1,
       productId: 1,
-      isPreferred: true,
       isActive: true,
     })
     await flushPromises()
@@ -159,7 +162,7 @@ describe('SupplierProductListView', () => {
     expect(mocks.createRelationship).toHaveBeenCalledWith({
       supplierId: 1,
       productId: 1,
-      isPreferred: true,
+      isPreferred: false,
     })
     expect(wrapper.findComponent(SupplierProductForm).exists()).toBe(false)
     expect(mocks.getRelationships).toHaveBeenCalledTimes(2)
@@ -177,7 +180,6 @@ describe('SupplierProductListView', () => {
     wrapper.findComponent(SupplierProductForm).vm.$emit('save', {
       supplierId: 1,
       productId: 1,
-      isPreferred: false,
       isActive: true,
     })
     await flushPromises()
@@ -186,7 +188,7 @@ describe('SupplierProductListView', () => {
     expect(wrapper.get('[role="dialog"] [role="alert"]').text()).toContain('already linked')
   })
 
-  it('updates only the relationship settings', async () => {
+  it('updates active status while preserving the stored preference', async () => {
     const wrapper = mount(SupplierProductListView)
     await flushPromises()
 
@@ -195,13 +197,12 @@ describe('SupplierProductListView', () => {
     wrapper.findComponent(SupplierProductForm).vm.$emit('save', {
       supplierId: 1,
       productId: 1,
-      isPreferred: false,
       isActive: false,
     })
     await flushPromises()
 
     expect(mocks.updateRelationship).toHaveBeenCalledWith(1, {
-      isPreferred: false,
+      isPreferred: true,
       isActive: false,
     })
   })

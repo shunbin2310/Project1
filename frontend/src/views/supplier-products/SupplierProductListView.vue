@@ -32,9 +32,6 @@ const { toast, showSuccess, dismissToast } = useToast()
 const activeCount = computed(
   () => supplierProducts.value.filter((item) => isAvailable(item)).length,
 )
-const preferredCount = computed(
-  () => supplierProducts.value.filter((item) => item.isPreferred && isAvailable(item)).length,
-)
 
 const visibleSupplierProducts = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -115,7 +112,7 @@ async function saveSupplierProduct(values: SupplierProductFormValues) {
     if (editingSupplierProduct.value) {
       const current = editingSupplierProduct.value
       await supplierProductService.update(current.id, {
-        isPreferred: values.isPreferred,
+        isPreferred: current.isPreferred,
         isActive: values.isActive,
       })
       showSuccess(`${current.supplierCode} and ${current.productCode} were updated.`)
@@ -123,7 +120,7 @@ async function saveSupplierProduct(values: SupplierProductFormValues) {
       const created = await supplierProductService.create({
         supplierId: values.supplierId,
         productId: values.productId,
-        isPreferred: values.isPreferred,
+        isPreferred: false,
       })
       showSuccess(`${created.supplierCode} is now linked to ${created.productCode}.`)
     }
@@ -203,7 +200,7 @@ function formatCurrency(value: number) {
       </button>
     </header>
 
-    <div class="summary-grid" aria-label="Supplier product summary">
+    <div class="summary-grid supplier-product-summary-grid" aria-label="Supplier product summary">
       <article class="summary-card">
         <span class="summary-label">Total relationships</span>
         <strong>{{ supplierProducts.length }}</strong>
@@ -213,11 +210,6 @@ function formatCurrency(value: number) {
         <span class="summary-label">Available</span>
         <strong>{{ activeCount }}</strong>
         <span>Ready for purchasing activities</span>
-      </article>
-      <article class="summary-card summary-card-muted">
-        <span class="summary-label">Preferred</span>
-        <strong>{{ preferredCount }}</strong>
-        <span>Available preferred relationships</span>
       </article>
     </div>
 
@@ -314,7 +306,6 @@ function formatCurrency(value: number) {
               <th>Supplier</th>
               <th>Product</th>
               <th>Default price</th>
-              <th>Preference</th>
               <th>Status</th>
               <th><span class="sr-only">Actions</span></th>
             </tr>
@@ -340,14 +331,6 @@ function formatCurrency(value: number) {
                 </div>
               </td>
               <td>{{ formatCurrency(supplierProduct.productDefaultUnitPrice) }}</td>
-              <td>
-                <span
-                  class="preference-badge"
-                  :class="supplierProduct.isPreferred ? 'is-preferred' : 'is-standard'"
-                >
-                  {{ supplierProduct.isPreferred ? 'Preferred' : 'Standard' }}
-                </span>
-              </td>
               <td>
                 <span
                   class="status-badge"

@@ -21,7 +21,6 @@ const emit = defineEmits<{
 const form = reactive<SupplierProductFormValues>({
   supplierId: 0,
   productId: 0,
-  isPreferred: false,
   isActive: true,
 })
 
@@ -50,7 +49,6 @@ watch(
   (supplierProduct) => {
     form.supplierId = supplierProduct?.supplierId ?? 0
     form.productId = supplierProduct?.productId ?? 0
-    form.isPreferred = supplierProduct?.isPreferred ?? false
     form.isActive = supplierProduct?.isActive ?? true
     clearErrors()
   },
@@ -77,7 +75,6 @@ function submit() {
   emit('save', {
     supplierId: form.supplierId,
     productId: form.productId,
-    isPreferred: form.isPreferred,
     isActive: form.isActive,
   })
 }
@@ -185,14 +182,6 @@ function formatCurrency(value: number) {
           </strong>
           <small>Supplier-specific prices will be recorded later in quotations.</small>
         </div>
-
-        <label class="status-control form-grid-full">
-          <span>
-            <strong>Preferred supplier</strong>
-            <small>Highlight this supplier as a preferred option for the selected product.</small>
-          </span>
-          <input v-model="form.isPreferred" type="checkbox" />
-        </label>
 
         <label v-if="isEditing" class="status-control form-grid-full">
           <span>

@@ -434,11 +434,6 @@ public sealed partial class WorkflowTemplateService(AppDbContext dbContext)
                     return (null, $"Action '{actionCode}' cannot point back to its own step.");
                 }
 
-                if (string.Equals(toStepCode, initialSteps[0].Code, StringComparison.OrdinalIgnoreCase))
-                {
-                    return (null, $"Action '{actionCode}' cannot point to the initial step.");
-                }
-
                 var actionerValidation = ValidateActioners(
                     actionCode,
                     action.Actioners,
@@ -587,7 +582,10 @@ public sealed partial class WorkflowTemplateService(AppDbContext dbContext)
             }
 
             visitState[code] = 1;
-            if (adjacency[code].Any(ContainsCycle))
+            // Returning to the initial step allows revision and resubmission.
+            if (adjacency[code].Any(nextCode =>
+                !string.Equals(nextCode, initialStepCode, StringComparison.OrdinalIgnoreCase) &&
+                ContainsCycle(nextCode)))
             {
                 return true;
             }
@@ -597,7 +595,7 @@ public sealed partial class WorkflowTemplateService(AppDbContext dbContext)
         }
 
         return ContainsCycle(initialStepCode)
-            ? "Workflow steps cannot contain a cycle."
+            ? "Workflow steps cannot contain a cycle except when returning to the initial step."
             : null;
     }
 
