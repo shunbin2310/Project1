@@ -4,6 +4,31 @@ This guide explains how to test the complete Purchase and Inventory process in t
 
 [Back to README](../Readme.md)
 
+## Which workflow this guide uses
+
+This guide tests the **default templates in a new database**: PR goes through
+Department Review and Finance Review; PO goes through a separate Pending Approval
+step.
+
+For the shorter flow shown in the demo's Version 2 screenshots, follow the
+[README walkthrough](../Readme.md#demo-approval-flow), including its local template
+setup instructions. With those templates:
+
+- In Step 4, submitting the PR moves it directly to Finance Review.
+- Skip Step 5 (Department Review) and continue with Step 6 (Finance Review).
+- In Step 9, submitting the PO moves it directly to Approved.
+- Skip Step 10 (PO approval) and continue with Step 11 (Issue).
+
+The Department Approver and Purchase Order Approver accounts still exist, but are
+not needed for that shorter flow. The role matrix and approval queue checks below
+describe the default flow. Existing records keep the template copied when they
+were created.
+
+For local Docker, use the addresses in the [Local Docker Guide](LOCAL_DOCKER.md):
+website `http://localhost:8081`, API `http://localhost:5166`, and Mailpit
+`http://localhost:8026`. Enter your local `DEMO_PASSWORD` manually for all demo
+accounts instead of the development password shown below.
+
 ## What this walkthrough proves
 
 By the end of the walkthrough, you will have tested:
