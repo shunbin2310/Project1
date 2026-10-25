@@ -187,7 +187,7 @@ jobs:
   images:
     name: Build and publish API and Vue images
     needs: [backend, frontend]
-    if: github.repository == 'shunbin2310/Project1' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.repository == 'shunbin2310/PurchasingManagementSystem' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -216,7 +216,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ghcr.io/shunbin2310/project1-api:${{ github.sha }}
-          labels: org.opencontainers.image.source=https://github.com/shunbin2310/Project1
+          labels: org.opencontainers.image.source=https://github.com/shunbin2310/PurchasingManagementSystem
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
       - name: Build and push Vue
@@ -229,7 +229,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ghcr.io/shunbin2310/project1-frontend:${{ github.sha }}
-          labels: org.opencontainers.image.source=https://github.com/shunbin2310/Project1
+          labels: org.opencontainers.image.source=https://github.com/shunbin2310/PurchasingManagementSystem
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
@@ -237,7 +237,7 @@ jobs:
     name: Automatically update Ubuntu
     needs: images
     # Enable only after Ubuntu/GHCR/Tailscale one-time setup is complete.
-    if: github.repository == 'shunbin2310/Project1' && github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DOCKER_DEPLOY_ENABLED == 'true'
+    if: github.repository == 'shunbin2310/PurchasingManagementSystem' && github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DOCKER_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:

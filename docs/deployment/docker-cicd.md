@@ -55,7 +55,7 @@ Tailscale 让 GitHub 连接内网，不会把网站自动变成公网网站。
 
 | 配置 | 当前代码 / 新环境需记录 |
 | --- | --- |
-| 仓库 / 分支 | shunbin2310/Project1 / main |
+| 仓库 / 分支 | shunbin2310/PurchasingManagementSystem / main |
 | Ubuntu hostname | homelab-server |
 | 人工管理员 | 自己的 Ubuntu 管理员，不是自动部署用户 |
 | LAN IP | 例：192.168.1.158；新机器使用自己的地址 |
@@ -69,7 +69,7 @@ Tailscale 让 GitHub 连接内网，不会把网站自动变成公网网站。
 
 | 改什么 | 必须同步审阅 |
 | --- | --- |
-| owner / repo | ci.yml 两个 job 条件、镜像路径、source labels；auto-deploy.sh 两个 GHCR 路径；对应测试 |
+| owner / repo | ci.yml 两个 job 条件、source labels、Tailscale OIDC 信任、Pages 链接、Tunnel 仓库配置及对应测试；只有更换 GHCR 包路径时才同步镜像路径和 auto-deploy.sh |
 | hostname | auto-deploy.sh 的 hostname guard；授权 SQL 的 MachineName guard |
 | 数据库 / SQL 用户 | Compose 连接与 ExpectedDatabase、授权 SQL、对应测试 |
 | Linux 用户 / 路径 / 端口 | sudoers、部署脚本、Compose、Nginx、工作流和测试 |
@@ -629,7 +629,7 @@ Tailscale → Settings → [Trust credentials](https://console.tailscale.com/adm
 | Issuer / URL | GitHub / https://token.actions.githubusercontent.com |
 | Subject | 自己仓库 main 分支的准确 sub，见下文 |
 | Custom claim | event_name = push |
-| Custom claim（建议） | workflow_ref = shunbin2310/Project1/.github/workflows/ci.yml@refs/heads/main，换仓库同步替换 |
+| Custom claim（建议） | workflow_ref = shunbin2310/PurchasingManagementSystem/.github/workflows/ci.yml@refs/heads/main，换仓库同步替换 |
 | Scopes | Auth Keys / auth_keys 写入权限，不选全部管理权限 |
 | Tags | 仅 tag:github-deploy，不是 server tag |
 
@@ -656,13 +656,16 @@ repo:OWNER/REPO:ref:refs/heads/main
 repo:OWNER@OWNER_ID/REPO@REPO_ID:ref:refs/heads/main
 ~~~
 
-本次 Project1 已验证使用：
+当前仓库的默认 Subject 应为（仍需与 GitHub 实际 OIDC 设置核对）：
 
 ~~~text
-repo:shunbin2310@138860553/Project1@1334916963:ref:refs/heads/main
+repo:shunbin2310@138860553/PurchasingManagementSystem@1334916963:ref:refs/heads/main
 ~~~
 
 ID 是公开标识，不是密码，只适用于这个仓库，不能照搬给新仓库 / fork。
+仓库从 `Project1` 改名后，需在 Tailscale Trust credentials 中同步修改 Subject 和
+已配置的 `workflow_ref`；修改文档和工作流不会自动更新 Tailscale 后台。
+保留现有 `project1-api`、`project1-frontend` 包名和 Ubuntu 路径，无需重建数据库。
 从 GitHub 的 OIDC 设置核对格式；安装并登录 gh 后可查询元数据：
 
 **Windows / PowerShell，可选查询，替换 OWNER/REPO：**
