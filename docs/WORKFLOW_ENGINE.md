@@ -287,6 +287,8 @@ Important rules:
 - A valid Template has exactly one Initial Step.
 - Every non-terminal Step needs a usable outgoing path.
 - Action destinations must reference Steps in the same Template.
+- Actions may return to the Initial Step for revision and resubmission, including PO rejection to Draft.
+- Self-loops and cycles between Steps that bypass the Initial Step are rejected.
 - Codes are normalized and must be unique where required.
 - Active/Superseded definitions are historical and are not edited directly.
 - A Draft referenced by Workflow Instances cannot be deleted.
