@@ -2,141 +2,194 @@
 
 Vue.js · ASP.NET Core · SQL Server
 
-## Live Demo
+Project1 follows a purchase from the first request to the final delivery. Users can
+review requests, compare supplier prices, issue purchase orders, and track stock.
+Each role has its own pages and actions. Workflow history records who took each
+action and when.
+
+## Try the project
 
 [Open Live Demo](https://shunbin2310.github.io/Project1/)
 
-## Availability
+The demo is available while the server is running. It is offline after midnight
+(Malaysia Time, UTC+8).
 
-Available while the server is running. Offline after midnight (Malaysia Time, UTC+8).
+To run it on your own computer, follow the [Local Docker Guide](docs/LOCAL_DOCKER.md).
+It covers first-time setup, database migrations, daily startup, rebuilding, and
+shutdown. Docker runs the website, API, SQL Server, and test email inbox together.
 
-## Run Locally with Docker
+The local database is separate from the live demo. Its data and workflow settings
+are not copied from the server.
 
-Use `compose.local.yml` to run Project1 on your computer when the Ubuntu demo server
-is unavailable. It runs the frontend, API, SQL Server, and Mailpit independently of
-Ubuntu. This is a local development/demo environment with its own
-`Project1DockerPracticeDb` database; it does not automatically copy or synchronize
-the Ubuntu server's data, or switch the public demo link to your computer.
+## Sign in
 
-### Requirements
+The login page lists demo accounts. For local Docker, enter the account email and
+your `DEMO_PASSWORD` from `.env.docker.local` manually. The **Use account** button
+may use a different password.
 
-- Docker Desktop running with **Linux containers** on an x64 Windows computer.
-- Docker Compose v2 with `--wait` support.
-- The repository checked out locally, and internet access for the first image build.
-- Run the commands below in **PowerShell at the repository root**.
-
-### First-time Setup
-
-Run each command separately and continue only after it succeeds. If you have already
-completed setup and have no pending database migrations, use **Daily Startup** below.
-
-**1. Create the local configuration, if it does not already exist.**
-
-```powershell
-if (-not (Test-Path -LiteralPath '.env.docker.local')) {
-    Copy-Item -LiteralPath '.env.docker.example' -Destination '.env.docker.local'
-}
-```
-
-Open `.env.docker.local` in your editor and fill in these values:
-
-| Variable | Value |
+| Account | What to do |
 | --- | --- |
-| `SQL_PASSWORD` | A new local SQL password with at least 16 characters, including uppercase, lowercase, a digit, and a symbol. Use only letters, digits, and `! @ # _ -` for this connection string. |
-| `DEMO_PASSWORD` | A local demo account password with at least 16 characters, including uppercase, lowercase, a digit, and a symbol. |
-| `JWT_SIGNING_KEY` | A random signing key with at least 64 characters. |
+| `admin@demo.local` | Set up templates, or try the whole process with one account. |
+| `procurement@demo.local` | Manage products and suppliers, compare quotations, and issue orders. |
+| `requester@demo.local` | Create and submit a purchase request. |
+| `finance@demo.local` | Approve or reject the request. |
+| `warehouse@demo.local` | Receive goods and check stock. |
 
-Keep this file private and retain its existing values on subsequent starts. Do not
-reuse production passwords or commit the file. Check the configuration without
-printing its secrets:
+Admin can perform all the steps. To see how work passes between people, sign out
+and switch to the account shown at each step.
 
-```powershell
-docker compose --env-file .env.docker.local -f compose.local.yml config --quiet
-```
+## Demo approval flow
 
-**2. Start SQL Server and wait until it is healthy.**
+This walkthrough follows the **Version 2 templates shown in the demo screenshots**:
 
-```powershell
-docker compose --env-file .env.docker.local -f compose.local.yml up -d --wait sqlserver
-```
-
-**3. Build the application and database migration tool.**
-
-```powershell
-docker compose --env-file .env.docker.local -f compose.local.yml --profile tools build api frontend migrate
-```
-
-**4. Apply the existing migrations to the local database.**
-
-```powershell
-docker compose --env-file .env.docker.local -f compose.local.yml --profile tools run --rm migrate
-```
-
-This creates or updates the local database schema. Wait for successful completion
-before continuing. The API in this Compose file does not automatically apply
-migrations, and a normal `up` does not run the `migrate` service.
-
-**5. Start the application and check its status.**
-
-```powershell
-docker compose --env-file .env.docker.local -f compose.local.yml up -d --wait
-```
-
-```powershell
-docker compose --env-file .env.docker.local -f compose.local.yml ps
-```
-
-Open [Project1](http://localhost:8081) and sign in with `admin@demo.local` and the
-`DEMO_PASSWORD` from your local configuration. Enter the password manually; the
-login page's **Use account** shortcut may use a different default password.
-
-| Service | Local address |
+| Record | Approval path |
 | --- | --- |
-| Project1 website | <http://localhost:8081> |
-| Captured test emails (Mailpit) | <http://localhost:8026> |
-| API OpenAPI document | <http://localhost:5166/openapi/v1.json> |
+| Purchase Request (PR) | Draft → Finance Review → Approved or Rejected |
+| Purchase Order (PO) | Draft → Approved when submitted |
 
-The published ports bind to `127.0.0.1`, so this setup is intended for access on
-the computer running Docker. Mailpit captures test emails locally instead of
-sending them to real recipients. After startup, verify login and opening a business
-page; healthy containers alone do not verify every application operation.
+Finance reviews the PR. Rejecting it requires a comment and ends that request.
+The PO goes straight to Approved when its creator submits it; this template has
+no separate PO approval step. The order must still be **issued** before goods
+can be received.
 
-### Daily Startup
+### Set up the same flow locally
 
-Start Docker Desktop, wait for its engine to be running, then execute:
+A new local database starts with the default templates: PR includes Department
+Review before Finance Review, and PO includes a separate Pending Approval step.
+To use the shorter flow above:
 
-```powershell
-docker compose --env-file .env.docker.local -f compose.local.yml up -d
-```
+1. Sign in as Admin and open **Workflow Templates**.
+2. Open the active `PURCHASE_REQUEST` template and check its steps. If they already
+   match the table below, keep it. Otherwise, click **New version**, then **Edit**
+   on the new draft.
+3. Change the Draft `SUBMIT` action to move to `FINANCE_REVIEW`, then remove the
+   `DEPARTMENT_REVIEW` step. Keep the Finance actions as shown below.
+4. Click **Save draft**, then **Publish** and confirm.
+5. Repeat for `PURCHASE_ORDER`: create a new version, edit Draft `SUBMIT` to move
+   to `APPROVED`, and remove `PENDING_APPROVAL`. Save and publish it.
 
-Open <http://localhost:8081>. Existing images and database data are reused; there
-is no need to rebuild when the code has not changed.
+Use these action settings:
 
-### Rebuild After Code Changes
+| Template | From | Action code | Moves to | Allowed actioner | Comment required |
+| --- | --- | --- | --- | --- | --- |
+| `PURCHASE_REQUEST` | `DRAFT` | `SUBMIT` | `FINANCE_REVIEW` | Requester | No |
+| `PURCHASE_REQUEST` | `FINANCE_REVIEW` | `APPROVE` | `APPROVED` | Role: `FINANCE_APPROVER` | No |
+| `PURCHASE_REQUEST` | `FINANCE_REVIEW` | `REJECT` | `REJECTED` | Role: `FINANCE_APPROVER` | Yes |
+| `PURCHASE_ORDER` | `DRAFT` | `SUBMIT` | `APPROVED` | Requester | No |
 
-For code changes that do not require database migrations:
+Keep Draft as the Initial step. Approved and Rejected are Terminal steps with no
+actions; the PO only needs Draft and Approved. Here, **Requester** means the user
+who created that record, including the Procurement Officer who creates the PO.
 
-```powershell
-docker compose --env-file .env.docker.local -f compose.local.yml up -d --build
-```
+Confirm both templates are Active and Published. Also open **Email Templates**
+and check that `PURCHASE_ORDER_ISSUED` has an Active version.
 
-This rebuilds the application images and starts or updates the containers. `build`
-on its own only builds images. If an update includes new EF migrations, stop the
-application using the command below, then repeat first-time setup steps 2–5 to
-build the current migration tool and apply the migrations before starting the API.
+Publish the templates **before creating your test PR or PO**. Each record keeps
+the workflow copied when it was created. Publishing a new template does not
+change existing records. The local version number may differ from the screenshots;
+check the steps rather than the number.
 
-### Shut Down
+## Walk through the whole process
 
-```powershell
-docker compose --env-file .env.docker.local -f compose.local.yml down
-```
+Use a new product name each time, such as `Demo Keyboard 01`, so you can find your
+records easily. This example buys 10 keyboards and receives them in two deliveries.
 
-This stops and removes the project containers and network. Images and named volumes
-remain, so the local database and captured emails are retained for the next startup.
-**Do not add `-v` unless you intend to delete those volumes and their data.**
+### 1. Set up the product and suppliers
 
-For more detailed local setup and troubleshooting, see
-[Project Notes](docs/PROJECT_NOTES.md). Docker command references:
-[up](https://docs.docker.com/reference/cli/docker/compose/up/),
-[run](https://docs.docker.com/reference/cli/docker/compose/run/), and
-[down](https://docs.docker.com/reference/cli/docker/compose/down/).
+Sign in as **Procurement Officer**.
+
+- Open **Products**, click **New product**, and create `Demo Keyboard 01` with a
+  default unit price of `120.00` and reorder level of `3`.
+- Open **Suppliers** and add `Demo Alpha` and `Demo Beta`, each with a valid test
+  email address. Reuse these suppliers if they already exist.
+- Open **Supplier Products** and create a relationship between each supplier and
+  the keyboard. These links make both suppliers eligible to quote for it.
+
+### 2. Create a purchase request
+
+Sign in as **Requester**. Open **Purchase Requests** → **New purchase request**.
+
+Choose a future required date, enter a business reason, and add the keyboard with
+quantity `10`. Its estimated price comes from the product. Click **Create and
+submit**.
+
+The request moves to **Finance Review**, with an estimated total of RM 1,200.00.
+
+### 3. Review the request
+
+Sign in as **Finance Approver**. Open **My Tasks**, find the request, and click
+**Details** → **Approve finance review**. Confirm the action.
+
+The request becomes **Approved** and can be used for supplier quotations.
+To try rejection, use a separate request and enter a reason when rejecting it.
+
+### 4. Record supplier quotations
+
+Sign in as **Procurement Officer**. Open **Supplier Quotations** → **New quotation**.
+
+Select the approved request and Demo Alpha. Enter a price of `115.00` per keyboard,
+today's quotation date, and a future validity date. Click **Save and submit**.
+Repeat for Demo Beta with a price of `108.00`.
+
+The totals are RM 1,150.00 for Alpha and RM 1,080.00 for Beta. These are example
+prices for this walkthrough.
+
+### 5. Compare and select a quotation
+
+On **Supplier Quotations**, click **Compare** for the request. Review both prices
+and validity dates, then click **Select winner** for Demo Beta and confirm.
+
+Beta becomes **Selected**. The user chooses the winner; the system does not
+automatically choose the lowest price.
+
+### 6. Create and submit a purchase order
+
+Stay as **Procurement Officer**. Open **Purchase Orders** → **New purchase order**.
+
+Select the winning Beta quotation. Enter the order date, a future delivery date,
+and a delivery address. Check the copied items: 10 keyboards at RM 108.00 each,
+for a total of RM 1,080.00. Click **Create and submit**.
+
+With the template above, the PO becomes **Approved** immediately. No separate
+Purchase Order Approver action is needed.
+
+### 7. Issue the order and check the email
+
+Find the approved PO, click **Issue**, and confirm. Its status becomes **Issued**.
+
+Open **Email Records** and find the PO number. Check the supplier email, message,
+and attached PO PDF. Email is sent in the background, so check whether the record
+changes from Pending to Sent or Failed.
+
+For local Docker, open [Mailpit](http://localhost:8026) to view the captured email
+and attachment. This local setup captures test emails instead of sending them to
+real recipients.
+
+### 8. Receive the goods
+
+Sign in as **Warehouse Officer**. Open **Goods Receiving** → **New goods receipt**.
+
+Select the issued PO, enter the delivery note and received date, and record
+quantity `6`. Click **Create draft**, then find the receipt and click **Post**.
+
+Stock increases by 6 and the PO becomes **Partially Received**. Create and post a
+second receipt for the remaining `4`. The PO becomes **Received**.
+
+Saving a draft does not change stock. Posting does. Received quantities must be
+whole numbers and cannot exceed the quantity still outstanding.
+
+### 9. Check stock and history
+
+Open **Inventory**, find the keyboard, and click **View history**.
+
+For this new product, stock should now be `10`, with two receipt entries:
+`+6` and `+4`. You can also open the PR and PO details to see their workflow
+history, including the actor, action, time, and comments.
+
+## More details
+
+- [Local Docker Guide](docs/LOCAL_DOCKER.md) — setup commands and local service addresses.
+- [UI Test Guide](docs/UI_TEST_GUIDE.md) — detailed checks using the default approval templates.
+- [Architecture](docs/ARCHITECTURE.md) — how the application is organised.
+- [Workflow Engine](docs/WORKFLOW_ENGINE.md) — how templates, versions, permissions, and history work.
+- [Project Notes](docs/PROJECT_NOTES.md) — development setup and troubleshooting.
