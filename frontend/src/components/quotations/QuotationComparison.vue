@@ -161,6 +161,7 @@ function formatDate(value: string | null) {
                   type="button"
                   :disabled="selectingQuotationId !== null"
                   @click="emit('select', quotation.quotationId)"
+                  :aria-busy="selectingQuotationId === quotation.quotationId"
                 >
                   {{
                     selectingQuotationId === quotation.quotationId

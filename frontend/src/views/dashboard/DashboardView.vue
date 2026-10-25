@@ -58,7 +58,13 @@ function formatDateTime(value: string) {
         <p class="dashboard-role-label">{{ roleDescription }}</p>
       </div>
 
-      <button class="button button-secondary" type="button" :disabled="loading" @click="loadDashboard">
+      <button
+        class="button button-secondary"
+        type="button"
+        :disabled="loading"
+        @click="loadDashboard"
+        :aria-busy="loading"
+      >
         {{ loading ? 'Refreshing...' : 'Refresh dashboard' }}
       </button>
     </header>
@@ -73,7 +79,15 @@ function formatDateTime(value: string) {
       <div class="empty-icon" aria-hidden="true">!</div>
       <strong>Dashboard could not be loaded</strong>
       <p>{{ loadError }}</p>
-      <button class="button button-secondary" type="button" @click="loadDashboard">Try again</button>
+      <button
+        class="button button-secondary"
+        type="button"
+        @click="loadDashboard"
+        :disabled="loading"
+        :aria-busy="loading"
+      >
+        Try again
+      </button>
     </section>
 
     <template v-else-if="dashboard">

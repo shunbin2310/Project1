@@ -18,6 +18,7 @@ const suppliers = ref<Supplier[]>([])
 const products = ref<Product[]>([])
 const loading = ref(true)
 const saving = ref(false)
+const busySupplierProductId = ref<number | null>(null)
 const search = ref('')
 const supplierFilter = ref('all')
 const productFilter = ref('all')
@@ -136,12 +137,14 @@ async function saveSupplierProduct(values: SupplierProductFormValues) {
 }
 
 async function deleteSupplierProduct(supplierProduct: SupplierProduct) {
+  if (busySupplierProductId.value !== null) return
   const confirmed = window.confirm(
     `Delete the relationship between ${supplierProduct.supplierCode} and ${supplierProduct.productCode}? The supplier and product records will remain.`,
   )
 
   if (!confirmed) return
 
+  busySupplierProductId.value = supplierProduct.id
   operationError.value = ''
 
   try {
@@ -152,6 +155,8 @@ async function deleteSupplierProduct(supplierProduct: SupplierProduct) {
     await loadData()
   } catch (error) {
     operationError.value = getErrorMessage(error, 'Unable to delete the relationship.')
+  } finally {
+    busySupplierProductId.value = null
   }
 }
 
@@ -274,7 +279,15 @@ function formatCurrency(value: number) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Supplier products could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadData">Try again</button>
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="loadData"
+          :disabled="loading"
+          :aria-busy="loading"
+        >
+          Try again
+        </button>
       </div>
 
       <div v-else-if="visibleSupplierProducts.length === 0" class="panel-state">
@@ -349,6 +362,8 @@ function formatCurrency(value: number) {
                     class="text-button text-button-danger"
                     type="button"
                     @click="deleteSupplierProduct(supplierProduct)"
+                    :disabled="busySupplierProductId !== null"
+                    :aria-busy="busySupplierProductId === supplierProduct.id"
                   >
                     Delete
                   </button>

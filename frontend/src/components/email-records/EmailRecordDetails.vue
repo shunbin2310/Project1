@@ -4,6 +4,7 @@ import type { EmailAttachment, EmailRecordDetails } from '@/types/emailRecord'
 defineProps<{
   emailRecord: EmailRecordDetails
   busy?: boolean
+  busyAction?: string
 }>()
 
 const emit = defineEmits<{
@@ -134,7 +135,10 @@ function formatFileSize(bytes: number) {
               <span class="email-attachment-icon" aria-hidden="true">PDF</span>
               <div>
                 <strong>{{ attachment.fileName }}</strong>
-                <span>{{ formatFileSize(attachment.fileSizeBytes) }} · {{ attachment.contentType }}</span>
+                <span
+                  >{{ formatFileSize(attachment.fileSizeBytes) }} ·
+                  {{ attachment.contentType }}</span
+                >
               </div>
               <div class="email-attachment-actions">
                 <button
@@ -142,6 +146,7 @@ function formatFileSize(bytes: number) {
                   type="button"
                   :disabled="busy"
                   @click="emit('viewAttachment', attachment)"
+                  :aria-busy="busy && busyAction === `viewAttachment:${attachment.id}`"
                 >
                   View PDF
                 </button>
@@ -150,6 +155,7 @@ function formatFileSize(bytes: number) {
                   type="button"
                   :disabled="busy"
                   @click="emit('downloadAttachment', attachment)"
+                  :aria-busy="busy && busyAction === `downloadAttachment:${attachment.id}`"
                 >
                   Download PDF
                 </button>
@@ -168,7 +174,12 @@ function formatFileSize(bytes: number) {
         </section>
 
         <footer class="modal-actions">
-          <button class="button button-secondary" type="button" :disabled="busy" @click="emit('close')">
+          <button
+            class="button button-secondary"
+            type="button"
+            :disabled="busy"
+            @click="emit('close')"
+          >
             Close
           </button>
           <button
@@ -177,6 +188,7 @@ function formatFileSize(bytes: number) {
             type="button"
             :disabled="busy"
             @click="emit('retry')"
+            :aria-busy="busy && busyAction === 'retryEmail'"
           >
             {{ busy ? 'Queuing...' : 'Retry email' }}
           </button>
@@ -186,6 +198,7 @@ function formatFileSize(bytes: number) {
             type="button"
             :disabled="busy"
             @click="emit('resend')"
+            :aria-busy="busy && busyAction === 'resendEmail'"
           >
             {{ busy ? 'Queuing...' : 'Resend email' }}
           </button>

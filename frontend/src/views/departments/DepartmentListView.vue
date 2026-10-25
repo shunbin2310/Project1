@@ -12,6 +12,7 @@ import type { Department, DepartmentFormValues } from '@/types/department'
 const departments = ref<Department[]>([])
 const loading = ref(true)
 const saving = ref(false)
+const busyDepartmentId = ref<number | null>(null)
 const search = ref('')
 const includeInactive = ref(false)
 const loadError = ref('')
@@ -109,12 +110,14 @@ async function saveDepartment(values: DepartmentFormValues) {
 }
 
 async function deactivateDepartment(department: Department) {
+  if (busyDepartmentId.value !== null) return
   const confirmed = window.confirm(
     `Deactivate ${department.code} — ${department.name}? The record will remain available in history.`,
   )
 
   if (!confirmed) return
 
+  busyDepartmentId.value = department.id
   operationError.value = ''
 
   try {
@@ -123,10 +126,14 @@ async function deactivateDepartment(department: Department) {
     await loadDepartments()
   } catch (error) {
     operationError.value = getErrorMessage(error, 'Unable to deactivate the department.')
+  } finally {
+    busyDepartmentId.value = null
   }
 }
 
 async function reactivateDepartment(department: Department) {
+  if (busyDepartmentId.value !== null) return
+  busyDepartmentId.value = department.id
   operationError.value = ''
 
   try {
@@ -139,6 +146,8 @@ async function reactivateDepartment(department: Department) {
     await loadDepartments()
   } catch (error) {
     operationError.value = getErrorMessage(error, 'Unable to reactivate the department.')
+  } finally {
+    busyDepartmentId.value = null
   }
 }
 
@@ -229,7 +238,13 @@ function formatDate(value: string | null) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Departments could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadDepartments">
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="loadDepartments"
+          :disabled="loading"
+          :aria-busy="loading"
+        >
           Try again
         </button>
       </div>
@@ -294,6 +309,8 @@ function formatDate(value: string | null) {
                     class="text-button text-button-danger"
                     type="button"
                     @click="deactivateDepartment(department)"
+                    :disabled="busyDepartmentId !== null"
+                    :aria-busy="busyDepartmentId === department.id"
                   >
                     Deactivate
                   </button>
@@ -302,6 +319,8 @@ function formatDate(value: string | null) {
                     class="text-button text-button-positive"
                     type="button"
                     @click="reactivateDepartment(department)"
+                    :disabled="busyDepartmentId !== null"
+                    :aria-busy="busyDepartmentId === department.id"
                   >
                     Reactivate
                   </button>

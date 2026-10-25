@@ -850,6 +850,49 @@ tbody tr:hover {
   animation: spin 0.75s linear infinite;
 }
 
+button[aria-busy='true']::before,
+.demo-account[aria-busy='true'] em::before,
+.primary-nav a[aria-busy='true'] .nav-icon::before {
+  content: '';
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.5em;
+  vertical-align: -0.15em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+button[aria-busy='true'] {
+  cursor: wait;
+}
+
+.demo-account[aria-busy='true']::before {
+  display: none;
+}
+
+.primary-nav a[aria-busy='true'] .nav-icon {
+  font-size: 0;
+}
+
+.primary-nav a[aria-busy='true'] .nav-icon::before {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  button[aria-busy='true']::before,
+  .demo-account[aria-busy='true'] em::before,
+  .primary-nav a[aria-busy='true'] .nav-icon::before {
+    animation: none;
+  }
+}
+
 .empty-icon {
   display: grid;
   width: 48px;

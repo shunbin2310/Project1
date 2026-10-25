@@ -166,6 +166,7 @@ async function loginAsDemo(email: string) {
             class="button button-primary login-submit"
             type="submit"
             :disabled="authStore.loggingIn"
+            :aria-busy="authStore.loggingIn && !selectedDemoEmail"
           >
             {{ authStore.loggingIn && !selectedDemoEmail ? 'Signing in...' : 'Sign in' }}
           </button>
@@ -185,6 +186,7 @@ async function loginAsDemo(email: string) {
               type="button"
               :disabled="authStore.loggingIn"
               @click="loginAsDemo(account.email)"
+              :aria-busy="authStore.loggingIn && selectedDemoEmail === account.email"
             >
               <span>{{ account.role.replace(/_.*/, '').slice(0, 2) }}</span>
               <div>

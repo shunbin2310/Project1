@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 
 import type { PurchaseOrder, PurchaseOrderFormValues } from '@/types/purchaseOrder'
 import type { Quotation } from '@/types/quotation'
@@ -15,6 +15,8 @@ const emit = defineEmits<{
   cancel: []
   save: [values: PurchaseOrderFormValues, submitAfterSave: boolean]
 }>()
+
+const submittingAfterSave = ref(false)
 
 const form = reactive<PurchaseOrderFormValues>({
   quotationId: 0,
@@ -97,7 +99,8 @@ function validate(submitAfterSave: boolean) {
 }
 
 function submitForm(submitAfterSave = false) {
-  if (!validate(submitAfterSave)) return
+  if (props.saving || !validate(submitAfterSave)) return
+  submittingAfterSave.value = submitAfterSave
 
   emit(
     'save',
@@ -299,7 +302,12 @@ function formatQuantity(value: number) {
           >
             Cancel
           </button>
-          <button class="button button-secondary" type="submit" :disabled="saving">
+          <button
+            class="button button-secondary"
+            type="submit"
+            :disabled="saving"
+            :aria-busy="saving && !submittingAfterSave"
+          >
             {{ saving ? 'Saving...' : purchaseOrder ? 'Save changes' : 'Create draft' }}
           </button>
           <button
@@ -307,6 +315,7 @@ function formatQuantity(value: number) {
             type="button"
             :disabled="saving"
             @click="submitForm(true)"
+            :aria-busy="saving && submittingAfterSave"
           >
             {{ saving ? 'Saving...' : purchaseOrder ? 'Save and submit' : 'Create and submit' }}
           </button>

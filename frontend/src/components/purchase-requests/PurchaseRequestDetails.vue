@@ -216,6 +216,7 @@ function formatQuantity(value: number) {
               type="button"
               :disabled="deleting"
               @click="emit('delete')"
+              :aria-busy="deleting"
             >
               {{ deleting ? 'Deleting...' : 'Delete draft' }}
             </button>

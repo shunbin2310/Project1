@@ -37,6 +37,7 @@ const supplierProducts = ref<SupplierProduct[]>([])
 const loading = ref(true)
 const saving = ref(false)
 const busyQuotationId = ref<number | null>(null)
+const busyAction = ref('')
 const selectingQuotationId = ref<number | null>(null)
 const search = ref('')
 const selectedStatus = ref<'' | QuotationStatus>('')
@@ -189,11 +190,13 @@ async function saveQuotation(values: QuotationFormValues, submitAfterSave: boole
 }
 
 async function submitQuotation(quotation: Quotation) {
+  if (busyQuotationId.value !== null) return
   const confirmed = window.confirm(
     `Submit ${quotation.quotationNumber}? Submitted quotations can no longer be edited.`,
   )
   if (!confirmed) return
 
+  busyAction.value = 'submitQuotation'
   busyQuotationId.value = quotation.id
   operationError.value = ''
   try {
@@ -208,11 +211,13 @@ async function submitQuotation(quotation: Quotation) {
 }
 
 async function deleteQuotation(quotation: Quotation) {
+  if (busyQuotationId.value !== null) return
   const confirmed = window.confirm(
     `Delete draft ${quotation.quotationNumber} from ${quotation.supplierName}?`,
   )
   if (!confirmed) return
 
+  busyAction.value = 'deleteQuotation'
   busyQuotationId.value = quotation.id
   operationError.value = ''
   try {
@@ -226,12 +231,17 @@ async function deleteQuotation(quotation: Quotation) {
   }
 }
 
-async function openComparison(purchaseRequestId: number) {
+async function openComparison(quotation: Quotation) {
+  if (busyQuotationId.value !== null) return
+  busyAction.value = 'openComparison'
+  busyQuotationId.value = quotation.id
   operationError.value = ''
   try {
-    comparison.value = await quotationService.getComparison(purchaseRequestId)
+    comparison.value = await quotationService.getComparison(quotation.purchaseRequestId)
   } catch (error) {
     operationError.value = getErrorMessage(error, 'Unable to load the quotation comparison.')
+  } finally {
+    busyQuotationId.value = null
   }
 }
 
@@ -380,7 +390,15 @@ function formatDate(value: string | null) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Supplier quotations could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadData">Try again</button>
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="loadData"
+          :disabled="loading"
+          :aria-busy="loading"
+        >
+          Try again
+        </button>
       </div>
 
       <div v-else-if="!visibleQuotations.length" class="panel-state">
@@ -452,7 +470,7 @@ function formatDate(value: string | null) {
                     v-if="canEditQuotation(quotation)"
                     class="text-button"
                     type="button"
-                    :disabled="busyQuotationId === quotation.id"
+                    :disabled="busyQuotationId !== null"
                     @click="openEditForm(quotation)"
                   >
                     Edit
@@ -461,8 +479,11 @@ function formatDate(value: string | null) {
                     v-if="canEditQuotation(quotation)"
                     class="text-button text-button-positive"
                     type="button"
-                    :disabled="busyQuotationId === quotation.id"
+                    :disabled="busyQuotationId !== null"
                     @click="submitQuotation(quotation)"
+                    :aria-busy="
+                      busyQuotationId === quotation.id && busyAction === 'submitQuotation'
+                    "
                   >
                     Submit
                   </button>
@@ -470,7 +491,9 @@ function formatDate(value: string | null) {
                     v-if="quotation.status !== 'Draft'"
                     class="text-button"
                     type="button"
-                    @click="openComparison(quotation.purchaseRequestId)"
+                    @click="openComparison(quotation)"
+                    :disabled="busyQuotationId !== null"
+                    :aria-busy="busyQuotationId === quotation.id && busyAction === 'openComparison'"
                   >
                     Compare
                   </button>
@@ -478,8 +501,11 @@ function formatDate(value: string | null) {
                     v-if="quotation.status === 'Draft'"
                     class="text-button text-button-danger"
                     type="button"
-                    :disabled="busyQuotationId === quotation.id"
+                    :disabled="busyQuotationId !== null"
                     @click="deleteQuotation(quotation)"
+                    :aria-busy="
+                      busyQuotationId === quotation.id && busyAction === 'deleteQuotation'
+                    "
                   >
                     Delete
                   </button>

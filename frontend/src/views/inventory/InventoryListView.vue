@@ -162,7 +162,13 @@ function formatDateTime(value: string | null) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Inventory could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadInventory">
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="loadInventory"
+          :disabled="loading"
+          :aria-busy="loading"
+        >
           Try again
         </button>
       </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 
 import { useAuthStore } from '@/stores/auth'
 import type { Product } from '@/types/product'
@@ -32,6 +32,8 @@ interface PurchaseRequestFormState {
   justification: string | null
   items: PurchaseRequestFormItem[]
 }
+
+const submittingAfterSave = ref(false)
 
 const form = reactive<PurchaseRequestFormState>({
   requiredDate: null,
@@ -146,7 +148,8 @@ function validate(submitAfterSave: boolean) {
 }
 
 function submitForm(submitAfterSave: boolean) {
-  if (!validate(submitAfterSave)) return
+  if (props.saving || !validate(submitAfterSave)) return
+  submittingAfterSave.value = submitAfterSave
 
   emit(
     'save',
@@ -317,7 +320,12 @@ function formatCurrency(value: number) {
           >
             Cancel
           </button>
-          <button class="button button-secondary" type="submit" :disabled="saving">
+          <button
+            class="button button-secondary"
+            type="submit"
+            :disabled="saving"
+            :aria-busy="saving && !submittingAfterSave"
+          >
             {{ saving ? 'Saving...' : isEditing ? 'Save draft changes' : 'Create draft' }}
           </button>
           <button
@@ -325,6 +333,7 @@ function formatCurrency(value: number) {
             type="button"
             :disabled="saving"
             @click="submitForm(true)"
+            :aria-busy="saving && submittingAfterSave"
           >
             {{ saving ? 'Processing...' : isEditing ? 'Save and submit' : 'Create and submit' }}
           </button>

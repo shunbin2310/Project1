@@ -225,7 +225,12 @@ function submit() {
           >
             Cancel
           </button>
-          <button class="button button-primary" type="submit" :disabled="saving">
+          <button
+            class="button button-primary"
+            type="submit"
+            :disabled="saving"
+            :aria-busy="saving"
+          >
             {{ saving ? 'Saving…' : isEditing ? 'Save changes' : 'Create user' }}
           </button>
         </footer>

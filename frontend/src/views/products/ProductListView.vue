@@ -12,6 +12,7 @@ import type { Product, ProductFormValues } from '@/types/product'
 const products = ref<Product[]>([])
 const loading = ref(true)
 const saving = ref(false)
+const busyProductId = ref<number | null>(null)
 const search = ref('')
 const includeInactive = ref(false)
 const loadError = ref('')
@@ -110,11 +111,13 @@ async function saveProduct(values: ProductFormValues) {
 }
 
 async function deactivateProduct(product: Product) {
+  if (busyProductId.value !== null) return
   const confirmed = window.confirm(
     `Deactivate ${product.code} - ${product.name}? The record will remain available in history.`,
   )
 
   if (!confirmed) return
+  busyProductId.value = product.id
   operationError.value = ''
 
   try {
@@ -123,10 +126,14 @@ async function deactivateProduct(product: Product) {
     await loadProducts()
   } catch (error) {
     operationError.value = getErrorMessage(error, 'Unable to deactivate the product.')
+  } finally {
+    busyProductId.value = null
   }
 }
 
 async function reactivateProduct(product: Product) {
+  if (busyProductId.value !== null) return
+  busyProductId.value = product.id
   operationError.value = ''
 
   try {
@@ -142,6 +149,8 @@ async function reactivateProduct(product: Product) {
     await loadProducts()
   } catch (error) {
     operationError.value = getErrorMessage(error, 'Unable to reactivate the product.')
+  } finally {
+    busyProductId.value = null
   }
 }
 
@@ -233,7 +242,13 @@ function formatQuantity(value: number) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Products could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadProducts">
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="loadProducts"
+          :disabled="loading"
+          :aria-busy="loading"
+        >
           Try again
         </button>
       </div>
@@ -295,6 +310,8 @@ function formatQuantity(value: number) {
                     class="text-button text-button-danger"
                     type="button"
                     @click="deactivateProduct(product)"
+                    :disabled="busyProductId !== null"
+                    :aria-busy="busyProductId === product.id"
                   >
                     Deactivate
                   </button>
@@ -303,6 +320,8 @@ function formatQuantity(value: number) {
                     class="text-button text-button-positive"
                     type="button"
                     @click="reactivateProduct(product)"
+                    :disabled="busyProductId !== null"
+                    :aria-busy="busyProductId === product.id"
                   >
                     Reactivate
                   </button>

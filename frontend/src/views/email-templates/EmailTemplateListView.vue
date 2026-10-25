@@ -24,6 +24,7 @@ const loading = ref(true)
 const saving = ref(false)
 const previewing = ref(false)
 const busyTemplateId = ref<number | null>(null)
+const busyAction = ref('')
 const search = ref('')
 const statusFilter = ref<StatusFilter>('All')
 const loadError = ref('')
@@ -79,9 +80,11 @@ async function reloadTemplates() {
 }
 
 async function editTemplate(template: EmailTemplateSummary) {
+  if (busyTemplateId.value !== null) return
   if (template.status !== 'Draft') return
   operationError.value = ''
   formError.value = ''
+  busyAction.value = 'editTemplate'
   busyTemplateId.value = template.id
   try {
     editingTemplate.value = await emailTemplateService.getById(template.id)
@@ -93,12 +96,14 @@ async function editTemplate(template: EmailTemplateSummary) {
 }
 
 async function createVersion(template: EmailTemplateSummary) {
+  if (busyTemplateId.value !== null) return
   const confirmed = window.confirm(
     `Create a new draft from ${template.code} version ${template.version}?`,
   )
   if (!confirmed) return
 
   operationError.value = ''
+  busyAction.value = 'createVersion'
   busyTemplateId.value = template.id
   try {
     const draft = await emailTemplateService.createVersion(template.id)
@@ -143,7 +148,9 @@ async function showEditorPreview(values: PreviewEmailTemplateRequest) {
 }
 
 async function viewTemplate(template: EmailTemplateSummary) {
+  if (busyTemplateId.value !== null) return
   operationError.value = ''
+  busyAction.value = 'viewTemplate'
   busyTemplateId.value = template.id
   try {
     const details = await emailTemplateService.getById(template.id)
@@ -162,12 +169,14 @@ async function viewTemplate(template: EmailTemplateSummary) {
 }
 
 async function publishTemplate(template: EmailTemplateSummary) {
+  if (busyTemplateId.value !== null) return
   const confirmed = window.confirm(
     `Publish ${template.code} version ${template.version}? The current active version will become superseded.`,
   )
   if (!confirmed) return
 
   operationError.value = ''
+  busyAction.value = 'publishTemplate'
   busyTemplateId.value = template.id
   try {
     await emailTemplateService.publish(template.id)
@@ -181,12 +190,14 @@ async function publishTemplate(template: EmailTemplateSummary) {
 }
 
 async function deleteTemplate(template: EmailTemplateSummary) {
+  if (busyTemplateId.value !== null) return
   const confirmed = window.confirm(
     `Delete draft ${template.code} version ${template.version}? This cannot be undone.`,
   )
   if (!confirmed) return
 
   operationError.value = ''
+  busyAction.value = 'deleteTemplate'
   busyTemplateId.value = template.id
   try {
     await emailTemplateService.delete(template.id)
@@ -291,7 +302,13 @@ function getErrorMessage(error: unknown, fallback: string) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Email templates could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadTemplates">
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="loadTemplates"
+          :disabled="loading"
+          :aria-busy="loading"
+        >
           Try again
         </button>
       </div>
@@ -340,8 +357,9 @@ function getErrorMessage(error: unknown, fallback: string) {
                   <button
                     class="text-button"
                     type="button"
-                    :disabled="busyTemplateId === template.id"
+                    :disabled="busyTemplateId !== null"
                     @click="viewTemplate(template)"
+                    :aria-busy="busyTemplateId === template.id && busyAction === 'viewTemplate'"
                   >
                     Preview
                   </button>
@@ -349,8 +367,9 @@ function getErrorMessage(error: unknown, fallback: string) {
                     v-if="template.status === 'Draft'"
                     class="text-button"
                     type="button"
-                    :disabled="busyTemplateId === template.id"
+                    :disabled="busyTemplateId !== null"
                     @click="editTemplate(template)"
+                    :aria-busy="busyTemplateId === template.id && busyAction === 'editTemplate'"
                   >
                     Edit
                   </button>
@@ -358,8 +377,9 @@ function getErrorMessage(error: unknown, fallback: string) {
                     v-if="template.status === 'Active'"
                     class="text-button"
                     type="button"
-                    :disabled="busyTemplateId === template.id"
+                    :disabled="busyTemplateId !== null"
                     @click="createVersion(template)"
+                    :aria-busy="busyTemplateId === template.id && busyAction === 'createVersion'"
                   >
                     New version
                   </button>
@@ -367,8 +387,9 @@ function getErrorMessage(error: unknown, fallback: string) {
                     v-if="template.status === 'Draft'"
                     class="text-button text-button-positive"
                     type="button"
-                    :disabled="busyTemplateId === template.id"
+                    :disabled="busyTemplateId !== null"
                     @click="publishTemplate(template)"
+                    :aria-busy="busyTemplateId === template.id && busyAction === 'publishTemplate'"
                   >
                     Publish
                   </button>
@@ -376,8 +397,9 @@ function getErrorMessage(error: unknown, fallback: string) {
                     v-if="template.status === 'Draft'"
                     class="text-button text-button-danger"
                     type="button"
-                    :disabled="busyTemplateId === template.id"
+                    :disabled="busyTemplateId !== null"
                     @click="deleteTemplate(template)"
+                    :aria-busy="busyTemplateId === template.id && busyAction === 'deleteTemplate'"
                   >
                     Delete
                   </button>

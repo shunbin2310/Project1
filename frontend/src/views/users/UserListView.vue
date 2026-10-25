@@ -23,6 +23,7 @@ const departments = ref<Department[]>([])
 const availableRoles = ref<ApplicationRole[]>([])
 const loading = ref(true)
 const saving = ref(false)
+const busyUserId = ref<number | null>(null)
 const search = ref('')
 const statusFilter = ref<StatusFilter>('all')
 const loadError = ref('')
@@ -145,6 +146,7 @@ async function saveUser(values: UserFormValues) {
 }
 
 async function changeUserStatus(user: User) {
+  if (busyUserId.value !== null) return
   if (user.id === currentUserId.value && user.isActive) return
 
   const action = user.isActive ? 'Deactivate' : 'Reactivate'
@@ -157,6 +159,7 @@ async function changeUserStatus(user: User) {
   )
   if (!confirmed) return
 
+  busyUserId.value = user.id
   operationError.value = ''
   try {
     await userService.setActive(user.id, !user.isActive)
@@ -164,6 +167,8 @@ async function changeUserStatus(user: User) {
     await loadUsers()
   } catch (error) {
     operationError.value = getErrorMessage(error, `Unable to ${action.toLowerCase()} the user.`)
+  } finally {
+    busyUserId.value = null
   }
 }
 
@@ -281,7 +286,15 @@ function formatDate(value: string) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Users could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadPage">Try again</button>
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="loadPage"
+          :disabled="loading"
+          :aria-busy="loading"
+        >
+          Try again
+        </button>
       </div>
 
       <div v-else-if="visibleUsers.length === 0" class="panel-state">
@@ -344,13 +357,14 @@ function formatDate(value: string) {
                     v-if="user.isActive"
                     class="text-button text-button-danger"
                     type="button"
-                    :disabled="user.id === currentUserId"
+                    :disabled="user.id === currentUserId || busyUserId !== null"
                     :title="
                       user.id === currentUserId
                         ? 'You cannot deactivate your own account.'
                         : undefined
                     "
                     @click="changeUserStatus(user)"
+                    :aria-busy="busyUserId === user.id"
                   >
                     Deactivate
                   </button>
@@ -359,6 +373,8 @@ function formatDate(value: string) {
                     class="text-button text-button-positive"
                     type="button"
                     @click="changeUserStatus(user)"
+                    :disabled="busyUserId !== null"
+                    :aria-busy="busyUserId === user.id"
                   >
                     Reactivate
                   </button>

@@ -49,6 +49,7 @@ const selectedQuotations = ref<Quotation[]>([])
 const loading = ref(true)
 const saving = ref(false)
 const busyPurchaseOrderId = ref<number | null>(null)
+const busyAction = ref('')
 const cancelling = ref(false)
 const search = ref('')
 const selectedStatus = ref<'' | PurchaseOrderStatus>('')
@@ -216,6 +217,8 @@ async function savePurchaseOrder(values: PurchaseOrderFormValues, submitAfterSav
 }
 
 async function submitPurchaseOrder(order: PurchaseOrder) {
+  if (busyPurchaseOrderId.value !== null) return
+  busyAction.value = 'submitPurchaseOrder'
   busyPurchaseOrderId.value = order.id
   operationError.value = ''
   try {
@@ -264,11 +267,13 @@ async function executeWorkflowAction(comment: string | null) {
 }
 
 async function issuePurchaseOrder(order: PurchaseOrder) {
+  if (busyPurchaseOrderId.value !== null) return
   const confirmed = window.confirm(
     `Issue ${order.purchaseOrderNumber} to ${order.supplierName}? The order can no longer be edited or deleted.`,
   )
   if (!confirmed) return
 
+  busyAction.value = 'issuePurchaseOrder'
   busyPurchaseOrderId.value = order.id
   operationError.value = ''
   try {
@@ -312,11 +317,13 @@ async function cancelPurchaseOrder(reason: string) {
 }
 
 async function deletePurchaseOrder(order: PurchaseOrder) {
+  if (busyPurchaseOrderId.value !== null) return
   const confirmed = window.confirm(
     `Delete draft ${order.purchaseOrderNumber}? This action cannot be undone.`,
   )
   if (!confirmed) return
 
+  busyAction.value = 'deletePurchaseOrder'
   busyPurchaseOrderId.value = order.id
   operationError.value = ''
   try {
@@ -442,7 +449,15 @@ function statusLabel(status: PurchaseOrderStatus) {
       <div v-else-if="loadError" class="panel-state panel-state-error">
         <strong>Purchase orders could not be loaded</strong>
         <p>{{ loadError }}</p>
-        <button class="button button-secondary" type="button" @click="loadData">Try again</button>
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="loadData"
+          :disabled="loading"
+          :aria-busy="loading"
+        >
+          Try again
+        </button>
       </div>
 
       <div v-else-if="!visiblePurchaseOrders.length" class="panel-state">
@@ -514,7 +529,7 @@ function statusLabel(status: PurchaseOrderStatus) {
                     v-if="canManagePurchaseOrders && order.status === 'Draft'"
                     class="text-button"
                     type="button"
-                    :disabled="busyPurchaseOrderId === order.id"
+                    :disabled="busyPurchaseOrderId !== null"
                     @click="openEditForm(order)"
                   >
                     Edit
@@ -523,8 +538,11 @@ function statusLabel(status: PurchaseOrderStatus) {
                     v-if="canSubmitPurchaseOrder(order)"
                     class="text-button text-button-positive"
                     type="button"
-                    :disabled="busyPurchaseOrderId === order.id"
+                    :disabled="busyPurchaseOrderId !== null"
                     @click="submitPurchaseOrder(order)"
+                    :aria-busy="
+                      busyPurchaseOrderId === order.id && busyAction === 'submitPurchaseOrder'
+                    "
                   >
                     Submit
                   </button>
@@ -532,8 +550,11 @@ function statusLabel(status: PurchaseOrderStatus) {
                     v-if="canManagePurchaseOrders && order.status === 'Approved'"
                     class="text-button text-button-positive"
                     type="button"
-                    :disabled="busyPurchaseOrderId === order.id"
+                    :disabled="busyPurchaseOrderId !== null"
                     @click="issuePurchaseOrder(order)"
+                    :aria-busy="
+                      busyPurchaseOrderId === order.id && busyAction === 'issuePurchaseOrder'
+                    "
                   >
                     Issue
                   </button>
@@ -552,8 +573,11 @@ function statusLabel(status: PurchaseOrderStatus) {
                     v-if="canManagePurchaseOrders && order.status === 'Draft'"
                     class="text-button text-button-danger"
                     type="button"
-                    :disabled="busyPurchaseOrderId === order.id"
+                    :disabled="busyPurchaseOrderId !== null"
                     @click="deletePurchaseOrder(order)"
+                    :aria-busy="
+                      busyPurchaseOrderId === order.id && busyAction === 'deletePurchaseOrder'
+                    "
                   >
                     Delete
                   </button>
