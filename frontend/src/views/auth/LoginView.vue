@@ -102,7 +102,7 @@ async function loginAsDemo(email: string) {
       <div class="auth-brand">
         <span class="brand-mark" aria-hidden="true">PI</span>
         <div>
-          <strong>Project1 Inventory</strong>
+          <strong>Project1 Inventory 123</strong>
           <small>Workflow-enabled operations workspace</small>
         </div>
       </div>
