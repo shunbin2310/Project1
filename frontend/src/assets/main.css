@@ -420,6 +420,10 @@ button:disabled {
   margin-bottom: 22px;
 }
 
+.supplier-product-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .summary-card {
   position: relative;
   min-height: 126px;
@@ -773,25 +777,6 @@ tbody tr:hover {
 
 .status-badge.is-inactive span {
   background: #909997;
-}
-
-.preference-badge {
-  display: inline-flex;
-  padding: 5px 8px;
-  font-size: var(--font-size-badge);
-  line-height: 1.4;
-  font-weight: 750;
-  border-radius: 999px;
-}
-
-.preference-badge.is-preferred {
-  color: #7b5a12;
-  background: #fff1cc;
-}
-
-.preference-badge.is-standard {
-  color: #6d7776;
-  background: #edf0ef;
 }
 
 .row-actions {

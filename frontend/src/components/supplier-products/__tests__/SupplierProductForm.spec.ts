@@ -98,15 +98,15 @@ describe('SupplierProductForm', () => {
 
     await wrapper.get('#relationship-supplier').setValue('1')
     await wrapper.get('#relationship-product').setValue('1')
-    await wrapper.findAll('input[type="checkbox"]')[0]!.setValue(true)
     await wrapper.get('form').trigger('submit')
 
     expect(wrapper.text().replace(/\s/g, '')).toContain('RM1,399.90')
+    expect(wrapper.text()).not.toContain('Preferred supplier')
+    expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false)
     expect(wrapper.emitted('save')?.[0]).toEqual([
       {
         supplierId: 1,
         productId: 1,
-        isPreferred: true,
         isActive: true,
       },
     ])
@@ -119,6 +119,9 @@ describe('SupplierProductForm', () => {
     expect(wrapper.find('#relationship-product').exists()).toBe(false)
     expect(wrapper.get('#relationship-supplier-readonly').attributes('readonly')).toBeDefined()
     expect(wrapper.get('#relationship-product-readonly').attributes('readonly')).toBeDefined()
+    expect(wrapper.text()).not.toContain('Preferred supplier')
+    expect(wrapper.findAll('input[type="checkbox"]')).toHaveLength(1)
+    expect(wrapper.text()).toContain('Active relationship')
   })
 
   it('shows an API error inside the form', () => {
